@@ -181,6 +181,16 @@ export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now(
       } catch {
         // a unit without a readable SKILL.md keeps an empty description
       }
+      // A package unit's manifest says what it will need before it is installed.
+      if (sk.state !== 'available') return
+      try {
+        const m = JSON.parse(await files.read(`${sk.dir}/manifest.json`)) as NonNullable<SkillRow['manifest']>
+        sk.slots = Object.entries(m.requires?.credentials ?? {}).map(([name, need]) => ({ name, required: need === 'required', credential: null }))
+        sk.inputs = Object.entries(m.watch?.inputs ?? {}).map(([name, i]) => ({ name, prompt: i.prompt ?? name, required: i.required ?? false }))
+        sk.usage = m.usage ?? null
+      } catch {
+        // no manifest, no promises
+      }
     }))
   const jobs = jobRows.map((j) => jobView(j, ticketRows, now, skills))
   const attention = attentionItems({ doctor, due, jobsLs, jobs, skills, skillsDoctor, search, conflicts: conflicts?.pages ?? [], ticketRows })
@@ -201,7 +211,7 @@ export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now(
     credentials,
     curation: pageRows.filter((p) => p.status === 'draft').map(curationItem),
     unadopted: tellsChange ? pageRows.filter((p) => p.change === 'new' && p.path.startsWith('sources/')).map(curationItem) : null,
-    recent: (ops?.runs ?? []).map(recentRun),
+    recent: (ops?.runs ?? []).map((r) => recentRun(r, jobRows)),
     errors,
   }
 }
@@ -429,6 +439,8 @@ function curationItem(p: PageRow): CurationItem {
   return { path: p.path, title: base.replace(/\.md$/, ''), job: p.path.split('/').slice(1, -1).join('/') || undefined }
 }
 
-function recentRun(r: NonNullable<OpSinceAnswer['runs']>[number]): RecentRun {
-  return { op: r.op, outcome: r.outcome, at: r.when, summary: r.summary === `${r.op} ${r.outcome}` ? '' : r.summary }
+function recentRun(r: NonNullable<OpSinceAnswer['runs']>[number], jobs: JobRow[]): RecentRun {
+  const words = new Set(`${r.op} ${r.summary}`.split(/[\s:,;()]+/))
+  const job = jobs.find((j) => words.has(j.slug))
+  return { op: r.op, ...(job ? { job: job.slug } : {}), outcome: r.outcome, at: r.when, summary: r.summary === `${r.op} ${r.outcome}` ? '' : r.summary }
 }

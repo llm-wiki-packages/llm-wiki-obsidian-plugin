@@ -13,10 +13,8 @@ export function mapMessage(m: SDKMessage): MappedTurn {
   let sessionId: string | undefined
   switch (m.type) {
     case 'system':
-      if (m.subtype === 'init') {
-        sessionId = m.session_id
-        events.push({ type: 'status', text: `claude ${m.claude_code_version} · ${m.model} · ${m.permissionMode}` })
-      }
+      // The session's model and mode are not news; the first answer is.
+      if (m.subtype === 'init') sessionId = m.session_id
       break
     case 'stream_event': {
       // Text arrives here as it is generated; a subagent's text is its own.
@@ -39,7 +37,7 @@ export function mapMessage(m: SDKMessage): MappedTurn {
     case 'result':
       sessionId = m.session_id
       if (m.subtype === 'success')
-        events.push({ type: 'result', ok: !m.is_error, detail: `${(m.duration_ms / 1000).toFixed(1)}s · $${m.total_cost_usd.toFixed(4)} · ${m.num_turns} turns` })
+        events.push({ type: 'result', ok: !m.is_error, detail: `${(m.duration_ms / 1000).toFixed(1)}s` })
       else
         events.push({ type: 'result', ok: false, text: m.errors.join('\n') || m.subtype, detail: m.subtype })
       break

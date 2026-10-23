@@ -2,6 +2,7 @@ import { button, empty, pill, relativeTime, section } from '../../ui/dom'
 import { confirm } from '../../ui/modals'
 import type { Action, CredentialView, SkillView } from '../../wiki/model'
 import { unboundSlot } from '../../wiki/snapshot'
+import { slotWords } from '../../ui/slots'
 import type { TabContext } from './index'
 
 /** The units the wiki holds and this machine loads, which Obsidian itself hides; then the credentials they spend. */
@@ -20,13 +21,18 @@ export function renderSkills(root: HTMLElement, ctx: TabContext): void {
     for (const s of installed) skillRow(held, s, ctx)
   }
 
+  renderCredentials(root, ctx)
+
   if (available.length) {
     const more = section(root, 'Available from the package', { count: available.length })
     more.createDiv({ cls: 'llm-wiki-muted', text: 'Not in this wiki yet. Add one and the agent installs and enables it.' })
     for (const s of available) skillRow(more, s, ctx)
   }
+}
 
-  renderCredentials(root, ctx)
+/** The chat opener for a source that this skill should follow; the add skill asks the rest. */
+export function addWith(s: SkillView): string {
+  return `/llm-wiki:add a new source using the ${s.name} skill${s.inputs.length ? ` (it will need: ${s.inputs.map((i) => i.name).join(', ')})` : ''}: `
 }
 
 /** What a click on the skill's own button should do: fix its credential, run its one job, or hand its command to chat. */
@@ -54,16 +60,21 @@ export function runSkillAction(a: NonNullable<ReturnType<typeof skillAction>>['a
 
 function skillRow(parent: HTMLElement, s: SkillView, ctx: TabContext): void {
   const row = parent.createDiv({ cls: 'llm-wiki-row is-link' })
+  row.tabIndex = 0
   row.addEventListener('click', () => void ctx.act({ kind: 'inspect', skill: s.name }))
+  row.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') void ctx.act({ kind: 'inspect', skill: s.name })
+  })
   const main = row.createDiv({ cls: 'llm-wiki-row-main' })
   const title = main.createDiv({ cls: 'llm-wiki-row-title' })
   title.createSpan({ text: s.name })
   if (s.venue) title.createSpan({ cls: 'llm-wiki-muted', text: ` · ${s.venue}` })
   const p = problem(s)
   if (p) pill(title, p.text, p.tone)
+  const needs = s.state === 'available' && s.slots.length ? ` Needs ${s.slots.map((x) => slotWords(x.name).what).join(' and ')}.` : ''
   const detail = s.state === 'enabled'
     ? (s.jobs.length ? `${s.jobs.length === 1 ? 'Job' : 'Jobs'}: ${s.jobs.join(', ')}` : 'No job uses it yet.')
-    : s.description || (s.state === 'installed' ? 'Enable it here to run its jobs on this machine.' : '')
+    : (s.description || (s.state === 'installed' ? 'Enable it here to run its jobs on this machine.' : '')) + needs
   if (detail) main.createDiv({ cls: 'llm-wiki-row-detail', text: detail })
   const bar = row.createDiv({ cls: 'llm-wiki-row-actions' })
   const a = skillAction(s)

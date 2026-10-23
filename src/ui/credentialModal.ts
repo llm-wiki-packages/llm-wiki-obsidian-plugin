@@ -1,6 +1,7 @@
 import { Modal, Setting, type App } from 'obsidian'
 import type { Actions, Outcome } from '../wiki/actions'
 import type { SkillView, Snapshot } from '../wiki/model'
+import { slotWords } from './slots'
 
 export interface CredentialPrompt {
   /** Replace: the name is fixed and only the value changes. */
@@ -9,26 +10,22 @@ export interface CredentialPrompt {
   /** Set for a slot: the skill and its jobs are offered as bindings. */
   skill?: string
   slot?: string
-  /** A parked ticket to retry once the credential is saved. */
+  /** A parked ticket to retry once the credential is saved, and the job it belongs to, so the pass runs too. */
   retry?: string
-}
-
-/** What a slot key means to a person, and which kind fills it. */
-const SLOT: Record<string, { what: string; kind: 'value' | 'dir'; suffix: string }> = {
-  file: { what: 'a token or key', kind: 'value', suffix: 'token' },
-  dir: { what: 'a folder on this machine, such as a signed-in browser profile', kind: 'dir', suffix: 'profile' },
+  job?: string
 }
 
 const NAME = /^[a-z0-9][a-z0-9_.-]{0,63}$/
 
-/** Save a secret or a folder for this wiki on this machine, and bind it where it is needed, in one dialog. */
+/** Save a secret or a folder for this wiki on this machine, bind it where it is needed, and get the job going, in one dialog. */
 export function openCredentialModal(app: App, snapshot: Snapshot, actions: Actions, prompt: CredentialPrompt, after: (out: Outcome) => Promise<void>): void {
   const unit: SkillView | undefined = prompt.skill ? snapshot.skills.find((s) => s.name === prompt.skill) : undefined
   const replacing = Boolean(prompt.name)
-  const slotKey = prompt.slot ?? ''
-  const known = SLOT[slotKey] ?? (slotKey.startsWith('env.') ? { what: `the ${slotKey.slice(4)} variable`, kind: 'value' as const, suffix: slotKey.slice(4).toLowerCase() } : undefined)
-  let name = prompt.name ?? (unit && prompt.slot ? `${unit.name}-${known?.suffix ?? prompt.slot}` : '')
-  let kind: 'value' | 'dir' = prompt.kind ?? known?.kind ?? 'value'
+  const words = prompt.slot ? slotWords(prompt.slot) : undefined
+  const existing = prompt.name ? snapshot.credentials.find((c) => c.name === prompt.name) : undefined
+  const stale = existing?.uses.find((u) => u.problem)?.problem ?? (existing?.state === 'failed' ? 'failed' : undefined)
+  let name = prompt.name ?? (unit && words ? `${unit.name}-${words.suffix}` : '')
+  let kind: 'value' | 'dir' = prompt.kind ?? words?.kind ?? 'value'
   let secret = ''
   let dir = ''
   const binds: { skill?: string; job?: string; slot: string; on: boolean; label: string }[] = []
@@ -36,18 +33,25 @@ export function openCredentialModal(app: App, snapshot: Snapshot, actions: Actio
     binds.push({ skill: unit.name, slot: prompt.slot, on: true, label: unit.jobs.length > 1 ? `${unit.name} (every job of it)` : unit.name })
     if (unit.jobs.length > 1) for (const j of unit.jobs) binds.push({ job: j, slot: prompt.slot, on: false, label: `${j} only` })
   }
+  // What happens after the save: a stopped ticket is retried and run, a due job is run.
+  const job = prompt.job ?? (unit?.jobs.length === 1 ? unit.jobs[0] : undefined)
+  const jobView = job ? snapshot.jobs.find((j) => j.slug === job) : undefined
+  const then: 'retry' | 'run' | null = prompt.retry && job ? 'retry' : job && jobView && !jobView.running && !jobView.paused ? 'run' : null
 
   const modal = new (class extends Modal {
     private error!: HTMLElement
     private valueRow!: HTMLElement
+    private nameHint!: HTMLElement
 
     onOpen(): void {
       this.setTitle(replacing ? `Replace ${name}` : unit ? `Credential for ${unit.name}` : 'Add a credential')
       const c = this.contentEl
-      c.createEl('p', { cls: 'llm-wiki-muted', text: unit && prompt.slot ? `${unit.name} needs ${known?.what ?? `a credential (${prompt.slot})`} on this machine. It is stored by the CLI and never shown again.` : 'Stored on this machine for this wiki. The value is never shown again.' })
-      if (!replacing)
-        new Setting(c).setName('Name').setDesc('Letters, digits, dots, dashes.').addText((t) => t.setValue(name).setPlaceholder('gmail-token').onChange((v) => (name = v.trim())))
-      if (!replacing && !known)
+      c.createEl('p', { cls: 'llm-wiki-muted', text: this.sentence() })
+      if (!replacing) {
+        const s = new Setting(c).setName('Name').addText((t) => t.setValue(name).setPlaceholder('gmail-token').onChange((v) => (name = v.trim())))
+        this.nameHint = s.descEl
+      }
+      if (!replacing && !words)
         new Setting(c).setName('Kind').addDropdown((d) => d.addOptions({ value: 'Secret value', dir: 'Folder on this machine' }).setValue(kind).onChange((v) => {
           kind = v === 'dir' ? 'dir' : 'value'
           this.showValue()
@@ -67,9 +71,22 @@ export function openCredentialModal(app: App, snapshot: Snapshot, actions: Actio
         }
       }
       this.error = c.createDiv({ cls: 'llm-wiki-error' })
+      const cta = then === 'retry' ? 'Save and retry' : then === 'run' ? 'Save and run' : binds.some((x) => x.on) ? 'Save and bind' : 'Save'
       new Setting(c)
         .addButton((b) => b.setButtonText('Cancel').onClick(() => this.close()))
-        .addButton((b) => b.setButtonText(prompt.retry ? 'Save and retry' : binds.some((x) => x.on) ? 'Save and bind' : 'Save').setCta().onClick(() => void this.save(b)))
+        .addButton((b) => b.setButtonText(cta).setCta().onClick(() => void this.save(b)))
+    }
+
+    /** One sentence: what is needed, why, and what the save does next. */
+    private sentence(): string {
+      const parts: string[] = []
+      if (replacing && kind === 'dir') parts.push(`${name} is a folder, such as a browser profile or cookie jar${stale ? `, and it is ${stale}` : ''}. Sign in again inside that profile and save, or point at a fresh folder.`)
+      else if (replacing) parts.push(`${name}${stale ? ` is ${stale}` : ''}. Paste the new value; the old one is replaced.`)
+      else if (unit && words) parts.push(`${unit.name} needs ${words.what} on this machine. It is stored by the CLI and never shown again.`)
+      else parts.push('Stored on this machine for this wiki. The value is never shown again.')
+      if (then === 'retry') parts.push(`The stopped ${jobView?.name ?? job ?? 'job'} run is retried right away.`)
+      else if (then === 'run') parts.push(`${jobView?.name ?? job} runs right away.`)
+      return parts.join(' ')
     }
 
     private showValue(): void {
@@ -78,16 +95,19 @@ export function openCredentialModal(app: App, snapshot: Snapshot, actions: Actio
         const s = new Setting(this.valueRow).setName('Secret').setDesc('Pasted here, piped to the CLI, never on a command line.')
         const field = s.controlEl.createEl('input', { type: 'password', cls: 'llm-wiki-prompt-field', placeholder: 'paste the token or key' })
         field.addEventListener('input', () => (secret = field.value))
+        field.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') void this.save()
+        })
         window.setTimeout(() => field.focus(), 0)
       } else {
-        new Setting(this.valueRow).setName('Folder').setDesc('An absolute path; empty to let the CLI create one. A browser profile, a cookie jar, a config directory.').addText((t) => t.setPlaceholder('/Users/you/Library/…').onChange((v) => (dir = v.trim())))
+        new Setting(this.valueRow).setName('Folder').setDesc(replacing ? 'Leave empty to keep the same folder after signing in again.' : 'An absolute path; empty to let the CLI create one.').addText((t) => t.setPlaceholder('/Users/you/Library/…').onChange((v) => (dir = v.trim())))
       }
     }
 
-    private async save(b: { setDisabled(d: boolean): unknown }): Promise<void> {
+    private async save(b?: { setDisabled(d: boolean): unknown }): Promise<void> {
       this.error.setText('')
       if (!NAME.test(name)) {
-        this.error.setText('The name is letters, digits, dots and dashes, starting with a letter or digit.')
+        this.nameHint?.setText('Letters, digits, dots and dashes, starting with a letter or digit.')
         return
       }
       if (kind === 'value' && !secret) {
@@ -98,17 +118,20 @@ export function openCredentialModal(app: App, snapshot: Snapshot, actions: Actio
         this.error.setText('A folder is an absolute path.')
         return
       }
-      b.setDisabled(true)
-      let out = await actions.setCredential(name, kind === 'value' ? { kind, secret } : { kind, dir }, binds.filter((x) => x.on).map(({ skill, job, slot }) => ({ ...(skill ? { skill } : {}), ...(job ? { job } : {}), slot })))
+      b?.setDisabled(true)
+      let out = await actions.setCredential(name, kind === 'value' ? { kind, secret } : { kind, dir }, binds.filter((x) => x.on).map(({ skill, job: j, slot }) => ({ ...(skill ? { skill } : {}), ...(j ? { job: j } : {}), slot })))
       secret = ''
       if (!out.ok) {
-        b.setDisabled(false)
+        b?.setDisabled(false)
         this.error.setText(out.message)
         return
       }
-      if (prompt.retry) {
-        const r = await actions.retryTicket(prompt.retry)
-        out = { ok: r.ok, message: `${out.message}; ${r.message}` }
+      if (then === 'retry' && prompt.retry && job) {
+        const r = await actions.retryAndRun(prompt.retry, job)
+        out = { ok: r.ok, message: `${out.message}. ${r.message}` }
+      } else if (then === 'run' && job) {
+        const r = await actions.runJob(job)
+        out = { ok: r.ok, message: `${out.message}. ${r.message}` }
       }
       this.close()
       await after(out)

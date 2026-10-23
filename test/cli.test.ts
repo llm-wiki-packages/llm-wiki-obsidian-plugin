@@ -93,7 +93,11 @@ const standIn = (out: string, rc = 0) => new Cli({ bin: node, prefix: ['-e', `pr
 
 describe('Actions.runJob says what the request answered', () => {
   it('ran, with the pages written, when the pass landed before it returned', async () => {
-    expect(await new Actions(standIn('{"slug":"gmail","minted":true,"outcome":"ok","written":["sources/mail/a.md","sources/mail/b.md"]}'), 'kb').runJob('gmail')).toEqual({ ok: true, message: 'gmail ran: 2 pages written' })
+    expect(await new Actions(standIn('{"slug":"gmail","minted":true,"outcome":"ok","written":["sources/mail/a.md","sources/mail/b.md"]}'), 'kb').runJob('gmail')).toEqual({ ok: true, message: 'gmail ran: 2 pages written', written: ['sources/mail/a.md', 'sources/mail/b.md'] })
+  })
+  it('retryAndRun puts the ticket back and then runs the pass, stopping at a refused retry', async () => {
+    expect(await new Actions(standIn('{"slug":"gmail","minted":true,"outcome":"running","ticket":"t2"}'), 'kb').retryAndRun('t1', 'gmail')).toEqual({ ok: true, message: 'gmail started' })
+    expect((await new Actions(standIn('{"error":"no ticket t1"}', 2), 'kb').retryAndRun('t1', 'gmail')).ok).toBe(false)
   })
   it('already in flight when nothing was minted', async () => {
     expect(await new Actions(standIn('{"slug":"gmail","minted":false,"outcome":"running","ticket":"abc"}'), 'kb').runJob('gmail')).toEqual({ ok: true, message: 'gmail is already in flight (ticket abc)' })

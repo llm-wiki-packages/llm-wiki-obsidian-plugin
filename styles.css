@@ -129,3 +129,15 @@
 .llm-wiki-note-page > h1:first-child { display: none; }
 .llm-wiki-row-title .llm-wiki-pill.is-warn { color: var(--color-orange); background: color-mix(in srgb, var(--color-orange) 12%, transparent); }
 .llm-wiki-row-title .llm-wiki-pill.is-error { background: color-mix(in srgb, var(--color-red) 12%, transparent); }
+
+/* Cycle 3 */
+.llm-wiki-filter { background: var(--background-modifier-form-field); color: var(--text-normal); border: 1px solid var(--background-modifier-border); border-radius: var(--radius-s); padding: var(--size-4-1) var(--size-4-2); }
+.llm-wiki-group-note { text-transform: none; letter-spacing: 0; }
+.llm-wiki-group-row { display: flex; align-items: center; gap: var(--size-4-2); padding: var(--size-4-3) 0 var(--size-4-1); }
+.llm-wiki-group-row > span { flex: 1; }
+.llm-wiki-next.is-unbound .llm-wiki-muted { font-weight: var(--font-normal); }
+.llm-wiki-also { display: flex; align-items: center; gap: var(--size-4-2); padding: var(--size-4-1) 0 var(--size-4-1) calc(0.6em + var(--size-4-3)); }
+.llm-wiki-also > span { flex: 1; }
+.llm-wiki-cards { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.llm-wiki-table td.llm-wiki-more-link { text-align: center; padding: var(--size-4-2); }
+tr:focus-visible, .llm-wiki-row:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: -2px; }

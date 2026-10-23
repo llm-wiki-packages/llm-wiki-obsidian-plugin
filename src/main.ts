@@ -33,6 +33,8 @@ export default class LlmWikiPlugin extends Plugin {
   private pollTimer: number | null = null
   private refreshing: Promise<void> | null = null
   private unloaded = false
+  /** The first successful detect says so once; later ones are quiet unless asked. */
+  private announced = false
 
   async onload(): Promise<void> {
     await this.loadSettings()
@@ -46,7 +48,9 @@ export default class LlmWikiPlugin extends Plugin {
     this.addCommand({ id: 'open-chat', name: 'Open chat', callback: () => void this.openChat() })
     this.addCommand({ id: 'open-search', name: 'Open search', callback: () => void this.activateView(VIEW_SEARCH) })
     this.addCommand({ id: 'run-job', name: 'Run a job…', callback: () => this.pickJobToRun() })
-    this.addCommand({ id: 'add-job', name: 'Add a job…', callback: () => void this.addJob() })
+    this.addCommand({ id: 'add-job', name: 'Add a source…', callback: () => void this.addJob() })
+    this.addCommand({ id: 'open-job', name: 'Open a job…', callback: () => this.pickJob() })
+    this.addCommand({ id: 'set-credential', name: 'Set a credential…', callback: () => this.pickSlot() })
     this.addCommand({ id: 'run-skill', name: 'Run a skill…', callback: () => this.pickSkill() })
     this.addCommand({ id: 'ask-about-note', name: 'Ask the agent about this note', checkCallback: (checking) => {
       const file = this.app.workspace.getActiveFile()
@@ -84,7 +88,13 @@ export default class LlmWikiPlugin extends Plugin {
 
   statusText(): string {
     if (this.problem) return this.problem
-    return this.wiki ? `wiki ${this.wiki.key} (${this.wiki.name}) at ${this.wiki.root}` : 'detecting…'
+    return this.wiki ? `Found wiki ${this.wiki.key} (llm-wiki-cli at ${this.cliBin ?? '?'}${this.claudeBin ? '' : '; claude not found, so Agent chat is off'})` : 'detecting…'
+  }
+
+  openSettings(): void {
+    const setting = (this.app as unknown as { setting: { open(): void; openTabById(id: string): void } }).setting
+    setting.open()
+    setting.openTabById(this.manifest.id)
   }
 
   /** Finds the binaries and the wiki; every view reads the outcome off the plugin. */
@@ -111,7 +121,8 @@ export default class LlmWikiPlugin extends Plugin {
       log.warn(this.problem)
     }
     this.showStatus()
-    if (announce) new Notice(this.statusText())
+    if (announce || (this.wiki && !this.announced)) new Notice(this.statusText(), 6000)
+    this.announced = true
     this.app.workspace.trigger('llm-wiki:detected')
     if (this.wiki) await this.refreshSnapshot()
   }
@@ -180,7 +191,7 @@ export default class LlmWikiPlugin extends Plugin {
   /** One field; the add skill decides the rest in chat. */
   promptAddJob(): Promise<string | null> {
     return promptText(this.app, {
-      title: 'Add a job',
+      title: 'Add a source',
       description: 'What should the wiki follow or do? A URL, a mailbox, or a task in plain words. The agent asks about anything else it needs.',
       placeholder: 'https://example.com/blog — or — rebuild the index every night',
       cta: 'Ask the agent',
@@ -234,6 +245,45 @@ export default class LlmWikiPlugin extends Plugin {
     })(this.app)
     modal.setPlaceholder('Which skill?')
     modal.open()
+  }
+
+  /** A fuzzy list of jobs; the pick opens its detail dialog. */
+  private pickJob(): void {
+    const jobs = this.snapshot?.jobs ?? []
+    if (!jobs.length) {
+      new Notice(this.snapshot ? 'No jobs yet' : 'The wiki has not been read yet')
+      return
+    }
+    const open = (j: JobView) => void this.openDashboard().then(() => this.dashboard()?.openJob(j))
+    const modal = new (class extends FuzzySuggestModal<JobView> {
+      getItems = () => jobs
+      getItemText = (j: JobView) => `${j.name} ${j.slug} ${nextText(j)}`
+      onChooseItem = (j: JobView) => open(j)
+    })(this.app)
+    modal.setPlaceholder('Which job?')
+    modal.open()
+  }
+
+  /** A fuzzy list of the skills with an empty or broken slot; the pick opens the credential dialog. */
+  private pickSlot(): void {
+    const items = (this.snapshot?.skills ?? []).filter((s) => s.state === 'enabled').flatMap((s) => s.slots.filter((x) => x.credential === null || x.problem).map((slot) => ({ skill: s.name, slot })))
+    if (!items.length) {
+      new Notice(this.snapshot ? 'Every enabled skill has its credentials' : 'The wiki has not been read yet')
+      return
+    }
+    const pick = (i: (typeof items)[number]) => this.credentialModal({ skill: i.skill, slot: i.slot.name, ...(i.slot.credential ? { name: i.slot.credential } : {}) })
+    const modal = new (class extends FuzzySuggestModal<(typeof items)[number]> {
+      getItems = () => items
+      getItemText = (i: (typeof items)[number]) => `${i.skill} ${i.slot.name} ${i.slot.credential ?? 'missing'}`
+      onChooseItem = (i: (typeof items)[number]) => pick(i)
+    })(this.app)
+    modal.setPlaceholder('Which skill needs a credential?')
+    modal.open()
+  }
+
+  private dashboard(): DashboardView | null {
+    const view = this.app.workspace.getLeavesOfType(VIEW_DASHBOARD)[0]?.view
+    return view instanceof DashboardView ? view : null
   }
 
   /** The fastest Run there is: a fuzzy list of jobs. */

@@ -1,7 +1,9 @@
 import { button, empty, relativeTime, section } from '../../ui/dom'
+import { openJobModal } from '../../ui/jobModal'
 import type { AttentionItem, Snapshot } from '../../wiki/model'
 import type { TabContext } from './index'
 import { jobCard, sorted } from './jobs'
+import { titleOf } from './pages'
 
 /** Do I need to do anything? The verdict first, then what needs a person, then what is moving. */
 export function renderOverview(root: HTMLElement, ctx: TabContext): void {
@@ -20,9 +22,10 @@ export function renderOverview(root: HTMLElement, ctx: TabContext): void {
   const also = snapshot.attention.filter((a) => a.severity === 'info')
   if (!counted.length) empty(needs, 'Nothing needs you.')
   for (const item of counted) attentionRow(needs, item, ctx)
-  if (also.length) {
-    needs.createDiv({ cls: 'llm-wiki-group', text: 'Also' })
-    for (const item of also) attentionRow(needs, item, ctx)
+  for (const item of also) {
+    const row = needs.createDiv({ cls: 'llm-wiki-also' })
+    row.createSpan({ cls: 'llm-wiki-muted', text: item.title })
+    if (item.action) button(row, item.action.kind === 'ask' ? (item.action.label ?? 'Ask the agent') : LABEL[item.action.kind], () => ctx.act(item.action!), {})
   }
   if (!snapshot.runner) {
     const notice = needs.createDiv({ cls: 'llm-wiki-notice llm-wiki-notice-row' })
@@ -51,17 +54,20 @@ export function renderOverview(root: HTMLElement, ctx: TabContext): void {
   })
   if (snapshot.unadopted?.length) curation.createDiv({ cls: 'llm-wiki-muted', text: `${snapshot.unadopted.length} new under sources/ not yet in the wiki.` })
   if (!snapshot.curation.length) empty(curation, 'No pages are waiting.')
-  else curation.createDiv({ cls: 'llm-wiki-muted', text: snapshot.curation.slice(0, 5).map((c) => c.path).join(' · ') + (snapshot.curation.length > 5 ? ' · …' : '') })
+  else curation.createDiv({ cls: 'llm-wiki-muted', text: snapshot.curation.slice(0, 5).map((c) => titleOf(ctx, c.path) ?? c.title).join(' · ') + (snapshot.curation.length > 5 ? ` · and ${snapshot.curation.length - 5} more` : '') })
 
   const failed = snapshot.recent.filter((r) => r.outcome === 'failed').length
   const recent = section(root, 'Last day', { count: snapshot.recent.length })
   if (!snapshot.recent.length) empty(recent, 'No runs in the last day.')
   else recent.createDiv({ cls: 'llm-wiki-muted', text: `${snapshot.recent.length} ${snapshot.recent.length === 1 ? 'run' : 'runs'}${failed ? `, ${failed} failed` : ''}. ${snapshot.curation.length ? `${snapshot.curation.length} ${snapshot.curation.length === 1 ? 'page is' : 'pages are'} waiting for review.` : ''}` })
   for (const r of snapshot.recent.slice(0, 10)) {
-    const row = recent.createDiv({ cls: 'llm-wiki-row' })
+    const job = r.job ? snapshot.jobs.find((j) => j.slug === r.job) : undefined
+    const row = recent.createDiv({ cls: job ? 'llm-wiki-row is-link' : 'llm-wiki-row' })
+    if (job) row.addEventListener('click', () => openJobModal(ctx.plugin.app, job, ctx))
     row.createSpan({ cls: `llm-wiki-dot is-${r.outcome === 'ok' ? 'ok' : r.outcome === 'failed' ? 'error' : 'muted'}` })
     const main = row.createDiv({ cls: 'llm-wiki-row-main' })
-    main.createDiv({ cls: 'llm-wiki-row-title', text: r.outcome === 'ok' ? opName(r.op) : `${opName(r.op)} · ${r.outcome}` })
+    const what = job ? job.name : opName(r.op)
+    main.createDiv({ cls: 'llm-wiki-row-title', text: r.outcome === 'ok' ? what : `${what} · ${r.outcome}` })
     if (r.summary) main.createDiv({ cls: 'llm-wiki-row-detail', text: r.summary })
     row.createSpan({ cls: 'llm-wiki-muted', text: relativeTime(r.at) })
   }
@@ -78,9 +84,9 @@ export function opName(op: string): string {
 function firstMorning(root: HTMLElement, ctx: TabContext): void {
   const card = root.createDiv({ cls: 'llm-wiki-first' })
   card.createEl('h3', { text: 'Nothing is pulling into this wiki yet.' })
-  card.createEl('p', { cls: 'llm-wiki-muted', text: 'A job follows a source on a schedule: a URL, a mailbox, a channel. A skill is how it knows the venue. Add a job in plain words and the agent sets up both.' })
+  card.createEl('p', { cls: 'llm-wiki-muted', text: 'A job follows a source on a schedule: a URL, a mailbox, a channel. A skill is how it knows the venue. Describe the source in plain words and the agent sets up both.' })
   const bar = card.createDiv({ cls: 'llm-wiki-row-actions' })
-  button(bar, 'Add a job…', () => ctx.plugin.addJob(), { icon: 'plus', cta: true })
+  button(bar, 'Add a source…', () => ctx.plugin.addJob(), { icon: 'plus', cta: true })
   button(bar, 'Browse skills', () => ctx.goTo('skills'), { icon: 'puzzle' })
   if (ctx.snapshot.attention.length) {
     const needs = section(root, 'Needs you', { count: ctx.snapshot.health.count })

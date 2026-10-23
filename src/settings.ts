@@ -64,7 +64,7 @@ export class LlmWikiSettingTab extends PluginSettingTab {
       .addText((t) => t.setPlaceholder('Auto').setValue(s.cliPath).onChange((v) => { s.cliPath = v.trim(); save() }))
     new Setting(containerEl)
       .setName('Path to claude')
-      .setDesc('Empty searches the login shell PATH. Found: ' + (this.plugin.claudeBin ?? 'not found'))
+      .setDesc('Empty searches the login shell PATH. ' + (this.plugin.claudeBin ? `Found: ${this.plugin.claudeBin}` : 'Not found: Agent chat needs it; Ask mode and the dashboard work without it.'))
       .addText((t) => t.setPlaceholder('Auto').setValue(s.claudePath).onChange((v) => { s.claudePath = v.trim(); save() }))
 
     new Setting(containerEl).setName('Chat').setHeading()

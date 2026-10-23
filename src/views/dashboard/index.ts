@@ -7,6 +7,8 @@ import { renderOverview } from './overview'
 import { renderPages } from './pages'
 import { renderSkills } from './skills'
 import { openSkillModal } from '../../ui/skillModal'
+import { openJobModal } from '../../ui/jobModal'
+import type { JobView } from '../../wiki/model'
 
 export const VIEW_DASHBOARD = 'llm-wiki-dashboard'
 
@@ -98,6 +100,12 @@ export class DashboardView extends ItemView {
     return Promise.resolve()
   }
 
+  /** The job detail dialog, for the command palette. */
+  openJob(j: JobView): void {
+    const snapshot = this.plugin.snapshot
+    if (snapshot) openJobModal(this.app, j, this.context(snapshot))
+  }
+
   goTo(tab: Tab): void {
     this.tab = tab
     void this.app.workspace.requestSaveLayout()
@@ -116,7 +124,8 @@ export class DashboardView extends ItemView {
       this.healthPill.setText(this.plugin.problem ? 'not ready' : 'loading')
       this.healthPill.className = `llm-wiki-pill is-${this.plugin.problem ? 'error' : 'muted'}`
       this.refreshedEl.setText('')
-      this.panel.createDiv({ cls: 'llm-wiki-notice', text: this.plugin.problem ?? 'Reading the wiki…' })
+      if (this.plugin.problem) this.notReady(this.plugin.problem)
+      else this.panel.createDiv({ cls: 'llm-wiki-notice', text: 'Reading the wiki…' })
       return
     }
     this.healthPill.setText(snapshot.health.count ? `${snapshot.health.count} need you` : 'ok')
@@ -144,6 +153,23 @@ export class DashboardView extends ItemView {
         renderPages(this.panel, ctx)
         break
     }
+  }
+
+  /** The two ways to be not ready, each with its exit: a missing binary, or a vault that is not a registered wiki. */
+  private notReady(problem: string): void {
+    const card = this.panel.createDiv({ cls: 'llm-wiki-first' })
+    const missingCli = /llm-wiki-cli not found/.test(problem)
+    const notWiki = /not a registered wiki/.test(problem)
+    card.createEl('h3', { text: missingCli ? 'llm-wiki-cli was not found' : notWiki ? 'This vault is not a registered wiki' : 'Not ready' })
+    card.createEl('p', { cls: 'llm-wiki-muted', text: missingCli
+      ? 'The plugin runs the llm-wiki CLI from your login shell PATH. Install the llm-wiki plugins, or set the path to llm-wiki-cli in the plugin settings.'
+      : notWiki
+        ? `${problem}. Register and join it from a terminal inside the vault, then re-detect.`
+        : problem })
+    if (notWiki) card.createEl('pre', { cls: 'llm-wiki-permission-summary', text: 'llm-wiki-cli init .        # a new wiki here\nllm-wiki-ops join key=<key>   # an existing one' })
+    const bar = card.createDiv({ cls: 'llm-wiki-row-actions' })
+    button(bar, 'Re-detect', () => this.plugin.detect(true), { icon: 'refresh-cw', cta: true })
+    button(bar, 'Open settings', () => this.plugin.openSettings(), { icon: 'settings' })
   }
 
   private context(snapshot: Snapshot): TabContext {

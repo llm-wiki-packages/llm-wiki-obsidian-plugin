@@ -125,10 +125,11 @@ describe('takeSnapshot: skills and credentials', () => {
     expect(snap.skills[0]?.slots).toEqual([{ name: 'file', required: true, credential: 'gmail_token', problem: 'failed' }])
     expect(snap.jobs[0]?.next.kind).toBe('unbound')
   })
-  it('reads each unit’s description from its SKILL.md, held units under the wiki and available ones from the package cache', async () => {
+  it('reads each unit’s description from its SKILL.md, held units under the wiki and available ones from the package cache, with the package manifest’s needs', async () => {
     const read = async (p: string) => {
       if (p === '/w/.llm-wiki/skills/channel-gmail/SKILL.md') return '---\nname: channel-gmail\ndescription: Gmail capture. More.\n---\n'
       if (p === '/h/.local/share/llm-wiki/packages/cache/llm-wiki-packages/llm-wiki-skills/@abc/skills/channel-youtube/SKILL.md') return '---\ndescription: YouTube capture.\n---\n'
+      if (p === '/h/.local/share/llm-wiki/packages/cache/llm-wiki-packages/llm-wiki-skills/@abc/skills/channel-youtube/manifest.json') return JSON.stringify({ requires: { credentials: { dir: 'optional' } }, watch: { inputs: { channel: { prompt: 'Which channel?', required: true } } } })
       throw new Error('no such file')
     }
     const snap = await takeSnapshot(reader({ ...GMAIL,
@@ -140,6 +141,11 @@ describe('takeSnapshot: skills and credentials', () => {
       ['channel-youtube', 'YouTube capture.', '/h/.local/share/llm-wiki/packages/cache/llm-wiki-packages/llm-wiki-skills/@abc/skills/channel-youtube'],
       ['web-page', '', '/h/.local/share/llm-wiki/packages/cache/llm-wiki-packages/llm-wiki-skills/@abc/skills/web-page'],
     ])
+    expect(snap.skills[1]).toMatchObject({ slots: [{ name: 'dir', required: false, credential: null }], inputs: [{ name: 'channel', required: true }] })
+  })
+  it('names the job a recent run was about when the summary names its slug', async () => {
+    const snap = await takeSnapshot(reader({ ...GMAIL, 'wiki.op.since': { runs: [{ op: 'pass', outcome: 'ok', when: '2026-10-23T11:00:00Z', summary: 'pass ok: inbox-joe harvest, 3 pages' }, { op: 'dream', outcome: 'ok', when: '2026-10-23T10:00:00Z', summary: 'dream ok' }] } }), 'kb', NOW)
+    expect(snap.recent.map((r) => r.job)).toEqual(['inbox-joe', undefined])
   })
   it('a stale binding counts as empty, and drift and updates become attention', async () => {
     const snap = await takeSnapshot(reader({ ...GMAIL, 'wiki.doctor': { rows: [] },

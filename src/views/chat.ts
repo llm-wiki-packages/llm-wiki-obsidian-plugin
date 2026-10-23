@@ -85,6 +85,7 @@ export class ChatView extends ItemView {
         e.preventDefault()
         void this.send()
       }
+      if (e.key === 'Escape' && this.running) this.running.abort()
     })
     this.registerEvent(this.app.workspace.on('llm-wiki:detected' as 'layout-change', () => this.showReadiness()))
     this.registerEvent(this.app.workspace.on('active-leaf-change', () => this.showChips()))
@@ -135,7 +136,7 @@ export class ChatView extends ItemView {
   }
 
   private showReadiness(): void {
-    this.status.setText(this.plugin.wiki ? `${this.plugin.wiki.key}` : this.plugin.problem ?? 'detecting…')
+    this.status.setText(this.plugin.wiki ? `wiki ${this.plugin.wiki.key}` : this.plugin.problem ?? 'detecting…')
   }
 
   private newChat(): void {
@@ -190,6 +191,8 @@ export class ChatView extends ItemView {
       for await (const e of events) {
         assistant.take(e)
         this.scroll()
+        // The agent just changed the wiki; the dashboard should not wait a minute to say so.
+        if (e.type === 'tool' && /^(Running|Enabling|Installing|Declaring|Curating|Adopting|Retrying|Binding|Refreshing)/.test(toolSentence(e.name, e.detail) ?? '')) void this.plugin.refreshSnapshot()
       }
       if (abort.signal.aborted) assistant.take({ type: 'status', text: 'stopped' })
     } catch (e) {
@@ -200,6 +203,7 @@ export class ChatView extends ItemView {
       this.sendBtn.disabled = false
       this.stopBtn.disabled = true
       this.scroll()
+      void this.plugin.refreshSnapshot()
     }
   }
 }

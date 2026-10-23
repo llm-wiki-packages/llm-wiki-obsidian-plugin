@@ -5,6 +5,8 @@ import { CliError } from './cli'
 export interface Outcome {
   ok: boolean
   message: string
+  /** Pages a run wrote, when the CLI said. */
+  written?: string[]
 }
 
 function failed(what: string, e: unknown): Outcome {
@@ -31,11 +33,18 @@ export class Actions {
     try {
       const a = await this.cli.run<RequestAnswer>('wiki.jobs.request', { wiki: this.wiki, slug }, { timeoutMs: 120_000 })
       if (a.minted === false) return { ok: true, message: `${slug} is already in flight${a.ticket ? ` (ticket ${a.ticket})` : ''}` }
-      if (a.outcome === 'ok') return { ok: true, message: `${slug} ran${a.written?.length ? `: ${a.written.length} page${a.written.length === 1 ? '' : 's'} written` : ''}` }
+      if (a.outcome === 'ok') return { ok: true, message: `${slug} ran${a.written?.length ? `: ${a.written.length} page${a.written.length === 1 ? '' : 's'} written` : ''}`, written: a.written ?? [] }
       return { ok: true, message: `${slug} started` }
     } catch (e) {
       return failed(`${slug} did not start`, e)
     }
+  }
+
+  /** Put a stopped ticket back and run the pass now, since without a runner nothing else would pick it up. */
+  async retryAndRun(ticket: string, slug: string): Promise<Outcome> {
+    const back = await this.retryTicket(ticket)
+    if (!back.ok) return back
+    return this.runJob(slug)
   }
 
   async pauseJob(slug: string): Promise<Outcome> {

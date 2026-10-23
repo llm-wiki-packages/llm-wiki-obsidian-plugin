@@ -51,11 +51,12 @@ const snapshot: Snapshot = {
   curation: [
     { path: 'sources/web/acme/postgres-at-scale.md', title: 'postgres-at-scale', job: 'web/acme' },
     { path: 'sources/web/acme/on-call-rotations.md', title: 'on-call-rotations', job: 'web/acme' },
+    { path: 'sources/youtube/yt-subs/2026-10-22-llm-eval-talk.md', title: '2026-10-22-llm-eval-talk', job: 'youtube/yt-subs' },
   ],
   unadopted: [{ path: 'sources/notes/meeting-2026-10-21.md', title: 'meeting-2026-10-21', job: 'notes' }],
   recent: [
     { op: 'pass', outcome: 'ok', at: ago(20), summary: '' },
-    { op: 'harvest yt-subs', outcome: 'failed', at: ago(400), summary: 'cookies expired' },
+    { op: 'pass', job: 'yt-subs', outcome: 'failed', at: ago(400), summary: 'cookies expired' },
     { op: 'pass', outcome: 'ok', at: ago(80), summary: '2 pages written' },
   ],
   errors: {},
@@ -67,7 +68,7 @@ const plugin: any = {
   settings: { defaultChatMode: 'agent', searchK: 20 },
   wiki: { key: 'notes', name: 'Notes', root: '/tmp/obs-scratch/wiki' },
   snapshot,
-  problem: null,
+  problem: new URLSearchParams(location.search).get('problem') === 'cli' ? 'llm-wiki-cli not found on the login shell PATH; set its path in the plugin settings' : new URLSearchParams(location.search).get('problem') === 'wiki' ? 'the vault is not a registered wiki (2 registered); join it, or set the wiki key in the plugin settings' : null,
   actions: new Proxy({}, { get: (_t, verb) => (...args: unknown[]) => { console.log('action', verb, args); return Promise.resolve({ ok: true, message: `${String(verb)} ok` }) } }),
   refreshSnapshot: () => Promise.resolve(),
   openChat: (text?: string) => { console.log('chat', text); chat.prefill(text ?? ''); return Promise.resolve() },
@@ -75,7 +76,10 @@ const plugin: any = {
   pickSkill: () => console.log('pick skill'),
   credentialModal: (p: unknown) => openCredentialModal(app, snapshot, plugin.actions, p as any, async () => {}),
   backend: () => Promise.reject(new Error('no backend in the preview')),
+  detect: () => Promise.resolve(),
+  openSettings: () => console.log('settings'),
 }
+if (plugin.problem) plugin.snapshot = null
 
 const main = document.getElementById('main')!
 const side = document.getElementById('side')!
@@ -107,7 +111,7 @@ if (q.get('many') === '1') {
   for (let i = 0; i < 20; i++) snapshot.jobs.push({ slug: `feed-${i}`, name: `Feed ${i}`, kind: 'pipeline', skill: 'web-page', schedule: 'every 1d', paused: false, last: { at: ago(100 + i * 60), outcome: 'ok' }, next: { kind: 'at', at: ahead(60 + i * 45) }, running: null, credential: null, reasons: [], tickets: [] })
   dash.render()
 }
-if (q.get('modal') === 'replace') plugin.credentialModal({ name: 'gh-token', kind: 'value' })
+if (q.get('modal') === 'replace') plugin.credentialModal({ name: 'yt-cookies', kind: 'dir', skill: 'channel-youtube', slot: 'dir', retry: 't9', job: 'yt-subs' })
 if (q.get('chat') === 'turn') {
   // A fabricated transcript, to see the bubbles.
   const t = chat.contentEl.querySelector('.llm-wiki-transcript')!

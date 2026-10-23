@@ -10,7 +10,7 @@ export type Action =
   | { kind: 'retry'; ticket: string }
   | { kind: 'reindex' }
   /** Open the credential dialog: for an empty slot (bind on save), or to replace `name`; `retry` is a parked ticket to retry after. */
-  | { kind: 'credential'; skill: string; slot: string; name?: string; retry?: string }
+  | { kind: 'credential'; skill: string; slot: string; name?: string; retry?: string; job?: string }
   | { kind: 'inspect'; skill: string }
 
 export interface AttentionItem {
@@ -122,6 +122,8 @@ export interface CurationItem {
 
 export interface RecentRun {
   op: string
+  /** The job the run was about, when the summary names one. */
+  job?: string
   outcome: string
   at: string
   summary: string

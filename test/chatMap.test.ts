@@ -5,11 +5,11 @@ import { mapLine } from '../src/chat/harnessRun'
 import { summarizeTool } from '../src/chat/types'
 
 describe('Agent SDK frames into chat events', () => {
-  it('reads the session id and a status off init', () => {
+  it('reads the session id off init and says nothing else about it', () => {
     const m = { type: 'system', subtype: 'init', session_id: 's1', claude_code_version: '2.1.309', model: 'm', permissionMode: 'default' } as unknown as SDKMessage
     const r = mapMessage(m)
     expect(r.sessionId).toBe('s1')
-    expect(r.events[0]).toMatchObject({ type: 'status' })
+    expect(r.events).toEqual([])
   })
 
   it('streams a text delta and drops a subagent delta', () => {
