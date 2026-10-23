@@ -184,6 +184,10 @@ override, default chat mode, model, Ask sandbox and skill, search k, debug.
 `&modal=credential|skill|replace`, `&chat=turn`, `&theme=dark`, `&pane=search`.
 It renders the real views over fixture data with a stand-in for Obsidian's API.
 
+## Known gaps
+
+- **Ask mode has no memory and pays the start-up cost every turn** (owner, 2026-10-23, on main). Each turn is one jailed `harness run`: a fresh model session that re-reads the skill before answering, so a follow-up question does not know the previous one and every reply waits on the whole start-up. Candidates: resume the jailed session across turns (its state directory is under the harness home), keep one jailed session alive for the pane and feed it turns, or carry the pane's transcript into each run. Agent mode already resumes by session id.
+
 ## Review log
 
 - **Cycle 1 (2026-10-23)**: added the Skills tab (units from `skills ls`, the
