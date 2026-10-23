@@ -4,7 +4,7 @@ import { Component, MarkdownRenderer, Modal, type App } from 'obsidian'
 import type { SkillView } from '../wiki/model'
 import { button, pill } from './dom'
 import { addWith, problem, runSkillAction, skillAction } from '../views/dashboard/skills'
-import { slotWords } from './slots'
+import { slotWords } from '../wiki/slots'
 import type { TabContext } from '../views/dashboard/index'
 
 /** Everything about one unit in one place: what it needs here, which jobs use it, and the notes Obsidian cannot show. */

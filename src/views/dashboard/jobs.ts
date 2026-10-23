@@ -1,6 +1,6 @@
 import { Menu } from 'obsidian'
 import { button, clockTime, empty, pill, relativeTime, section, table } from '../../ui/dom'
-import { slotWords } from '../../ui/slots'
+import { slotWords } from '../../wiki/slots'
 import { openJobModal } from '../../ui/jobModal'
 import type { JobView, NextKind } from '../../wiki/model'
 import type { TabContext } from './index'

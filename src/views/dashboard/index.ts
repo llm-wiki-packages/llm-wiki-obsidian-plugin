@@ -164,7 +164,7 @@ export class DashboardView extends ItemView {
     card.createEl('p', { cls: 'llm-wiki-muted', text: missingCli
       ? 'The plugin runs the llm-wiki CLI from your login shell PATH. Install the llm-wiki plugins, or set the path to llm-wiki-cli in the plugin settings.'
       : notWiki
-        ? `${problem}. Register and join it from a terminal inside the vault, then re-detect.`
+        ? `${problem.charAt(0).toUpperCase()}${problem.slice(1)}. Register and join it from a terminal inside the vault, then re-detect.`
         : problem })
     if (notWiki) card.createEl('pre', { cls: 'llm-wiki-permission-summary', text: 'llm-wiki-cli init .        # a new wiki here\nllm-wiki-ops join key=<key>   # an existing one' })
     const bar = card.createDiv({ cls: 'llm-wiki-row-actions' })

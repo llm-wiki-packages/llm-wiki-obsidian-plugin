@@ -1,7 +1,7 @@
 import { Modal, type App } from 'obsidian'
 import type { TabContext } from '../views/dashboard/index'
 import { askAbout, jobButtons, nextText } from '../views/dashboard/jobs'
-import { slotWords } from './slots'
+import { slotWords } from '../wiki/slots'
 import type { JobView } from '../wiki/model'
 import { button, clockTime, relativeTime } from './dom'
 

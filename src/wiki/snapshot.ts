@@ -3,6 +3,7 @@
 // failing verb leaves a hole and a note, never an empty dashboard.
 import type { Args, Verb } from './cli'
 import { parseSkill } from '../chat/skills'
+import { slotWords } from './slots'
 import type { AttentionItem, CredentialView, CurationItem, JobView, RecentRun, SkillView, SlotView, Snapshot, TicketView } from './model'
 
 /** What the builder needs of a Cli, so a test can hand it fixtures. */
@@ -242,7 +243,7 @@ export function jobView(j: JobRow, tickets: TicketRow[], now: number, skills: Sk
   else if (paused) next = { kind: 'paused' }
   else if (held) next = { kind: 'held', at: held, detail: pending?.reason ?? detail }
   else if (pending) next = { kind: 'queued', detail }
-  else if (unbound && unit) next = { kind: 'unbound', detail: unbound.credential ? `${unbound.credential} is ${unbound.problem ?? 'broken'}` : `${unit.name} needs a credential` }
+  else if (unbound && unit) next = { kind: 'unbound', detail: unbound.credential ? `${unbound.credential} is ${unbound.problem ?? 'broken'}` : `${unit.name} needs ${slotWords(unbound.name).what}` }
   else if (j.blocked) next = { kind: 'blocked', detail: j.blocked }
   else if (v?.due ?? j.due) next = { kind: 'due', detail }
   else if (!v) next = { kind: 'unknown' }

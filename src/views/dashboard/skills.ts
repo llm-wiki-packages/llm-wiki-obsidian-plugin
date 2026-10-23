@@ -2,7 +2,7 @@ import { button, empty, pill, relativeTime, section } from '../../ui/dom'
 import { confirm } from '../../ui/modals'
 import type { Action, CredentialView, SkillView } from '../../wiki/model'
 import { unboundSlot } from '../../wiki/snapshot'
-import { slotWords } from '../../ui/slots'
+import { slotWords } from '../../wiki/slots'
 import type { TabContext } from './index'
 
 /** The units the wiki holds and this machine loads, which Obsidian itself hides; then the credentials they spend. */

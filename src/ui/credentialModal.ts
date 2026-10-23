@@ -1,7 +1,7 @@
 import { Modal, Setting, type App } from 'obsidian'
 import type { Actions, Outcome } from '../wiki/actions'
 import type { SkillView, Snapshot } from '../wiki/model'
-import { slotWords } from './slots'
+import { slotWords } from '../wiki/slots'
 
 export interface CredentialPrompt {
   /** Replace: the name is fixed and only the value changes. */

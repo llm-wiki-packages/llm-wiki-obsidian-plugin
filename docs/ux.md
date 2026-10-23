@@ -63,7 +63,8 @@ Name; slug · kind · schedule · skill. The Next state in words with the
 verdict's reasons. *What it needs on this machine*: each credential slot with
 Set / Replace credential. *Last runs*: the job's tickets newest first (stage,
 ok / stopped / dropped, reason, when, runtime, Retry on a stopped one).
-Footer: Run / Pause / Replace credential, Ask the agent, Close.
+Footer: Run / Pause / Replace credential, Ask the agent (the prompt carries
+the state, the reason and the last failure), Close.
 
 **Skills** — three groups then credentials.
 - *Enabled on this machine*: name · venue, one pill at most (`credential
@@ -84,9 +85,10 @@ Footer: Run / Pause / Replace credential, Ask the agent, Close.
   that is failed or empty. "Add a credential…" opens the dialog with nothing
   prefilled.
 
-**Pages** — *Awaiting curation* rows (title from frontmatter, path, folder):
-click opens the note; Accept, Reject… (one-line reason); "Ask the agent to
-curate". *Not yet in the wiki*: files under sources/ the wiki has not adopted:
+**Pages** — *Awaiting curation* grouped by the folder they landed in, each
+group with **Accept all in <folder>**; rows (title from frontmatter, path):
+click or Enter opens the note; Accept, Reject… (one-line reason); "Ask the
+agent to curate". *Not yet in the wiki*: files under sources/ the wiki has not adopted:
 Adopt / Adopt all. An older CLI says it cannot tell.
 
 ### Inspect (skill dialog)
@@ -94,19 +96,25 @@ Header: state · version · package, then the unit's description sentence. *What
 (required/optional, bound credential or "not set") with **Set credential**.
 Facts: jobs using it, what a new job asks for, the CLI's warnings. Tabs Skill /
 Enabling / Usage render SKILL.md and the unit's reference notes (the files
-Obsidian hides). Footer: Run / Enable / Install and enable, Close.
+Obsidian hides). Footer: Run job / Enable / Install and enable, **Add a source with it** (chat
+`/llm-wiki:add a new source using the <name> skill (it will need: mailbox): `),
+Close. For a unit not yet installed, the package manifest says what it will
+need and what a new job asks for, before Add.
 
 ### Credential dialog
 Title "Credential for channel-gmail" (or "Add a credential", "Replace x").
-One sentence in words: "channel-gmail needs a token or key on this machine."
-Name (prefilled `<skill>-token` or `-profile`), Kind only when the slot does
-not already say (Secret value / Folder on this machine), the secret (password
-field, piped to the CLI's stdin, never argv) or a folder path. *Bind to*
-appears only when the skill has several jobs: the skill (checked; covers every
-job) and each job (overrides for that job only). The button reads Save, Save
-and bind, or Save and retry when it came from a stopped job. Errors stay in
-the dialog; the Notice never carries the value. The write runs as an attended
-session because a person clicked.
+One sentence in words: what is needed ("channel-gmail needs a token or key on
+this machine"), what stale means for a folder ("sign in again inside that
+profile and save, or point at a fresh folder"), and what the save does next.
+Name (prefilled `<skill>-token` or `-profile`; the format hint appears only on
+a bad name), Kind only when the slot does not already say, the secret
+(password field, piped to the CLI's stdin, never argv; Enter saves) or a
+folder path. *Bind to* appears only when the skill has several jobs. The
+button reads Save, Save and bind, **Save and retry** (a stopped job: the
+ticket is retried and the pass run at once, so a machine without a runner
+does not wait) or **Save and run** (the skill's one job can run now). Errors
+stay in the dialog; the Notice names the end state and never the value. The
+write runs as an attended session because a person clicked.
 
 ### Chat (right sidebar)
 Mode select Agent / Ask. Agent = a Claude Code session at the wiki root,
@@ -126,8 +134,17 @@ One field, results from `search query` with path and snippet; click opens the
 note.
 
 ### Commands
-Open dashboard / chat / search, Run a job… (fuzzy), Add a job…, Run a skill…
-(fuzzy), Ask the agent about this note, Refresh, Re-detect.
+Open dashboard / chat / search, Run a job… (fuzzy), Open a job… (fuzzy, the
+detail dialog), Add a source…, Set a credential… (fuzzy over empty or broken
+slots), Run a skill… (fuzzy), Ask the agent about this note, Refresh,
+Re-detect. Rows in every list take focus and open on Enter; Escape in the
+composer stops a running turn.
+
+### Not ready
+A card instead of the dashboard: "llm-wiki-cli was not found" or "This vault
+is not a registered wiki" with the two commands to copy, **Re-detect** and
+**Open settings**. The first successful detect raises one Notice naming the
+wiki and the binary; settings say what a missing `claude` costs (Agent chat).
 
 ### Settings
 Paths to `llm-wiki-cli` and `claude` (login shell PATH by default), wiki key
@@ -172,3 +189,15 @@ It renders the real views over fixture data with a stand-in for Obsidian's API.
   one primary button and a menu, a filter above 10 rows; available skills as
   rows with their description; chat tool rows in words; the quieten list
   (health sentence, Also label, credentials wording, read-failure sentence).
+- **Cycle 3 (2026-10-23)**: fable review 2 folded. Save and retry now runs
+  the pass (a retried ticket on a runner-less machine no longer waits);
+  the dashboard refreshes when a chat turn ends and after each tool call
+  that changes the wiki; the credential dialog says what stale means and
+  what the save does next; available units show their needs from the
+  package manifest and the inspector offers "Add a source with it";
+  "Last day" rows name the job and open its dialog; Pages groups drafts by
+  folder with Accept all; the no-runner note sits once in the Scheduled
+  group header, relative times return, long lists fold; a not-ready card
+  with exits; slot keys never reach the screen (one `slots.ts`); Run all
+  due, Pause all / Resume all; keyboard rows and two new commands; chat
+  status noise cut; Credentials moved above the package catalog.

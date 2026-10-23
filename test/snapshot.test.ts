@@ -86,7 +86,7 @@ describe('takeSnapshot: skills and credentials', () => {
   it('derives the job that cannot run here from the empty slot, in place of the doctor rows about it', async () => {
     const snap = await takeSnapshot(reader(GMAIL), 'kb', NOW)
     expect(snap.errors).toEqual({})
-    expect(snap.jobs[0]?.next).toEqual({ kind: 'unbound', detail: 'channel-gmail needs a credential' })
+    expect(snap.jobs[0]?.next).toEqual({ kind: 'unbound', detail: 'channel-gmail needs a token or key' })
     expect(snap.jobs[0]?.credential).toEqual({ slot: 'file', name: null, problem: 'missing' })
     expect(snap.attention.map((a) => a.id)).toEqual(['unbound:inbox-joe'])
     expect(snap.attention[0]?.action).toEqual({ kind: 'credential', skill: 'channel-gmail', slot: 'file' })
