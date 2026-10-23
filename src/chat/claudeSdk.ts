@@ -31,9 +31,6 @@ const DENIED = [
 ]
 
 export class ClaudeSdkBackend implements ChatBackend {
-  readonly id = 'claude'
-  readonly label = 'Agent'
-  readonly multiTurn = true
   private sessionId: string | undefined
 
   constructor(private readonly config: ClaudeSdkConfig) {}

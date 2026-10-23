@@ -32,7 +32,6 @@ export class DashboardView extends ItemView {
   private tabBar!: HTMLElement
   private refreshedEl!: HTMLElement
   private healthPill!: HTMLElement
-  private refreshing = false
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -95,14 +94,8 @@ export class DashboardView extends ItemView {
     this.render()
   }
 
-  private async refresh(): Promise<void> {
-    if (this.refreshing) return
-    this.refreshing = true
-    try {
-      await this.plugin.refreshSnapshot()
-    } finally {
-      this.refreshing = false
-    }
+  private refresh(): Promise<void> {
+    return this.plugin.refreshSnapshot()
   }
 
   private render(): void {
@@ -116,7 +109,7 @@ export class DashboardView extends ItemView {
       this.panel.createDiv({ cls: 'llm-wiki-notice', text: this.plugin.problem ?? 'Reading the wiki…' })
       return
     }
-    this.healthPill.setText(snapshot.health.tone === 'ok' ? 'ok' : `${snapshot.attention.length} need you`)
+    this.healthPill.setText(snapshot.health.count ? `${snapshot.health.count} need you` : 'ok')
     this.healthPill.className = `llm-wiki-pill is-${snapshot.health.tone}`
     this.refreshedEl.setText(`refreshed ${new Date(snapshot.takenAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`)
     const ctx: TabContext = {

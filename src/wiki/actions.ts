@@ -8,15 +8,16 @@ export interface Outcome {
 }
 
 function failed(what: string, e: unknown): Outcome {
-  const msg = e instanceof CliError ? e.message.replace(/^wiki\.[a-z.]+: /, '') : e instanceof Error ? e.message : String(e)
+  const msg = e instanceof CliError ? e.short : e instanceof Error ? e.message : String(e)
   return { ok: false, message: `${what}: ${msg}` }
 }
 
+/** `jobs request`'s answer: `minted: false` means a ticket was already in flight; `ok` means the pass landed before it returned. */
 interface RequestAnswer {
-  outcome?: string
+  outcome?: 'ok' | 'failed' | 'running'
   minted?: boolean
   ticket?: string | null
-  error?: string
+  written?: string[]
 }
 
 export class Actions {
@@ -29,7 +30,8 @@ export class Actions {
   async runJob(slug: string): Promise<Outcome> {
     try {
       const a = await this.cli.run<RequestAnswer>('wiki.jobs.request', { wiki: this.wiki, slug }, { timeoutMs: 120_000 })
-      if (a.outcome === 'queued_already') return { ok: true, message: `${slug} is already queued` }
+      if (a.minted === false) return { ok: true, message: `${slug} is already in flight${a.ticket ? ` (ticket ${a.ticket})` : ''}` }
+      if (a.outcome === 'ok') return { ok: true, message: `${slug} ran${a.written?.length ? `: ${a.written.length} page${a.written.length === 1 ? '' : 's'} written` : ''}` }
       return { ok: true, message: `${slug} started` }
     } catch (e) {
       return failed(`${slug} did not start`, e)

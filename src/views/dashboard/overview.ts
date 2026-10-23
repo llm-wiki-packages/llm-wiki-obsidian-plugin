@@ -1,5 +1,5 @@
 import { button, empty, relativeTime, section } from '../../ui/dom'
-import type { AttentionItem, JobView } from '../../wiki/model'
+import type { AttentionItem, Snapshot } from '../../wiki/model'
 import type { TabContext } from './index'
 import { jobCard } from './jobs'
 
@@ -8,7 +8,7 @@ export function renderOverview(root: HTMLElement, ctx: TabContext): void {
   const { snapshot } = ctx
   const health = root.createDiv({ cls: 'llm-wiki-health' })
   health.createSpan({ cls: `llm-wiki-dot is-${snapshot.health.tone}` })
-  health.createSpan({ text: snapshot.health.sentence })
+  health.createSpan({ text: healthSentence(snapshot) })
 
   const needs = section(root, 'Needs you', { count: snapshot.attention.length })
   if (!snapshot.attention.length) empty(needs, 'Nothing needs you.')
@@ -20,7 +20,7 @@ export function renderOverview(root: HTMLElement, ctx: TabContext): void {
     actions: (bar) => button(bar, 'All jobs', () => ctx.goTo('jobs')),
   })
   if (!snapshot.runner) strip.createDiv({ cls: 'llm-wiki-notice', text: 'No runner on this machine. Jobs run when you press Run.' })
-  if (!moving.length) empty(strip, 'Nothing is running or due.', nextUp(snapshot.jobs))
+  if (!moving.length) empty(strip, 'Nothing is running or due.')
   else {
     const cards = strip.createDiv({ cls: 'llm-wiki-cards' })
     for (const j of moving.slice(0, 6)) jobCard(cards, j, ctx)
@@ -30,7 +30,7 @@ export function renderOverview(root: HTMLElement, ctx: TabContext): void {
     count: snapshot.curation.length,
     actions: (bar) => button(bar, 'Review', () => ctx.goTo('pages')),
   })
-  if (snapshot.unadopted.length) curation.createDiv({ cls: 'llm-wiki-muted', text: `${snapshot.unadopted.length} new under sources/ not yet in the wiki.` })
+  if (snapshot.unadopted?.length) curation.createDiv({ cls: 'llm-wiki-muted', text: `${snapshot.unadopted.length} new under sources/ not yet in the wiki.` })
   if (!snapshot.curation.length) empty(curation, 'No pages are waiting.')
   else curation.createDiv({ cls: 'llm-wiki-muted', text: snapshot.curation.slice(0, 5).map((c) => c.path).join(' · ') + (snapshot.curation.length > 5 ? ' · …' : '') })
 
@@ -46,11 +46,20 @@ export function renderOverview(root: HTMLElement, ctx: TabContext): void {
   }
 }
 
-function nextUp(jobs: JobView[]): string | undefined {
-  const next = jobs
-    .filter((j) => j.next.kind === 'at' && j.next.at)
-    .sort((a, b) => Date.parse(a.next.at!) - Date.parse(b.next.at!))[0]
-  return next ? `Next up: ${next.name} ${relativeTime(next.next.at)}.` : undefined
+/** One sentence, one color: do I need to do anything, and what is moving. */
+export function healthSentence(s: Snapshot): string {
+  const parts: string[] = []
+  if (s.health.count) parts.push(`${s.health.count} ${s.health.count === 1 ? 'thing needs' : 'things need'} you.`)
+  else parts.push('All clear.')
+  const running = s.jobs.filter((j) => j.running)
+  const due = s.jobs.filter((j) => !j.running && j.next.kind === 'due')
+  if (running.length) parts.push(`Running ${running.map((j) => j.name).join(', ')}.`)
+  if (due.length) parts.push(`${due.length} ${due.length === 1 ? 'job is' : 'jobs are'} due now.`)
+  const lastRun = s.jobs.map((j) => j.last.at).filter((x): x is string => Boolean(x)).sort().at(-1)
+  if (lastRun && !running.length) parts.push(`Last run ${relativeTime(lastRun)}.`)
+  const next = s.jobs.filter((j) => j.next.kind === 'at' && j.next.at).sort((a, b) => Date.parse(a.next.at!) - Date.parse(b.next.at!))[0]
+  if (next && !due.length) parts.push(`Next up ${next.name} ${relativeTime(next.next.at)}.`)
+  return parts.join(' ')
 }
 
 function attentionRow(parent: HTMLElement, item: AttentionItem, ctx: TabContext): void {

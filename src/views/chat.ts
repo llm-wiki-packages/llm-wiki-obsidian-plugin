@@ -20,7 +20,8 @@ export class ChatView extends ItemView {
   private status!: HTMLElement
   private chips!: HTMLElement
   private capability!: HTMLElement
-  private backend: ChatBackend | null = null
+  /** One backend per mode, so switching modes and back keeps the Agent session. */
+  private backends: Partial<Record<ChatMode, ChatBackend>> = {}
   private mode: ChatMode
   private running: AbortController | null = null
   /** Rendered turns hold a Component each while on screen; New chat releases them. */
@@ -58,7 +59,6 @@ export class ChatView extends ItemView {
     this.modeSelect.value = this.mode
     this.registerDomEvent(this.modeSelect, 'change', () => {
       this.mode = this.modeSelect.value as ChatMode
-      this.backend = null
       this.showCapability()
     })
     const newBtn = bar.createEl('button', { text: 'New chat' })
@@ -106,7 +106,8 @@ export class ChatView extends ItemView {
       : ['What needs attention in this wiki?', 'Run a job for me', '/llm-wiki:add ']
     for (const p of prompts) {
       const chip = this.chips.createEl('button', { cls: 'llm-wiki-chip', text: p })
-      this.registerDomEvent(chip, 'click', () => this.prefill(p, this.mode))
+      // Chips are rebuilt on every leaf change; the DOM owns the listener with the node.
+      chip.addEventListener('click', () => this.prefill(p, this.mode))
     }
   }
 
@@ -120,7 +121,7 @@ export class ChatView extends ItemView {
     if (this.mode !== mode) {
       this.mode = mode
       this.modeSelect.value = mode
-      this.backend = null
+      this.showCapability()
     }
     this.composer.value = text
     this.composer.focus()
@@ -133,8 +134,7 @@ export class ChatView extends ItemView {
 
   private newChat(): void {
     this.running?.abort()
-    this.backend?.reset()
-    this.backend = null
+    for (const b of Object.values(this.backends)) b.reset()
     this.transcript.empty()
     for (const b of this.bubbles) b.dispose()
     this.bubbles = []
@@ -158,8 +158,9 @@ export class ChatView extends ItemView {
       this.note(this.plugin.problem ?? 'not ready')
       return
     }
+    let backend = this.backends[this.mode]
     try {
-      this.backend ??= await this.plugin.backend(this.mode)
+      backend ??= this.backends[this.mode] = await this.plugin.backend(this.mode)
     } catch (e) {
       this.note(e instanceof Error ? e.message : String(e))
       return
@@ -174,7 +175,7 @@ export class ChatView extends ItemView {
     this.sendBtn.disabled = true
     this.stopBtn.disabled = false
     try {
-      const events = this.backend.send(prompt, {
+      const events = backend.send(prompt, {
         wiki,
         signal: abort.signal,
         askPermission: (req) => assistant.ask(req),
@@ -192,7 +193,6 @@ export class ChatView extends ItemView {
       this.running = null
       this.sendBtn.disabled = false
       this.stopBtn.disabled = true
-      if (!this.backend?.multiTurn) this.note('Ask mode: each question is its own session')
       this.scroll()
     }
   }
@@ -271,8 +271,8 @@ class AssistantBubble {
         card.addClass(d.allow ? 'is-allowed' : 'is-denied')
         resolve(d)
       }
-      this.owner.registerDomEvent(allow, 'click', () => settle({ allow: true }))
-      this.owner.registerDomEvent(deny, 'click', () => settle({ allow: false, reason: 'Denied in Obsidian' }))
+      allow.addEventListener('click', () => settle({ allow: true }))
+      deny.addEventListener('click', () => settle({ allow: false, reason: 'Denied in Obsidian' }))
     })
   }
 

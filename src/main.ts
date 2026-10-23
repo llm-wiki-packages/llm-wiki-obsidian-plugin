@@ -6,6 +6,7 @@ import { log } from './logger'
 import { DEFAULT_SETTINGS, LlmWikiSettingTab, type ChatMode, type LlmWikiSettings } from './settings'
 import { ChatView, VIEW_CHAT } from './views/chat'
 import { DashboardView, VIEW_DASHBOARD } from './views/dashboard/index'
+import { nextText } from './views/dashboard/jobs'
 import { SearchView, VIEW_SEARCH } from './views/search'
 import { promptText } from './ui/modals'
 import { Actions } from './wiki/actions'
@@ -27,6 +28,7 @@ export default class LlmWikiPlugin extends Plugin {
   private statusBar: HTMLElement | null = null
   private pollTimer: number | null = null
   private refreshing: Promise<void> | null = null
+  private unloaded = false
 
   async onload(): Promise<void> {
     await this.loadSettings()
@@ -56,8 +58,9 @@ export default class LlmWikiPlugin extends Plugin {
   }
 
   onunload(): void {
+    this.unloaded = true
     if (this.pollTimer !== null) window.clearTimeout(this.pollTimer)
-    this.cli?.killStreams()
+    this.cli?.killAll()
   }
 
   async loadSettings(): Promise<void> {
@@ -83,6 +86,7 @@ export default class LlmWikiPlugin extends Plugin {
   async detect(announce = false): Promise<void> {
     this.problem = null
     this.wiki = null
+    this.snapshot = null
     try {
       const path = await effectivePath()
       this.cliBin = await findBinary('llm-wiki-cli', this.settings.cliPath)
@@ -111,7 +115,7 @@ export default class LlmWikiPlugin extends Plugin {
   refreshSnapshot(): Promise<void> {
     if (this.refreshing) return this.refreshing
     const { cli, wiki } = this
-    if (!cli || !wiki) return Promise.resolve()
+    if (!cli || !wiki || this.unloaded) return Promise.resolve()
     this.refreshing = takeSnapshot(cli, wiki.key)
       .then((snap) => {
         this.snapshot = snap
@@ -129,6 +133,7 @@ export default class LlmWikiPlugin extends Plugin {
   /** Tight while a ticket is running, since someone just pressed Run and is watching; relaxed otherwise. */
   private schedulePoll(): void {
     if (this.pollTimer !== null) window.clearTimeout(this.pollTimer)
+    if (this.unloaded) return
     const busy = this.snapshot?.jobs.some((j) => j.running) ?? false
     const open = this.app.workspace.getLeavesOfType(VIEW_DASHBOARD).length > 0
     const ms = busy ? 10_000 : open ? 60_000 : 5 * 60_000
@@ -143,7 +148,7 @@ export default class LlmWikiPlugin extends Plugin {
     }
     const s = this.snapshot
     const running = s?.jobs.find((j) => j.running)
-    const text = !s ? this.wiki.key : running ? `running ${running.name}` : s.attention.length ? `${s.attention.length} need you` : 'ok'
+    const text = !s ? this.wiki.key : running ? `running ${running.name}` : s.health.count ? `${s.health.count} need you` : 'ok'
     this.statusBar.setText(`llm-wiki · ${text}`)
   }
 
@@ -167,7 +172,8 @@ export default class LlmWikiPlugin extends Plugin {
     })
   }
 
-  private async addJob(): Promise<void> {
+  /** One field; the add skill decides the rest in chat. */
+  async addJob(): Promise<void> {
     const text = await this.promptAddJob()
     if (text) await this.openChat(`/llm-wiki:add ${text}`)
   }
@@ -184,7 +190,7 @@ export default class LlmWikiPlugin extends Plugin {
     const run = (slug: string) => actions.runJob(slug)
     const modal = new (class extends FuzzySuggestModal<JobView> {
       getItems = () => jobs
-      getItemText = (j: JobView) => `${j.name} ${j.slug} ${j.next.text}`
+      getItemText = (j: JobView) => `${j.name} ${j.slug} ${nextText(j)}`
       onChooseItem = (j: JobView) => void run(j.slug).then((out) => { new Notice(out.message); void refresh() })
     })(this.app)
     modal.setPlaceholder('Run which job?')

@@ -35,10 +35,6 @@ export interface TurnContext {
 }
 
 export interface ChatBackend {
-  readonly id: string
-  readonly label: string
-  /** Whether a second turn continues the first. */
-  readonly multiTurn: boolean
   /** One turn: the events as they land, ending in a `result` or an `error`. */
   send(prompt: string, ctx: TurnContext): AsyncIterable<ChatEvent>
   /** Forget the conversation. */

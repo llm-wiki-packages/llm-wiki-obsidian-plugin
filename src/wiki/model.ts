@@ -1,4 +1,5 @@
-// What the dashboard shows. Built from CLI answers by snapshot.ts; the views read only this.
+// What the dashboard shows. Built from CLI answers by snapshot.ts; the views
+// read only this, and format every time at render.
 
 export type Severity = 'error' | 'warn' | 'info'
 
@@ -19,27 +20,33 @@ export interface AttentionItem {
   action?: Action
 }
 
-export type NextKind = 'due' | 'at' | 'running' | 'paused' | 'held' | 'blocked' | 'manual' | 'unknown'
+/** What a job is waiting on, as the ticket store and the due verdict say it. */
+export type NextKind = 'due' | 'queued' | 'at' | 'running' | 'paused' | 'held' | 'blocked' | 'manual' | 'unknown'
 
 export interface JobView {
   slug: string
   /** The description when there is one, else the slug. */
   name: string
   kind: string
-  /** As written: `every 2h`, `daily 06:00`, `manual`. */
+  /** As written: `every 2h`, `once`, `manual`. */
   schedule: string
   paused: boolean
   last: { at: string | null; outcome: string | null }
-  next: { kind: NextKind; text: string; reason?: string; at?: string | null }
+  next: {
+    kind: NextKind
+    /** When: the next run for `at`, the release for `held`. */
+    at?: string | null
+    /** The CLI's own sentence for `blocked`; the verdict's reasons otherwise. */
+    detail?: string
+  }
   running: { ticket: string; stage: string; since: string | null } | null
 }
 
 export interface CurationItem {
   path: string
   title: string
-  /** The job that captured it, when stamped. */
+  /** The folder under sources/ it landed in, a stand-in for the job that captured it. */
   job?: string
-  at?: string | null
 }
 
 export interface RecentRun {
@@ -47,21 +54,20 @@ export interface RecentRun {
   outcome: string
   at: string
   summary: string
-  session?: string
 }
 
 export interface Snapshot {
   takenAt: number
   wikiKey: string
-  /** One sentence, one color. */
-  health: { tone: 'ok' | 'warn' | 'error'; sentence: string }
+  /** The verdict: how many things need a person, and how loud. */
+  health: { tone: 'ok' | 'warn' | 'error'; count: number }
   attention: AttentionItem[]
   /** Whether this machine polls the wiki on a schedule; without one, jobs run when a person presses Run. */
   runner: boolean
   jobs: JobView[]
   curation: CurationItem[]
-  /** Files under sources/ the wiki has not taken up: no identity yet. Empty on a CLI that cannot tell. */
-  unadopted: CurationItem[]
+  /** Files under sources/ the wiki has not taken up; null when this CLI cannot tell. */
+  unadopted: CurationItem[] | null
   recent: RecentRun[]
   /** Reads that failed, by verb, so a half-empty dashboard says why. */
   errors: Record<string, string>

@@ -25,17 +25,15 @@ export function icon(parent: HTMLElement, name: string, cls = ''): HTMLElement {
 export interface ButtonOpts {
   icon?: string
   cta?: boolean
-  warning?: boolean
   title?: string
-  disabled?: boolean
 }
 
 export function button(parent: HTMLElement, label: string, onClick: () => void | Promise<void>, opts: ButtonOpts = {}): HTMLButtonElement {
-  const btn = parent.createEl('button', { cls: ['llm-wiki-button', opts.cta ? 'mod-cta' : '', opts.warning ? 'mod-warning' : ''].filter(Boolean).join(' ') })
+  const btn = parent.createEl('button', { cls: opts.cta ? 'llm-wiki-button mod-cta' : 'llm-wiki-button' })
   if (opts.icon) icon(btn, opts.icon)
   btn.createSpan({ text: label })
   if (opts.title) btn.title = opts.title
-  btn.disabled = Boolean(opts.disabled)
+  // Rows are rebuilt on every render; the DOM owns the listener with the node.
   btn.addEventListener('click', (e) => {
     e.stopPropagation()
     const r = onClick()
@@ -54,12 +52,12 @@ export function empty(parent: HTMLElement, text: string, hint?: string): HTMLEle
   return el
 }
 
-export function table(parent: HTMLElement, headers: string[]): { body: HTMLElement; row: () => HTMLElement } {
+export function table(parent: HTMLElement, headers: string[]): { row: () => HTMLElement } {
   const t = parent.createEl('table', { cls: 'llm-wiki-table' })
   const tr = t.createEl('thead').createEl('tr')
   for (const h of headers) tr.createEl('th', { text: h })
   const body = t.createEl('tbody')
-  return { body, row: () => body.createEl('tr') }
+  return { row: () => body.createEl('tr') }
 }
 
 /** `3m ago`, `2h ago`, `yesterday`, `in 40m`; empty for nothing. */
@@ -80,12 +78,8 @@ export function relativeTime(iso: string | null | undefined, now = Date.now()): 
   return future ? `in ${s}` : `${s} ago`
 }
 
-/** `every 6h` from seconds, or the raw string. */
-export function humanEvery(v: string | number | null | undefined): string {
-  if (v === null || v === undefined || v === '') return ''
-  if (typeof v === 'string') return v
-  if (v % 86400 === 0) return `${v / 86400}d`
-  if (v % 3600 === 0) return `${v / 3600}h`
-  if (v % 60 === 0) return `${v / 60}m`
-  return `${v}s`
+/** `13:00` in the user's locale, or the raw string when it does not parse. */
+export function clockTime(iso: string): string {
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }

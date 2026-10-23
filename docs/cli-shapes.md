@@ -1058,6 +1058,15 @@ for `synced`, `no_index`, `deferred` (another index/reindex holds the shared
 `stage.index` lock; not a failure). Real (grep wiki, no engine): `status:"no_index", owner:null, scanned:14, note:"this wiki answers from grep, which needs no index"`, rc 0.
 Refusals: read-only; a search config the reader refuses.
 
+### 2.10 `page adopt <paths>`
+
+- argv: `wiki <key> page adopt <path> [<path>...] --json`. Write tier.
+- Answer `Changed` (same shape as `page curate`), verb `OPS/page/adopt.py:39`:
+  rows are the page's `page ls` row plus `action: "adopted" | "observed"`
+  (`observed` = a non-markdown file got a stub sibling page). Mints
+  `document_id` into frontmatter and queues extraction for a source file.
+- Refusals (rc 2): `no such page: <p>`; a path outside the content trees.
+
 ### 2.8 `git sync`
 
 - argv: `wiki <key> git sync --json`. Answer `Synced`, `OPS/git/sync.py:31`.

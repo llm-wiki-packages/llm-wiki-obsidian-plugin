@@ -11,7 +11,6 @@ export interface Reader {
 
 // The slices of each answer the dashboard reads. Optional where an older CLI omits them.
 export interface DoctorAnswer {
-  overall?: 'ok' | 'warn' | 'fail'
   rows?: { check: string; status: 'ok' | 'warn' | 'fail' | 'info'; detail: string; fix: string | null }[]
 }
 export interface JobRow {
@@ -57,7 +56,7 @@ export interface PageRow {
   change?: 'new' | 'edited' | 'current' | null
 }
 export interface OpSinceAnswer {
-  runs?: { op: string; outcome: string; when: string; summary: string; session?: string }[]
+  runs?: { op: string; outcome: string; when: string; summary: string }[]
 }
 export interface SearchStatusAnswer {
   engine_configured?: boolean
@@ -94,16 +93,21 @@ export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now(
   const ticketRows = tickets?.tickets ?? []
   const jobs = (jobsLs?.jobs ?? []).filter((j) => j.state !== 'archived').map((j) => jobView(j, ticketRows, now))
   const attention = attentionItems({ doctor, due, jobsLs, jobs, search, conflicts: conflicts?.pages ?? [], ticketRows })
-  const runner = (runnerLs?.wikis ?? []).some((w) => w.wiki_key === wikiKey && w.installed !== null) || (runnerLs === null && !('machine.runner.ls' in errors))
+  const runner = (runnerLs?.wikis ?? []).some((w) => w.wiki_key === wikiKey && w.installed !== null)
+  const pageRows = pages?.pages ?? []
+  // An older CLI lists no change state; then the queue is unknowable rather than empty.
+  const tellsChange = pageRows.some((p) => 'change' in p)
+  const errors_ = attention.filter((a) => a.severity === 'error').length
+  const count = errors_ + attention.filter((a) => a.severity === 'warn').length
   return {
     takenAt: now,
     wikiKey,
-    health: health(attention, jobs, now),
+    health: { tone: errors_ ? 'error' : count ? 'warn' : 'ok', count },
     attention,
     runner,
     jobs,
-    curation: (pages?.pages ?? []).filter((p) => p.status === 'draft').map(curationItem),
-    unadopted: (pages?.pages ?? []).filter((p) => p.change === 'new' && p.path.startsWith('sources/')).map(curationItem),
+    curation: pageRows.filter((p) => p.status === 'draft').map(curationItem),
+    unadopted: tellsChange ? pageRows.filter((p) => p.change === 'new' && p.path.startsWith('sources/')).map(curationItem) : null,
     recent: (ops?.runs ?? []).map(recentRun),
     errors,
   }
@@ -123,37 +127,33 @@ export function jobView(j: JobRow, tickets: TicketRow[], now: number): JobView {
   let next: JobView['next']
   const pending = mine.find((t) => t.state === 'pending')
   const held = pending?.not_before && Date.parse(pending.not_before) > now ? pending.not_before : null
-  const reason = v?.reasons?.length ? v.reasons.join('; ') : undefined
-  if (active) next = { kind: 'running', text: 'Running', reason }
-  else if (paused) next = { kind: 'paused', text: 'Paused' }
-  else if (held) next = { kind: 'held', text: `Held until ${clock(held)}`, reason: pending?.reason ?? reason, at: held }
-  else if (pending) next = { kind: 'due', text: 'Queued', reason }
-  else if (j.blocked) next = { kind: 'blocked', text: `Blocked — ${j.blocked}`, reason: j.blocked }
-  else if (v?.due ?? j.due) next = { kind: 'due', text: 'Due now', reason }
-  else if (!v) next = { kind: 'unknown', text: '' }
+  const detail = v?.reasons?.length ? v.reasons.join('; ') : undefined
+  if (active) next = { kind: 'running', detail }
+  else if (paused) next = { kind: 'paused' }
+  else if (held) next = { kind: 'held', at: held, detail: pending?.reason ?? detail }
+  else if (pending) next = { kind: 'queued', detail }
+  else if (j.blocked) next = { kind: 'blocked', detail: j.blocked }
+  else if (v?.due ?? j.due) next = { kind: 'due', detail }
+  else if (!v) next = { kind: 'unknown' }
   else
     switch (v.kind) {
       case 'period':
       case 'window':
-        next = v.next_at ? { kind: 'at', text: `in ${ago(v.next_at, now)}`, reason, at: v.next_at } : { kind: 'at', text: j.window ? `next window ${j.window}` : 'Scheduled', reason }
+        next = { kind: 'at', at: v.next_at ?? null, detail: v.next_at ? detail : (j.window ? `next window ${j.window}` : detail) }
         break
       case 'requires':
-        next = { kind: 'blocked', text: `Blocked — ${(v.blocked_by ?? []).join(', ') || 'a requirement is unmet'}`, reason }
+        next = { kind: 'blocked', detail: (v.blocked_by ?? []).join(', ') || 'a requirement is unmet' }
         break
       case 'failed-cap':
-        next = { kind: 'blocked', text: 'Blocked — failed too often', reason }
+        next = { kind: 'blocked', detail: 'failed too often' }
         break
       case 'once':
-        next = { kind: 'manual', text: lastOk ? 'Ran once' : 'Once, when run', reason }
-        break
       case 'no-work':
-        next = { kind: 'manual', text: 'Nothing to do', reason }
-        break
       case 'off':
-        next = { kind: 'manual', text: 'Manual', reason }
+        next = { kind: 'manual', detail }
         break
       default:
-        next = { kind: 'unknown', text: reason ?? '', reason }
+        next = { kind: 'unknown', detail }
     }
 
   return {
@@ -196,7 +196,7 @@ function attentionItems(input: {
     out.push({ id: `review:${t.id}`, severity: 'info', title: `${t.job} ${t.stage} asks for review${t.reason ? `: ${t.reason}` : ''}`, detail: `ticket ${t.id}`, action: { kind: 'ask', prompt: `Ticket ${t.id} of job ${t.job} is in review${t.reason ? ` (${t.reason})` : ''}. Show me what it needs and help me judge it.` } })
   for (const j of input.jobs)
     if (j.next.kind === 'blocked' && !j.paused)
-      out.push({ id: `blocked:${j.slug}`, severity: 'warn', title: `${j.name}: ${j.next.text.replace(/^Blocked — /, '')}`, detail: j.slug, action: { kind: 'ask', prompt: `Job ${j.slug} is blocked: ${j.next.reason ?? j.next.text}. What does it need, and can you fix it?` } })
+      out.push({ id: `blocked:${j.slug}`, severity: 'warn', title: `${j.name}: ${j.next.detail ?? 'blocked'}`, detail: j.slug, action: { kind: 'ask', prompt: `Job ${j.slug} is blocked: ${j.next.detail ?? 'blocked'}. What does it need, and can you fix it?` } })
   for (const u of input.jobsLs?.unreadable ?? [])
     out.push({ id: `unreadable:${u.slug}`, severity: 'warn', title: `${u.slug}: ${u.reason}`, action: { kind: 'ask', prompt: `Job ${u.slug} cannot be read: ${u.reason}. Please repair its record.` } })
   for (const p of input.due?.handoffs?.problems ?? []) out.push({ id: `handoff:${p}`, severity: 'warn', title: p, action: { kind: 'ask', prompt: `A job handoff reports: ${p}. What is wrong?` } })
@@ -208,44 +208,11 @@ function attentionItems(input: {
   return out.sort((a, b) => rank[a.severity] - rank[b.severity])
 }
 
-function health(attention: AttentionItem[], jobs: JobView[], now: number): Snapshot['health'] {
-  const errors = attention.filter((a) => a.severity === 'error').length
-  const warns = attention.filter((a) => a.severity === 'warn').length
-  const running = jobs.filter((j) => j.running)
-  const due = jobs.filter((j) => !j.running && j.next.kind === 'due')
-  const parts: string[] = []
-  if (running.length) parts.push(`Running ${running.map((j) => j.name).join(', ')}.`)
-  if (due.length) parts.push(`${due.length} ${due.length === 1 ? 'job is' : 'jobs are'} due now.`)
-  const lastRun = jobs.map((j) => j.last.at).filter((x): x is string => Boolean(x)).sort().at(-1)
-  if (lastRun && !running.length) parts.push(`Last run ${ago(lastRun, now)} ago.`)
-  const nextJob = jobs.filter((j) => j.next.kind === 'at' && j.next.at).sort((a, b) => Date.parse(a.next.at!) - Date.parse(b.next.at!))[0]
-  if (nextJob && !due.length) parts.push(`Next up ${nextJob.name} in ${ago(nextJob.next.at!, now)}.`)
-  if (errors || warns) {
-    const n = errors + warns
-    return { tone: errors ? 'error' : 'warn', sentence: [`${n} ${n === 1 ? 'thing needs' : 'things need'} you.`, ...parts].join(' ') }
-  }
-  return { tone: 'ok', sentence: ['All clear.', ...parts].join(' ') }
-}
-
 function curationItem(p: PageRow): CurationItem {
   const base = p.path.split('/').pop() ?? p.path
   return { path: p.path, title: base.replace(/\.md$/, ''), job: p.path.split('/').slice(1, -1).join('/') || undefined }
 }
 
 function recentRun(r: NonNullable<OpSinceAnswer['runs']>[number]): RecentRun {
-  return { op: r.op, outcome: r.outcome, at: r.when, summary: r.summary === `${r.op} ${r.outcome}` ? '' : r.summary, session: r.session }
-}
-
-/** `3m`, `2h`, `3d`: the magnitude only; callers add `in` or `ago`. */
-function ago(iso: string, now: number): string {
-  const m = Math.max(0, Math.round(Math.abs(now - Date.parse(iso)) / 60_000))
-  if (m < 1) return 'moments'
-  if (m < 60) return `${m}m`
-  if (m < 36 * 60) return `${Math.round(m / 60)}h`
-  return `${Math.round(m / (24 * 60))}d`
-}
-
-function clock(iso: string): string {
-  const d = new Date(iso)
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  return { op: r.op, outcome: r.outcome, at: r.when, summary: r.summary === `${r.op} ${r.outcome}` ? '' : r.summary }
 }

@@ -8,7 +8,6 @@ export interface HarnessRunConfig {
   sandbox: string
   skill: string
   model?: string
-  effort?: string
 }
 
 const str = (v: unknown, fallback = ''): string => (typeof v === 'string' ? v : typeof v === 'number' ? String(v) : fallback)
@@ -44,10 +43,6 @@ export function mapLine(l: StreamLine, sawResult: boolean): ChatEvent[] {
 }
 
 export class HarnessRunBackend implements ChatBackend {
-  readonly id = 'harness-run'
-  readonly label = 'Ask'
-  readonly multiTurn = false
-
   constructor(
     private readonly cli: Cli,
     private readonly config: HarnessRunConfig,
@@ -62,7 +57,7 @@ export class HarnessRunBackend implements ChatBackend {
     try {
       const lines = this.cli.stream(
         'wiki.harness.run',
-        { wiki: ctx.wiki.key, text: prompt, sandbox: this.config.sandbox, skill: this.config.skill, model: this.config.model, effort: this.config.effort },
+        { wiki: ctx.wiki.key, text: prompt, sandbox: this.config.sandbox, skill: this.config.skill, model: this.config.model },
         { signal: ctx.signal, timeoutMs: 10 * 60 * 1000 },
       )
       for await (const l of lines) {

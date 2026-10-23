@@ -1,4 +1,4 @@
-import { button, empty, relativeTime, section } from '../../ui/dom'
+import { button, empty, section } from '../../ui/dom'
 import { promptText } from '../../ui/modals'
 import type { TabContext } from './index'
 
@@ -18,7 +18,7 @@ export function renderPages(root: HTMLElement, ctx: TabContext): void {
     const row = body.createDiv({ cls: 'llm-wiki-row is-link' })
     const main = row.createDiv({ cls: 'llm-wiki-row-main' })
     main.createDiv({ cls: 'llm-wiki-row-title', text: titleOf(ctx, c.path) ?? c.title })
-    main.createDiv({ cls: 'llm-wiki-row-detail', text: [c.path, c.job, c.at ? relativeTime(c.at) : ''].filter(Boolean).join(' · ') })
+    main.createDiv({ cls: 'llm-wiki-row-detail', text: [c.path, c.job].filter(Boolean).join(' · ') })
     row.addEventListener('click', () => void ctx.act({ kind: 'open', path: c.path }))
     const bar = row.createDiv({ cls: 'llm-wiki-row-actions' })
     if (!actions) continue
@@ -29,15 +29,17 @@ export function renderPages(root: HTMLElement, ctx: TabContext): void {
     }, { icon: 'x' })
   }
 
+  const unadopted = snapshot.unadopted ?? []
   const fresh = section(root, 'Not yet in the wiki', {
-    count: snapshot.unadopted.length,
+    count: unadopted.length,
     actions: (bar) => {
-      if (snapshot.unadopted.length > 1 && actions)
-        button(bar, 'Adopt all', () => ctx.write(() => actions.adopt(snapshot.unadopted.map((c) => c.path))), { icon: 'check-check' })
+      if (unadopted.length > 1 && actions)
+        button(bar, 'Adopt all', () => ctx.write(() => actions.adopt(unadopted.map((c) => c.path))), { icon: 'check-check' })
     },
   })
-  if (!snapshot.unadopted.length) empty(fresh, 'Everything under sources/ is known to the wiki.', 'A file dropped into sources/ shows here until it is adopted.')
-  for (const c of snapshot.unadopted) {
+  if (snapshot.unadopted === null) empty(fresh, 'This CLI cannot tell which files are new.', 'Update the llm-wiki plugins; a current `page ls` reports each page’s change state.')
+  else if (!unadopted.length) empty(fresh, 'Everything under sources/ is known to the wiki.', 'A file dropped into sources/ shows here until it is adopted.')
+  for (const c of unadopted) {
     const row = fresh.createDiv({ cls: 'llm-wiki-row is-link' })
     const main = row.createDiv({ cls: 'llm-wiki-row-main' })
     main.createDiv({ cls: 'llm-wiki-row-title', text: titleOf(ctx, c.path) ?? c.title })

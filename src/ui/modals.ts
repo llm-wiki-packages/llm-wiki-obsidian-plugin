@@ -5,8 +5,6 @@ export interface TextPromptOptions {
   description?: string
   placeholder?: string
   cta?: string
-  initial?: string
-  multiline?: boolean
 }
 
 /** One field and one button; resolves to the text, or null when dismissed. */
@@ -22,22 +20,17 @@ export function promptText(app: App, opts: TextPromptOptions): Promise<string | 
       onOpen(): void {
         this.setTitle(opts.title)
         if (opts.description) this.contentEl.createEl('p', { text: opts.description, cls: 'llm-wiki-muted' })
-        let value = opts.initial ?? ''
+        let value = ''
         const submit = () => {
           const v = value.trim()
           if (!v) return
           done(v)
           this.close()
         }
-        const field: HTMLInputElement | HTMLTextAreaElement = opts.multiline
-          ? this.contentEl.createEl('textarea', { cls: 'llm-wiki-prompt-field', placeholder: opts.placeholder ?? '' })
-          : this.contentEl.createEl('input', { type: 'text', cls: 'llm-wiki-prompt-field', placeholder: opts.placeholder ?? '' })
-        if (field instanceof HTMLTextAreaElement) field.rows = 4
-        field.value = value
+        const field = this.contentEl.createEl('input', { type: 'text', cls: 'llm-wiki-prompt-field', placeholder: opts.placeholder ?? '' })
         field.addEventListener('input', () => (value = field.value))
-        const el: HTMLElement = field
-        el.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter' && (!opts.multiline || e.metaKey || e.ctrlKey)) {
+        field.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
             e.preventDefault()
             submit()
           }

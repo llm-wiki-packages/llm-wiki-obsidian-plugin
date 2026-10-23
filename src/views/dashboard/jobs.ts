@@ -1,4 +1,4 @@
-import { button, empty, humanEvery, pill, relativeTime, section, table } from '../../ui/dom'
+import { button, clockTime, empty, pill, relativeTime, section, table } from '../../ui/dom'
 import type { JobView, NextKind } from '../../wiki/model'
 import type { TabContext } from './index'
 
@@ -7,7 +7,7 @@ export function renderJobs(root: HTMLElement, ctx: TabContext): void {
   const { snapshot } = ctx
   const body = section(root, 'Jobs', {
     count: snapshot.jobs.length,
-    actions: (bar) => button(bar, 'Add a job…', () => addJob(ctx), { icon: 'plus', cta: true }),
+    actions: (bar) => button(bar, 'Add a job…', () => ctx.plugin.addJob(), { icon: 'plus', cta: true }),
   })
   if (!snapshot.runner) body.createDiv({ cls: 'llm-wiki-notice', text: 'No runner on this machine. Jobs run when you press Run.' })
   if (!snapshot.jobs.length) {
@@ -54,6 +54,22 @@ function lastCell(td: HTMLElement, j: JobView): void {
   }
 }
 
+/** The Next column in plain words, formatted now so a reopened dashboard is not stale. */
+export function nextText(j: JobView): string {
+  const n = j.next
+  switch (n.kind) {
+    case 'due': return 'Due now'
+    case 'queued': return 'Queued'
+    case 'running': return 'Running'
+    case 'paused': return 'Paused'
+    case 'held': return n.at ? `Held until ${clockTime(n.at)}` : 'Held'
+    case 'at': return n.at ? relativeTime(n.at) : (n.detail ?? 'Scheduled')
+    case 'blocked': return `Blocked — ${n.detail ?? ''}`
+    case 'manual': return 'Manual'
+    case 'unknown': return ''
+  }
+}
+
 function nextCell(td: HTMLElement, j: JobView): void {
   if (j.running) {
     td.createSpan({ cls: 'llm-wiki-spinner' })
@@ -61,10 +77,11 @@ function nextCell(td: HTMLElement, j: JobView): void {
     if (j.running.stage) td.createDiv({ cls: 'llm-wiki-muted', text: j.running.stage })
     return
   }
-  td.createSpan({ text: j.next.text })
-  if (j.next.reason) td.title = j.next.reason
+  td.createSpan({ text: nextText(j) })
+  if (j.next.detail) td.title = j.next.detail
 }
 
+/** Run shows wherever a click can start something; a queued or running job already has its ticket. */
 const RUNNABLE: NextKind[] = ['due', 'at', 'manual', 'blocked', 'unknown']
 
 function jobButtons(parent: HTMLElement, j: JobView, ctx: TabContext): void {
@@ -80,8 +97,3 @@ function jobButtons(parent: HTMLElement, j: JobView, ctx: TabContext): void {
   if (!j.running) button(parent, 'Pause', () => ctx.write(() => actions.pauseJob(j.slug)), { icon: 'pause' })
 }
 
-/** One field; the add skill decides the rest in chat. */
-export async function addJob(ctx: TabContext): Promise<void> {
-  const text = await ctx.plugin.promptAddJob()
-  if (text) await ctx.act({ kind: 'ask', prompt: `/llm-wiki:add ${text}` })
-}
