@@ -306,6 +306,12 @@ export class Cli {
       this.live.add(child)
       // Closed at once, empty or with the secret: no verb here waits on a terminal.
       child.stdin.end(opts.stdin ?? '')
+      const onAbort = () => {
+        killGroup(child)
+        reject(new CliError(`${verb}: cancelled`, 'exit'))
+      }
+      if (opts.signal?.aborted) onAbort()
+      opts.signal?.addEventListener('abort', onAbort, { once: true })
       let out = ''
       let err = ''
       const timer = timers.setTimeout(() => {
@@ -322,6 +328,7 @@ export class Cli {
       child.on('close', (rc) => {
         timers.clearTimeout(timer)
         this.live.delete(child)
+        opts.signal?.removeEventListener('abort', onAbort)
         let parsed: unknown
         try {
           parsed = out.trim() ? JSON.parse(out) : undefined

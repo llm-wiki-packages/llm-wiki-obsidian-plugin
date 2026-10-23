@@ -18,7 +18,7 @@ const snapshot: Snapshot = {
   wikiKey: 'notes',
   health: { tone: 'warn', count: 2 },
   attention: [
-    { id: 'unbound:inbox-joe', severity: 'warn', title: 'Joe’s mailbox cannot run on this machine', detail: 'channel-gmail needs a credential for file', action: { kind: 'credential', skill: 'channel-gmail', slot: 'file' } },
+    { id: 'unbound:inbox-joe', severity: 'warn', title: 'Joe’s mailbox cannot run on this machine', detail: 'channel-gmail needs a token or key', action: { kind: 'credential', skill: 'channel-gmail', slot: 'file' } },
     { id: 'parked:t9', severity: 'warn', title: 'YouTube subscriptions stopped: yt-cookies is stale', detail: 'cookies expired', action: { kind: 'credential', skill: 'channel-youtube', slot: 'dir', name: 'yt-cookies', retry: 't9' } },
     { id: 'outdated:web-page', severity: 'info', title: 'A newer web-page is in its package', action: { kind: 'ask', prompt: '/llm-wiki:enable web-page', label: 'Update' } },
   ],
@@ -65,7 +65,7 @@ const snapshot: Snapshot = {
 const app = new App()
 const plugin: any = {
   app,
-  settings: { defaultChatMode: 'agent', searchK: 20 },
+  settings: { defaultChatMode: 'agent', searchK: 20, lastSession: new URLSearchParams(location.search).get('last') === '1' ? 'abc' : '' },
   wiki: { key: 'notes', name: 'Notes', root: '/tmp/obs-scratch/wiki' },
   snapshot,
   problem: new URLSearchParams(location.search).get('problem') === 'cli' ? 'llm-wiki-cli not found on the login shell PATH; set its path in the plugin settings' : new URLSearchParams(location.search).get('problem') === 'wiki' ? 'the vault is not a registered wiki (2 registered); join it, or set the wiki key in the plugin settings' : null,
@@ -78,6 +78,10 @@ const plugin: any = {
   backend: () => Promise.reject(new Error('no backend in the preview')),
   detect: () => Promise.resolve(),
   openSettings: () => console.log('settings'),
+  saveSettings: () => Promise.resolve(),
+  registered: [{ key: 'notes', name: 'Notes', path: '/Users/joe/Notes' }, { key: 'work', name: 'Work', path: '/Users/joe/Work' }],
+  cliBin: '/usr/local/bin/llm-wiki-cli',
+  claudeBin: new URLSearchParams(location.search).get('claude') === '0' ? null : '/usr/local/bin/claude',
 }
 if (plugin.problem) plugin.snapshot = null
 

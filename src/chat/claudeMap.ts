@@ -34,6 +34,13 @@ export function mapMessage(m: SDKMessage): MappedTurn {
       if (m.error) events.push({ type: 'error', message: `assistant: ${m.error}` })
       break
     }
+    case 'user': {
+      // The harness echoes a tool's result as a user message: the change, if any, has happened by now.
+      if (m.parent_tool_use_id) break
+      const content = (m.message as { content?: unknown }).content
+      if (Array.isArray(content) && content.some((b: { type?: string }) => b?.type === 'tool_result')) events.push({ type: 'tool-done' })
+      break
+    }
     case 'result':
       sessionId = m.session_id
       if (m.subtype === 'success')

@@ -7,7 +7,8 @@ export type Severity = 'error' | 'warn' | 'info'
 export type Action =
   | { kind: 'ask'; prompt: string; label?: string }
   | { kind: 'open'; path: string }
-  | { kind: 'retry'; ticket: string }
+  /** Put a parked ticket back; with the slug, run the pass too where no runner would. */
+  | { kind: 'retry'; ticket: string; slug?: string }
   | { kind: 'reindex' }
   /** Open the credential dialog: for an empty slot (bind on save), or to replace `name`; `retry` is a parked ticket to retry after. */
   | { kind: 'credential'; skill: string; slot: string; name?: string; retry?: string; job?: string }

@@ -25,6 +25,9 @@ P.addClass = function (...c: string[]) { this.classList.add(...c) }
 P.removeClass = function (...c: string[]) { this.classList.remove(...c) }
 P.toggleClass = function (c: string, on: boolean) { this.classList.toggle(c, on) }
 P.hasClass = function (c: string) { return this.classList.contains(c) }
+P.toggle = function (on: boolean) { this.style.display = on ? '' : 'none' }
+P.hide = function () { this.style.display = 'none' }
+P.show = function () { this.style.display = '' }
 
 export function setIcon(el: HTMLElement, name: string) {
   el.replaceChildren()

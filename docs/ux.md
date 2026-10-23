@@ -16,9 +16,10 @@ the pulling, which Obsidian hides under `.llm-wiki/skills` and
 
 ### Status bar (bottom of Obsidian)
 `llm-wiki · ok` / `llm-wiki · 2 need you` / `llm-wiki · 1 stopped` (when every
-item is a stopped job) / `llm-wiki · running Joe's mailbox` / `llm-wiki · not
-ready`, with `· no runner` appended when none is installed. Click opens the
-dashboard. A job that stops between two polls raises an Obsidian Notice.
+item is a stopped job) / `llm-wiki · running Joe's mailbox` (only when nothing
+needs a person) / `llm-wiki · not ready`. Click opens the dashboard. A job
+that stops between two polls raises an Obsidian Notice; writes whose row
+visibly changes (accept, pause, remove…) raise none.
 
 ### Dashboard (main area tab; ribbon icon, command "Open dashboard")
 Header: title, one health pill (`ok` or `N need you`), refreshed time, Refresh,
@@ -117,7 +118,12 @@ stay in the dialog; the Notice names the end state and never the value. The
 write runs as an attended session because a person clicked.
 
 ### Chat (right sidebar)
-Mode select Agent / Ask. Agent = a Claude Code session at the wiki root,
+Mode select Agent / Ask (Agent is disabled, and Ask selected, when `claude`
+is not found; one hint line says so). **Continue last chat** picks the last
+Agent session back up when the pane was closed. A permission card offers
+Allow, **Allow for this turn**, Deny. A failed turn keeps the prompt in the
+composer. Session, model and cost lines are gone; the duration sits on the
+bubble's hover. Agent = a Claude Code session at the wiki root,
 unjailed, with the wiki's hooks, permission cards in the pane ("Run this?",
 Allow / Deny), `credentials get` denied. Ask = one jailed `harness run` per
 turn, read-only. New chat, **Skills…** (a fuzzy list of the llm-wiki slash
@@ -130,21 +136,26 @@ command. Chips on an empty chat: "What needs attention in this wiki?", "What
 did the wiki learn since yesterday?", "Add a source…".
 
 ### Search (right sidebar)
-One field, results from `search query` with path and snippet; click opens the
-note.
+One field; a pause in typing or Enter searches, and a new search kills the one
+in flight. Results with title, path and snippet; click opens the note. "No
+pages match" for zero hits, the degradation reason when the engine is
+degraded, and **Ask the agent about this** carrying the query.
 
 ### Commands
 Open dashboard / chat / search, Run a job… (fuzzy), Open a job… (fuzzy, the
 detail dialog), Add a source…, Set a credential… (fuzzy over empty or broken
 slots), Run a skill… (fuzzy), Ask the agent about this note, Refresh,
-Re-detect. Rows in every list take focus and open on Enter; Escape in the
-composer stops a running turn.
+Re-detect, **Accept this draft** and **Reject this draft…** (on the active
+note when it is a draft). Rows in every list take focus and open on Enter;
+Escape in the composer stops a running turn.
 
 ### Not ready
 A card instead of the dashboard: "llm-wiki-cli was not found" or "This vault
-is not a registered wiki" with the two commands to copy, **Re-detect** and
-**Open settings**. The first successful detect raises one Notice naming the
-wiki and the binary; settings say what a missing `claude` costs (Agent chat).
+is not a registered wiki" with the registered wikis as one-click choices
+(for a vault under another path), the two commands to copy, **Re-detect** and
+**Open settings**. A detect whose outcome differs from the last launch raises
+one Notice naming the wiki and the binary; settings say what a missing
+`claude` costs (Agent chat).
 
 ### Settings
 Paths to `llm-wiki-cli` and `claude` (login shell PATH by default), wiki key
@@ -201,3 +212,18 @@ It renders the real views over fixture data with a stand-in for Obsidian's API.
   with exits; slot keys never reach the screen (one `slots.ts`); Run all
   due, Pause all / Resume all; keyboard rows and two new commands; chat
   status noise cut; Credentials moved above the package catalog.
+- **Cycle 4 (2026-10-23)**: fable review 3 folded. The retry path is whole:
+  Replace credential from the Overview, the job row and the job dialog all
+  carry the stopped ticket and its job, and a bare Retry runs the pass where
+  no runner would; the dashboard refreshes after a tool finishes, not when
+  it is called, and a refresh asked for mid-read runs again; polls during a
+  run are light; redraws keep scroll, filter and expansion; Accept and
+  Reject this draft commands; batch writes go in one call or in sequence;
+  the older-CLI card; chat defaults to Ask without claude, keeps a failed
+  prompt, offers Allow for this turn and Continue last chat; search on
+  Enter with cancellation, zero-hit and degraded wording, Ask the agent;
+  the quieten list (no session/cost lines, no OK toasts for visible
+  changes, launch Notice only on change, status bar needs-you first, no
+  "wiki notes" label, "Details" menu item gone, slot rows say the name
+  once); registered wikis as choices on the not-ready card; Update in the
+  inspector; Change schedule and Remove hand-offs in the job menu.

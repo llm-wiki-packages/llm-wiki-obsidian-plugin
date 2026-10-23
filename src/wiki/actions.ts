@@ -74,13 +74,22 @@ export class Actions {
     }
   }
 
-  async accept(path: string): Promise<Outcome> {
+  /** One call for the lot: `page curate` takes many paths and judges them together. */
+  async accept(paths: string[]): Promise<Outcome> {
     try {
-      await this.cli.run('wiki.page.curate', { wiki: this.wiki, paths: [path] })
-      return { ok: true, message: `accepted ${path}` }
+      await this.cli.run('wiki.page.curate', { wiki: this.wiki, paths })
+      return { ok: true, message: paths.length === 1 ? `accepted ${paths[0]}` : `accepted ${paths.length} pages` }
     } catch (e) {
-      return failed(`could not accept ${path}`, e)
+      return failed(paths.length === 1 ? `could not accept ${paths[0]}` : 'could not accept', e)
     }
+  }
+
+  /** Several writes against one wiki go one after another; two writers at once can trip a lock. */
+  async each(slugs: string[], one: (slug: string) => Promise<Outcome>, did: string): Promise<Outcome> {
+    const outs: Outcome[] = []
+    for (const s of slugs) outs.push(await one(s))
+    const bad = outs.filter((o) => !o.ok)
+    return bad.length ? { ok: false, message: `${did} ${outs.length - bad.length} of ${outs.length}: ${bad[0]?.message ?? ''}` } : { ok: true, message: `${did} ${outs.length}` }
   }
 
   async reject(path: string, reason: string): Promise<Outcome> {

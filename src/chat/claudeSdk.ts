@@ -31,9 +31,11 @@ const DENIED = [
 ]
 
 export class ClaudeSdkBackend implements ChatBackend {
-  private sessionId: string | undefined
+  sessionId: string | undefined
 
-  constructor(private readonly config: ClaudeSdkConfig) {}
+  constructor(private readonly config: ClaudeSdkConfig, resume?: string) {
+    this.sessionId = resume
+  }
 
   reset(): void {
     this.sessionId = undefined
@@ -44,7 +46,9 @@ export class ClaudeSdkBackend implements ChatBackend {
     const onAbort = () => abort.abort()
     if (ctx.signal.aborted) onAbort()
     ctx.signal.addEventListener('abort', onAbort, { once: true })
-    yield { type: 'start', detail: this.sessionId ? 'continuing' : 'new session' }
+    yield { type: 'start' }
+    // "Allow for this turn" answers every later ask in the same turn.
+    let allowTurn = false
     try {
       const q = query({
         prompt,
@@ -68,7 +72,9 @@ export class ClaudeSdkBackend implements ChatBackend {
           ...(this.sessionId ? { resume: this.sessionId } : {}),
           ...(this.config.model ? { model: this.config.model } : {}),
           canUseTool: async (toolName, input) => {
+            if (allowTurn) return { behavior: 'allow', updatedInput: input }
             const decision = await ctx.askPermission({ tool: toolName, input, summary: summarizeTool(toolName, input) })
+            if (decision.allow && decision.forTurn) allowTurn = true
             return decision.allow
               ? { behavior: 'allow', updatedInput: input }
               : { behavior: 'deny', message: decision.reason ?? 'Denied in Obsidian' }

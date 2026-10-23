@@ -2,7 +2,7 @@ import { Menu } from 'obsidian'
 import { button, clockTime, empty, pill, relativeTime, section, table } from '../../ui/dom'
 import { slotWords } from '../../wiki/slots'
 import { openJobModal } from '../../ui/jobModal'
-import type { JobView, NextKind } from '../../wiki/model'
+import type { Action, JobView, NextKind } from '../../wiki/model'
 import type { TabContext } from './index'
 
 /** The jobs, what each is waiting on, and the one button that matters on each row. */
@@ -13,17 +13,14 @@ export function renderJobs(root: HTMLElement, ctx: TabContext): void {
   const body = section(root, 'Jobs', {
     count: snapshot.jobs.length,
     actions: (bar) => {
-      if (due.length > 1 && actions) button(bar, `Run all due (${due.length})`, () => ctx.write(async () => {
-        const outs = await Promise.all(due.map((j) => actions.runJob(j.slug)))
-        return { ok: outs.every((o) => o.ok), message: outs.map((o) => o.message).join('; ') }
-      }), { icon: 'play' })
+      if (due.length > 1 && actions) button(bar, `Run all due (${due.length})`, () => ctx.write(() => actions.each(due.map((j) => j.slug), (s) => actions.runJob(s), 'started')), { icon: 'play' })
       button(bar, 'Add a source…', () => ctx.plugin.addJob(), { icon: 'plus', cta: true })
       if (snapshot.jobs.length && actions) button(bar, '', (e) => {
         const menu = new Menu()
         const live = snapshot.jobs.filter((j) => !j.paused)
         const paused = snapshot.jobs.filter((j) => j.paused)
-        if (live.length) menu.addItem((i) => i.setTitle(`Pause all (${live.length})`).setIcon('pause').onClick(() => ctx.write(async () => { await Promise.all(live.map((j) => actions.pauseJob(j.slug))); return { ok: true, message: `${live.length} jobs paused` } })))
-        if (paused.length) menu.addItem((i) => i.setTitle(`Resume all (${paused.length})`).setIcon('play').onClick(() => ctx.write(async () => { await Promise.all(paused.map((j) => actions.resumeJob(j.slug))); return { ok: true, message: `${paused.length} jobs resumed` } })))
+        if (live.length) menu.addItem((i) => i.setTitle(`Pause all (${live.length})`).setIcon('pause').onClick(() => ctx.write(() => actions.each(live.map((j) => j.slug), (s) => actions.pauseJob(s), 'paused'))))
+        if (paused.length) menu.addItem((i) => i.setTitle(`Resume all (${paused.length})`).setIcon('play').onClick(() => ctx.write(() => actions.each(paused.map((j) => j.slug), (s) => actions.resumeJob(s), 'resumed'))))
         menu.showAtMouseEvent(e)
       }, { icon: 'ellipsis', title: 'More' })
     },
@@ -33,8 +30,10 @@ export function renderJobs(root: HTMLElement, ctx: TabContext): void {
     return
   }
   const jobs = sorted(snapshot.jobs)
-  let filter = ''
-  let expanded = false
+  // Kept on the view, so a poll's redraw does not wipe what the reader typed or opened.
+  const memo = ctx.memo as { jobsFilter?: string; jobsExpanded?: boolean }
+  let filter = memo.jobsFilter ?? ''
+  let expanded = memo.jobsExpanded ?? false
   const draw = () => {
     list.empty()
     const shown = filter ? jobs.filter((j) => `${j.name} ${j.slug} ${j.kind} ${j.skill ?? ''}`.toLowerCase().includes(filter)) : jobs
@@ -66,15 +65,15 @@ export function renderJobs(root: HTMLElement, ctx: TabContext): void {
     if (hidden) {
       const more = t.row().createEl('td', { cls: 'llm-wiki-more-link', text: `Show ${hidden} more`, attr: { colspan: '5' } })
       more.addEventListener('click', () => {
-        expanded = true
+        expanded = memo.jobsExpanded = true
         draw()
       })
     }
   }
   if (jobs.length > 10) {
-    const field = body.createEl('input', { type: 'search', cls: 'llm-wiki-filter', placeholder: 'Filter jobs' })
+    const field = body.createEl('input', { type: 'search', cls: 'llm-wiki-filter', placeholder: 'Filter jobs', value: filter })
     field.addEventListener('input', () => {
-      filter = field.value.trim().toLowerCase()
+      filter = memo.jobsFilter = field.value.trim().toLowerCase()
       draw()
     })
   }
@@ -137,7 +136,7 @@ function lastCell(td: HTMLElement, j: JobView): void {
 }
 
 /** The Next column in plain words, formatted now so a reopened dashboard is not stale. */
-export function nextText(j: JobView, runner = true): string {
+export function nextText(j: JobView): string {
   const n = j.next
   switch (n.kind) {
     case 'due': return 'Due now'
@@ -157,10 +156,11 @@ function nextCell(td: HTMLElement, j: JobView, ctx: TabContext): void {
   if (j.running) {
     td.createSpan({ cls: 'llm-wiki-spinner' })
     td.createSpan({ text: ` Running ${j.running.since ? relativeTime(j.running.since).replace(' ago', '') : ''}` })
-    td.createDiv({ cls: 'llm-wiki-muted', text: [j.running.stage, `ticket ${j.running.ticket}`].filter(Boolean).join(' · ') })
+    if (j.running.stage) td.createDiv({ cls: 'llm-wiki-muted', text: j.running.stage })
+    td.title = `ticket ${j.running.ticket}`
     return
   }
-  td.createSpan({ text: nextText(j, ctx.snapshot.runner) })
+  td.createSpan({ text: nextText(j) })
   // The detail earns its line only when it adds the credential's name; "needs a credential" twice is noise.
   if (j.next.kind === 'unbound' && j.credential?.name) td.createDiv({ cls: 'llm-wiki-muted', text: j.next.detail })
   else if (j.next.detail) td.title = j.next.detail
@@ -177,25 +177,33 @@ export function jobButtons(parent: HTMLElement, j: JobView, ctx: TabContext, ful
   const run = () => ctx.write(() => actions.runJob(j.slug))
   const runTitle = `llm-wiki-ops jobs request ${j.slug}`
   const c = j.credential
-  if (j.paused) button(parent, 'Resume', () => ctx.write(() => actions.resumeJob(j.slug)), { icon: 'play', cta: true })
-  else if (c && j.skill) button(parent, c.name ? 'Replace credential' : 'Set credential', () => ctx.act({ kind: 'credential', skill: j.skill!, slot: c.slot, ...(c.name ? { name: c.name } : {}) }), { icon: 'key-round', cta: true })
+  if (j.paused) button(parent, 'Resume', () => ctx.write(() => actions.resumeJob(j.slug), true), { icon: 'play', cta: true })
+  else if (c && j.skill) button(parent, c.name ? 'Replace credential' : 'Set credential', () => ctx.act(credentialAction(j)), { icon: 'key-round', cta: true })
   else if (j.next.kind === 'due') button(parent, 'Run', run, { icon: 'play', cta: true, title: runTitle })
   // Without a runner a scheduled job only runs by hand, so the row says so and offers the button.
   else if ((full || !ctx.snapshot.runner) && !j.running && (ctx.snapshot.runner ? RUNNABLE : RUNNABLE_BY_HAND).includes(j.next.kind)) button(parent, 'Run', run, { icon: 'play', title: runTitle })
   if (j.running && !full) return
   if (full) {
-    if (!j.running && !j.paused) button(parent, 'Pause', () => ctx.write(() => actions.pauseJob(j.slug)), { icon: 'pause' })
+    if (!j.running && !j.paused) button(parent, 'Pause', () => ctx.write(() => actions.pauseJob(j.slug), true), { icon: 'pause' })
     return
   }
   const more = button(parent, '', (e) => {
     const menu = new Menu()
     if (!j.running && !j.paused && j.next.kind !== 'due' && RUNNABLE.includes(j.next.kind)) menu.addItem((i) => i.setTitle('Run now').setIcon('play').onClick(run))
-    if (!j.running && !j.paused) menu.addItem((i) => i.setTitle('Pause').setIcon('pause').onClick(() => ctx.write(() => actions.pauseJob(j.slug))))
-    menu.addItem((i) => i.setTitle('Details').setIcon('info').onClick(() => openJobModal(ctx.plugin.app, j, ctx)))
+    if (!j.running && !j.paused) menu.addItem((i) => i.setTitle('Pause').setIcon('pause').onClick(() => ctx.write(() => actions.pauseJob(j.slug), true)))
+    menu.addItem((i) => i.setTitle('Change schedule…').setIcon('clock').onClick(() => ctx.act({ kind: 'ask', prompt: `Change the schedule of job ${j.slug} (${j.name}, now ${j.schedule}) to ` })))
+    menu.addItem((i) => i.setTitle('Remove…').setIcon('trash-2').onClick(() => ctx.act({ kind: 'ask', prompt: `/llm-wiki:remove ${j.slug}` })))
     menu.addItem((i) => i.setTitle('Ask the agent about it').setIcon('message-square').onClick(() => ctx.act({ kind: 'ask', prompt: askAbout(j) })))
     menu.showAtMouseEvent(e)
   }, { icon: 'ellipsis', title: 'More' })
   more.addClass('llm-wiki-more')
+}
+
+/** The credential action for a job: set or replace, and retry its stopped ticket on the way. */
+export function credentialAction(j: JobView): Action {
+  const c = j.credential!
+  const failed = j.tickets.find((t) => t.state === 'failed')
+  return { kind: 'credential', skill: j.skill!, slot: c.slot, ...(c.name ? { name: c.name } : {}), ...(failed ? { retry: failed.id } : {}), job: j.slug }
 }
 
 /** A chat opener that carries what the dashboard knows: the state, the reason, the last failure. */

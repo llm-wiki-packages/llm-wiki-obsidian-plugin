@@ -16,7 +16,7 @@ const str = (v: unknown, fallback = ''): string => (typeof v === 'string' ? v : 
 export function mapLine(l: StreamLine, sawResult: boolean): ChatEvent[] {
   switch (l.type) {
     case 'start':
-      return [{ type: 'start', detail: [l.harness, l.model, l.sandbox].filter((x) => typeof x === 'string').join(' · ') }]
+      return [{ type: 'start' }]
     case 'text':
       return typeof l.text === 'string' ? [{ type: 'text', text: l.text }] : []
     case 'tool':

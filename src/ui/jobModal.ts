@@ -1,6 +1,6 @@
 import { Modal, type App } from 'obsidian'
 import type { TabContext } from '../views/dashboard/index'
-import { askAbout, jobButtons, nextText } from '../views/dashboard/jobs'
+import { askAbout, credentialAction, jobButtons, nextText } from '../views/dashboard/jobs'
 import { slotWords } from '../wiki/slots'
 import type { JobView } from '../wiki/model'
 import { button, clockTime, relativeTime } from './dom'
@@ -16,7 +16,8 @@ export function openJobModal(app: App, j: JobView, ctx: TabContext): void {
 
       const state = c.createDiv({ cls: 'llm-wiki-facts-block' })
       const line = state.createDiv({ cls: j.next.kind === 'unbound' ? 'llm-wiki-next' : `llm-wiki-next is-${j.next.kind}` })
-      line.setText(j.running ? `Running ${j.running.stage} since ${j.running.since ? clockTime(j.running.since) : '?'} (ticket ${j.running.ticket})` : nextText(j, ctx.snapshot.runner))
+      line.setText(j.running ? `Running ${j.running.stage} since ${j.running.since ? clockTime(j.running.since) : '?'}` : nextText(j))
+      if (j.running) line.title = `ticket ${j.running.ticket}`
       if (j.next.detail && !j.running) state.createDiv({ cls: 'llm-wiki-muted', text: j.next.detail })
       else if (j.reasons.length) state.createDiv({ cls: 'llm-wiki-muted', text: j.reasons.join('; ') })
 
@@ -26,10 +27,10 @@ export function openJobModal(app: App, j: JobView, ctx: TabContext): void {
         for (const slot of unit.slots) {
           const row = c.createDiv({ cls: 'llm-wiki-row' })
           const main = row.createDiv({ cls: 'llm-wiki-row-main' })
-          main.createDiv({ cls: 'llm-wiki-row-title', text: `${slotWords(slot.name).label} · ${slot.required ? 'required' : 'optional'}` })
-          main.createDiv({ cls: 'llm-wiki-row-detail', text: slot.credential ? `${slot.credential}${slot.problem ? ` (${slot.problem})` : ''}` : 'not set' })
+          main.createDiv({ cls: 'llm-wiki-row-title', text: slot.credential ? slotWords(slot.name).label : `${slotWords(slot.name).label} · ${slot.required ? 'required' : 'optional'}` })
+          main.createDiv({ cls: 'llm-wiki-row-detail', text: slot.credential ?? 'not set' })
           if (!slot.credential || slot.problem)
-            button(row.createDiv({ cls: 'llm-wiki-row-actions' }), slot.credential ? 'Replace credential' : 'Set credential', () => { this.close(); return ctx.act({ kind: 'credential', skill: unit.name, slot: slot.name, ...(slot.credential ? { name: slot.credential } : {}) }) }, { icon: 'key-round', cta: slot.required || Boolean(slot.problem) })
+            button(row.createDiv({ cls: 'llm-wiki-row-actions' }), slot.credential ? 'Replace credential' : 'Set credential', () => { this.close(); return ctx.act(j.credential?.slot === slot.name ? credentialAction(j) : { kind: 'credential', skill: unit.name, slot: slot.name, ...(slot.credential ? { name: slot.credential } : {}), job: j.slug }) }, { icon: 'key-round', cta: slot.required || Boolean(slot.problem) })
         }
       }
 
@@ -45,7 +46,7 @@ export function openJobModal(app: App, j: JobView, ctx: TabContext): void {
         const right = row.createDiv({ cls: 'llm-wiki-muted' })
         right.setText([t.at ? relativeTime(t.at) : '', t.runtimeS ? `${Math.round(t.runtimeS)}s` : ''].filter(Boolean).join(' · '))
         row.title = `ticket ${t.id}`
-        if (t.state === 'failed' && ctx.plugin.actions) button(row.createDiv({ cls: 'llm-wiki-row-actions' }), 'Retry', () => { this.close(); return ctx.act({ kind: 'retry', ticket: t.id }) }, { icon: 'rotate-ccw' })
+        if (t.state === 'failed' && ctx.plugin.actions) button(row.createDiv({ cls: 'llm-wiki-row-actions' }), 'Retry', () => { this.close(); return ctx.act({ kind: 'retry', ticket: t.id, slug: j.slug }) }, { icon: 'rotate-ccw' })
       }
 
       const bar = c.createDiv({ cls: 'llm-wiki-composer-buttons' })

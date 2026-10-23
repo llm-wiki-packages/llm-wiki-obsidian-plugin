@@ -32,9 +32,12 @@ export default class LlmWikiPlugin extends Plugin {
   private statusBar: HTMLElement | null = null
   private pollTimer: number | null = null
   private refreshing: Promise<void> | null = null
+  private again = false
+  /** When the last full read happened; light polls lean on it for up to a minute. */
+  private fullAt = 0
+  /** What `machine wikis ls` returned, so a not-ready card can offer the registered keys. */
+  registered: WikiRow[] = []
   private unloaded = false
-  /** The first successful detect says so once; later ones are quiet unless asked. */
-  private announced = false
 
   async onload(): Promise<void> {
     await this.loadSettings()
@@ -59,11 +62,28 @@ export default class LlmWikiPlugin extends Plugin {
       return true
     } })
     this.addCommand({ id: 'refresh', name: 'Refresh the dashboard', callback: () => void this.refreshSnapshot() })
+    this.addCommand({ id: 'accept-draft', name: 'Accept this draft', checkCallback: (checking) => this.draftCommand(checking, (a, path) => a.accept([path])) })
+    this.addCommand({ id: 'reject-draft', name: 'Reject this draft…', checkCallback: (checking) => this.draftCommand(checking, async (a, path) => {
+      const reason = await promptText(this.app, { title: `Reject ${path}`, placeholder: 'Why? One line; it is stamped on the page.', cta: 'Reject' })
+      return reason ? a.reject(path, reason) : { ok: true, message: '' }
+    }) })
     this.addCommand({ id: 'redetect', name: 'Re-detect wiki and binaries', callback: () => void this.detect(true) })
     this.statusBar = this.addStatusBarItem()
     this.statusBar.addClass('mod-clickable')
     this.registerDomEvent(this.statusBar, 'click', () => void this.openDashboard())
     this.app.workspace.onLayoutReady(() => void this.detect())
+  }
+
+  /** Accept or reject the draft in the active editor, without going back to the Pages tab. */
+  private draftCommand(checking: boolean, run: (a: Actions, path: string) => Promise<{ ok: boolean; message: string }>): boolean {
+    const path = this.app.workspace.getActiveFile()?.path
+    const actions = this.actions
+    if (!path || !actions || !this.snapshot?.curation.some((c) => c.path === path)) return false
+    if (!checking) void run(actions, path).then((out) => {
+      if (out.message) new Notice(out.message, out.ok ? 4000 : 8000)
+      void this.refreshSnapshot()
+    })
+    return true
   }
 
   onunload(): void {
@@ -111,6 +131,7 @@ export default class LlmWikiPlugin extends Plugin {
       const vault = this.vaultPath()
       if (!vault) throw new Error('this vault is not on a local filesystem')
       const rows = await this.cli.run<{ wikis: WikiRow[] }>('machine.wikis.ls')
+      this.registered = rows.wikis ?? []
       const row = matchWiki(rows.wikis ?? [], vault, this.settings.wikiKey)
       if (!row) throw new Error(`the vault is not a registered wiki (${(rows.wikis ?? []).length} registered); join it, or set the wiki key in the plugin settings`)
       this.wiki = { key: row.key, name: row.name, root: vault }
@@ -121,19 +142,31 @@ export default class LlmWikiPlugin extends Plugin {
       log.warn(this.problem)
     }
     this.showStatus()
-    if (announce || (this.wiki && !this.announced)) new Notice(this.statusText(), 6000)
-    this.announced = true
+    // Said once per machine state: on request, or when the outcome differs from the last launch.
+    const outcome = this.problem ?? `${this.wiki?.key ?? ''}|${this.cliBin ?? ''}|${this.claudeBin ?? ''}`
+    if (announce || outcome !== this.settings.lastDetect) new Notice(this.statusText(), 6000)
+    if (outcome !== this.settings.lastDetect) {
+      this.settings.lastDetect = outcome
+      void this.saveSettings()
+    }
     this.app.workspace.trigger('llm-wiki:detected')
     if (this.wiki) await this.refreshSnapshot()
   }
 
   /** Reads the wiki once; views redraw on the `llm-wiki:snapshot` event. Coalesces concurrent calls. */
-  refreshSnapshot(): Promise<void> {
-    if (this.refreshing) return this.refreshing
+  refreshSnapshot(light = false): Promise<void> {
+    // A refresh asked for during a read runs once more after it, so a change made meanwhile is not missed.
+    if (this.refreshing) {
+      this.again = true
+      return this.refreshing
+    }
     const { cli, wiki } = this
     if (!cli || !wiki || this.unloaded) return Promise.resolve()
-    this.refreshing = takeSnapshot(cli, wiki.key, Date.now(), { root: wiki.root, home: homedir(), read: (p) => readFile(p, 'utf8') })
+    const files = { root: wiki.root, home: homedir(), read: (p: string) => readFile(p, 'utf8') }
+    const previous = light && this.snapshot && Date.now() - this.fullAt < 60_000 ? this.snapshot : undefined
+    this.refreshing = takeSnapshot(cli, wiki.key, Date.now(), files, previous)
       .then((snap) => {
+        if (!previous) this.fullAt = snap.takenAt
         this.announceFailures(this.snapshot, snap)
         this.snapshot = snap
         this.showStatus()
@@ -142,7 +175,10 @@ export default class LlmWikiPlugin extends Plugin {
       .catch((e: unknown) => log.warn('snapshot', e))
       .finally(() => {
         this.refreshing = null
-        this.schedulePoll()
+        if (this.again) {
+          this.again = false
+          void this.refreshSnapshot()
+        } else this.schedulePoll()
       })
     return this.refreshing
   }
@@ -162,7 +198,7 @@ export default class LlmWikiPlugin extends Plugin {
     const busy = this.snapshot?.jobs.some((j) => j.running) ?? false
     const open = this.app.workspace.getLeavesOfType(VIEW_DASHBOARD).length > 0
     const ms = busy ? 10_000 : open ? 60_000 : 5 * 60_000
-    this.pollTimer = window.setTimeout(() => void this.refreshSnapshot(), ms)
+    this.pollTimer = window.setTimeout(() => void this.refreshSnapshot(busy), ms)
   }
 
   private showStatus(): void {
@@ -174,8 +210,9 @@ export default class LlmWikiPlugin extends Plugin {
     const s = this.snapshot
     const running = s?.jobs.find((j) => j.running)
     const stopped = s?.attention.filter((a) => a.id.startsWith('parked:')).length ?? 0
-    const text = !s ? this.wiki.key : running ? `running ${running.name}` : stopped && stopped === s.health.count ? `${stopped} stopped` : s.health.count ? `${s.health.count} need you` : 'ok'
-    this.statusBar.setText(`llm-wiki · ${text}${s && !s.runner ? ' · no runner' : ''}`)
+    // What needs a person outranks what is moving: an hourly job must not hide a stopped one.
+    const text = !s ? this.wiki.key : stopped && stopped === s.health.count ? `${stopped} stopped` : s.health.count ? `${s.health.count} need you` : running ? `running ${running.name}` : 'ok'
+    this.statusBar.setText(`llm-wiki · ${text}`)
   }
 
   async openDashboard(): Promise<void> {
@@ -305,8 +342,8 @@ export default class LlmWikiPlugin extends Plugin {
     modal.open()
   }
 
-  /** The chat backend for a mode, built fresh so settings changes apply. */
-  async backend(mode: ChatMode): Promise<ChatBackend> {
+  /** The chat backend for a mode, built fresh so settings changes apply; `resume` picks an Agent session back up. */
+  async backend(mode: ChatMode, resume?: string): Promise<ChatBackend> {
     if (!this.cli) throw new Error(this.problem ?? 'not ready')
     if (mode === 'ask') {
       return new HarnessRunBackend(this.cli, {
@@ -316,7 +353,7 @@ export default class LlmWikiPlugin extends Plugin {
       })
     }
     if (!this.claudeBin) throw new Error('claude not found on the login shell PATH; set its path in the plugin settings')
-    return new ClaudeSdkBackend({ claudePath: this.claudeBin, path: await effectivePath(), model: this.settings.model || undefined })
+    return new ClaudeSdkBackend({ claudePath: this.claudeBin, path: await effectivePath(), model: this.settings.model || undefined }, resume)
   }
 
   /** Opens chat; with text, the composer is filled and focused so one click starts the conversation. */

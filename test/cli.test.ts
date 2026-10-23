@@ -95,6 +95,20 @@ describe('Actions.runJob says what the request answered', () => {
   it('ran, with the pages written, when the pass landed before it returned', async () => {
     expect(await new Actions(standIn('{"slug":"gmail","minted":true,"outcome":"ok","written":["sources/mail/a.md","sources/mail/b.md"]}'), 'kb').runJob('gmail')).toEqual({ ok: true, message: 'gmail ran: 2 pages written', written: ['sources/mail/a.md', 'sources/mail/b.md'] })
   })
+  it('accept takes every path in one call, and each() runs writes one after another', async () => {
+    const a = new Actions(standIn('{"pages":[],"count":2}'), 'kb')
+    expect(await a.accept(['sources/a.md', 'sources/b.md'])).toEqual({ ok: true, message: 'accepted 2 pages' })
+    const order: string[] = []
+    expect(await a.each(['x', 'y'], async (s) => { order.push(s); return { ok: s === 'x', message: s } }, 'started')).toEqual({ ok: false, message: 'started 1 of 2: y' })
+    expect(order).toEqual(['x', 'y'])
+  })
+  it('a run can be cancelled through its signal', async () => {
+    const cli = new Cli({ bin: node, prefix: ['-e', 'setTimeout(()=>process.stdout.write("{}"), 2000)'], env: process.env, timeoutMs: 5000 })
+    const ac = new AbortController()
+    const p = cli.run('wiki.doctor', { wiki: 'kb' }, { signal: ac.signal })
+    ac.abort()
+    await expect(p).rejects.toThrow(/cancelled/)
+  })
   it('retryAndRun puts the ticket back and then runs the pass, stopping at a refused retry', async () => {
     expect(await new Actions(standIn('{"slug":"gmail","minted":true,"outcome":"running","ticket":"t2"}'), 'kb').retryAndRun('t1', 'gmail')).toEqual({ ok: true, message: 'gmail started' })
     expect((await new Actions(standIn('{"error":"no ticket t1"}', 2), 'kb').retryAndRun('t1', 'gmail')).ok).toBe(false)

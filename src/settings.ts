@@ -8,6 +8,10 @@ export interface LlmWikiSettings {
   cliPath: string
   /** Absolute path of `claude`; empty means search the login shell's PATH. */
   claudePath: string
+  /** The last Agent session, so a closed pane can pick the thread back up. */
+  lastSession: string
+  /** The last detect outcome, so the launch Notice fires only when it changes. */
+  lastDetect: string
   /** A registered wiki key, when the vault's path does not match the registry (a symlink, a subfolder). */
   wikiKey: string
   defaultChatMode: ChatMode
@@ -24,6 +28,8 @@ export interface LlmWikiSettings {
 export const DEFAULT_SETTINGS: LlmWikiSettings = {
   cliPath: '',
   claudePath: '',
+  lastSession: '',
+  lastDetect: '',
   wikiKey: '',
   defaultChatMode: 'agent',
   model: '',
@@ -73,7 +79,7 @@ export class LlmWikiSettingTab extends PluginSettingTab {
       .setDesc('Agent runs at the wiki root with its hooks, can run jobs and edit pages, and asks before each tool it would prompt for. Ask runs one jailed, read-only question per turn.')
       .addDropdown((d) => d.addOptions({ agent: 'Agent', ask: 'Ask' }).setValue(s.defaultChatMode).onChange((v) => { s.defaultChatMode = v as ChatMode; save() }))
     new Setting(containerEl)
-      .setName('Model')
+      .setName('Model (Agent and Ask)')
       .setDesc('Agent mode. Empty uses the harness default.')
       .addText((t) => t.setPlaceholder('Default').setValue(s.model).onChange((v) => { s.model = v.trim(); save() }))
     new Setting(containerEl)

@@ -10,6 +10,8 @@ export class SearchView extends ItemView {
   private status!: HTMLElement
   private results!: HTMLElement
   private seq = 0
+  /** The search in flight; a new one kills it rather than racing it. */
+  private inFlight: AbortController | null = null
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -38,10 +40,14 @@ export class SearchView extends ItemView {
     this.input = bar.createEl('input', { type: 'search', placeholder: 'Search the wiki…', cls: 'llm-wiki-search-input' })
     this.status = root.createDiv({ cls: 'llm-wiki-muted llm-wiki-search-status' })
     this.results = root.createDiv({ cls: 'llm-wiki-search-results' })
-    const run = debounce(() => void this.search(), 300, true)
+    // A pause in typing searches; Enter searches now. Each search is one CLI process, so bursts are not.
+    const run = debounce(() => void this.search(), 600, true)
     this.registerDomEvent(this.input, 'input', () => run())
     this.registerDomEvent(this.input, 'keydown', (e) => {
-      if (e.key === 'Enter') void this.search()
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        void this.search()
+      }
       if (e.key === 'Escape') {
         this.input.value = ''
         this.results.empty()
@@ -53,7 +59,7 @@ export class SearchView extends ItemView {
   }
 
   private showReadiness(): void {
-    this.status.setText(this.plugin.wiki ? `wiki ${this.plugin.wiki.key}` : this.plugin.problem ?? 'detecting…')
+    this.status.setText(this.plugin.wiki ? '' : this.plugin.problem ?? 'detecting…')
   }
 
   private async search(): Promise<void> {
@@ -61,9 +67,12 @@ export class SearchView extends ItemView {
     const { cli, wiki } = this.plugin
     if (!q || !cli || !wiki) return
     const mine = ++this.seq
+    this.inFlight?.abort()
+    const abort = new AbortController()
+    this.inFlight = abort
     this.status.setText('Searching…')
     try {
-      const ans = await cli.run<SearchAnswer>('wiki.search.query', { wiki: wiki.key, text: q, k: this.plugin.settings.searchK })
+      const ans = await cli.run<SearchAnswer>('wiki.search.query', { wiki: wiki.key, text: q, k: this.plugin.settings.searchK }, { signal: abort.signal })
       if (mine !== this.seq) return
       this.render(ans)
     } catch (e) {
@@ -76,9 +85,13 @@ export class SearchView extends ItemView {
 
   private render(ans: SearchAnswer): void {
     const hits = ans.hits ?? []
-    const notes = [`${hits.length} hits`, ans.backend ?? '', ans.degraded ? 'degraded' : ''].filter(Boolean)
+    const why = (ans.degradations ?? []).map((d) => d.detail).filter(Boolean).join('; ')
+    const notes = [hits.length ? `${hits.length} ${hits.length === 1 ? 'hit' : 'hits'}` : 'No pages match', ans.backend ?? '', ans.degraded ? `degraded${why ? `: ${why}` : ''}` : ''].filter(Boolean)
     this.status.setText(notes.join(' · '))
     this.results.empty()
+    const q = this.input.value.trim()
+    const ask = this.results.createEl('button', { cls: 'llm-wiki-chip', text: 'Ask the agent about this' })
+    this.registerDomEvent(ask, 'click', () => void this.plugin.openChat(`About "${q}" in this wiki: `))
     for (const h of hits) {
       const path = h.source_path ?? h.locator ?? ''
       const row = this.results.createDiv({ cls: 'llm-wiki-hit' })

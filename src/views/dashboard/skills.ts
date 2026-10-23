@@ -117,17 +117,17 @@ function credentialRow(parent: HTMLElement, c: CredentialView, ctx: TabContext, 
   else if (c.state === 'none') pill(title, 'empty', 'warn')
   else pill(title, 'not verified yet')
   const uses = c.uses.map((u) => u.job ?? u.skill ?? '')
-  main.createDiv({ cls: 'llm-wiki-row-detail', text: c.kind === 'harness' ? 'Used by chat and by every skill that runs a model session' : uses.length ? `Used by ${uses.join(', ')}` : 'Not used by any skill or job' })
+  main.createDiv({ cls: 'llm-wiki-row-detail', text: c.kind === 'harness' ? 'Used by Ask mode and by every skill that runs a model session' : uses.length ? `Used by ${uses.join(', ')}` : 'Not used by any skill or job' })
   const bar = row.createDiv({ cls: 'llm-wiki-row-actions' })
   if (!actions) return
   if (c.kind === 'harness') {
     if (c.state === 'failed' || c.state === 'none') button(bar, 'Log in', () => ctx.write(() => actions.loginCredential(c.name)), { icon: 'log-in', cta: true })
     return
   }
-  button(bar, 'Replace…', () => ctx.plugin.credentialModal({ name: c.name, kind: c.kind === 'dir' ? 'dir' : 'value' }), { icon: 'refresh-cw', cta: c.state === 'failed' || Boolean(stale) })
+  button(bar, 'Replace…', () => ctx.plugin.credentialModal({ name: c.name, kind: c.kind === 'dir' ? 'dir' : 'value' }), { icon: 'refresh-cw', cta: (c.state === 'failed' || Boolean(stale)) && c.uses.length > 0 })
   button(bar, 'Remove', async () => {
     const who = c.uses.map((u) => u.job ?? u.skill).filter(Boolean)
     const ok = await confirm(ctx.plugin.app, { title: `Remove ${c.name}?`, body: who.length ? `${who.join(', ')} will lose it and cannot run here until another credential is bound.` : 'It is not bound anywhere.', cta: 'Remove' })
-    if (ok) await ctx.write(() => actions.removeCredential(c.name))
+    if (ok) await ctx.write(() => actions.removeCredential(c.name), true)
   }, { icon: 'trash-2' })
 }

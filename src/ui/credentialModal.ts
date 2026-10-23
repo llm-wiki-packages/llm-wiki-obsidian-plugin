@@ -36,7 +36,8 @@ export function openCredentialModal(app: App, snapshot: Snapshot, actions: Actio
   // What happens after the save: a stopped ticket is retried and run, a due job is run.
   const job = prompt.job ?? (unit?.jobs.length === 1 ? unit.jobs[0] : undefined)
   const jobView = job ? snapshot.jobs.find((j) => j.slug === job) : undefined
-  const then: 'retry' | 'run' | null = prompt.retry && job ? 'retry' : job && jobView && !jobView.running && !jobView.paused ? 'run' : null
+  // Only a job the caller named, or the skill's one job, is acted on; a guess would run the wrong mailbox.
+  const then: 'retry' | 'run' | null = prompt.retry && job ? 'retry' : job && jobView && !jobView.running && !jobView.paused && (jobView.next.kind === 'due' || jobView.next.kind === 'unbound') ? 'run' : null
 
   const modal = new (class extends Modal {
     private error!: HTMLElement
@@ -100,7 +101,7 @@ export function openCredentialModal(app: App, snapshot: Snapshot, actions: Actio
         })
         window.setTimeout(() => field.focus(), 0)
       } else {
-        new Setting(this.valueRow).setName('Folder').setDesc(replacing ? 'Leave empty to keep the same folder after signing in again.' : 'An absolute path; empty to let the CLI create one.').addText((t) => t.setPlaceholder('/Users/you/Library/…').onChange((v) => (dir = v.trim())))
+        new Setting(this.valueRow).setName('Folder').setDesc(replacing ? 'Leave empty to keep the same folder after signing in again.' : 'An absolute path; empty to let the CLI create one.').addText((t) => t.setPlaceholder('/absolute/path/to/profile').onChange((v) => (dir = v.trim())))
       }
     }
 

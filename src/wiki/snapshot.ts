@@ -135,7 +135,11 @@ export interface BindingsAnswer {
   jobs?: BindingRow[]
 }
 
-export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now(), files?: Files): Promise<Snapshot> {
+/**
+ * Reads the wiki. With `previous`, a light read: the job, ticket and run state move, the skills, credentials and
+ * packages are carried over, so a 10-second poll during a run is a handful of spawns and not thirty.
+ */
+export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now(), files?: Files, previous?: Snapshot): Promise<Snapshot> {
   const errors: Record<string, string> = {}
   const soft = async <T>(verb: Verb, args: Args = {}): Promise<T | null> => {
     try {
@@ -145,6 +149,8 @@ export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now(
       return null
     }
   }
+  const light = previous !== undefined
+  const skip = <T>(): Promise<T | null> => Promise.resolve(null)
   const [doctor, jobsLs, due, tickets, pages, ops, search, conflicts, runnerLs, skillsLs, skillsDoctor, packagesLs, credentialsLs, bindings] = await Promise.all([
     soft<DoctorAnswer>('wiki.doctor'),
     soft<JobsLsAnswer>('wiki.jobs.ls'),
@@ -154,12 +160,12 @@ export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now(
     soft<OpSinceAnswer>('wiki.op.since', { since: '1d' }),
     soft<SearchStatusAnswer>('wiki.search.status'),
     soft<{ pages?: string[] }>('wiki.git.conflicts'),
-    soft<RunnerLsAnswer>('machine.runner.ls'),
-    soft<SkillsLsAnswer>('wiki.skills.ls'),
-    soft<SkillsDoctorAnswer>('wiki.skills.doctor'),
-    soft<PackagesLsAnswer>('wiki.packages.ls'),
-    soft<CredentialRow[] | { rows?: CredentialRow[] }>('wiki.credentials.ls'),
-    soft<BindingsAnswer>('wiki.credentials.bindings'),
+    light ? skip<RunnerLsAnswer>() : soft<RunnerLsAnswer>('machine.runner.ls'),
+    light ? skip<SkillsLsAnswer>() : soft<SkillsLsAnswer>('wiki.skills.ls'),
+    light ? skip<SkillsDoctorAnswer>() : soft<SkillsDoctorAnswer>('wiki.skills.doctor'),
+    light ? skip<PackagesLsAnswer>() : soft<PackagesLsAnswer>('wiki.packages.ls'),
+    light ? skip<CredentialRow[] | { rows?: CredentialRow[] }>() : soft<CredentialRow[] | { rows?: CredentialRow[] }>('wiki.credentials.ls'),
+    light ? skip<BindingsAnswer>() : soft<BindingsAnswer>('wiki.credentials.bindings'),
   ])
   // A second round, per unit and per package: the manifest names the slots, the package names what else could be installed.
   const skillRows = skillsLs?.skills ?? []
@@ -171,10 +177,12 @@ export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now(
   const ticketRows = tickets?.tickets ?? []
   const jobRows = (jobsLs?.jobs ?? []).filter((j) => j.state !== 'archived')
   const bindingRows = [...(bindings?.skills ?? []), ...(bindings?.jobs ?? [])]
-  const credentials = credentialViews(Array.isArray(credentialsLs) ? credentialsLs : (credentialsLs?.rows ?? []), bindingRows)
+  const credentials = previous?.credentials ?? credentialViews(Array.isArray(credentialsLs) ? credentialsLs : (credentialsLs?.rows ?? []), bindingRows)
   const caches = Object.fromEntries((packagesLs?.installed ?? []).map((p) => [p.package, p.cache ?? null]))
-  const skills = skillViews(shown, packages, jobRows, bindingRows, credentials, files ? { root: files.root, home: files.home, caches } : undefined)
-  if (files)
+  const skills = previous
+    ? previous.skills.map((s) => ({ ...s, jobs: jobRows.filter((j) => j.skill === s.name).map((j) => j.slug) }))
+    : skillViews(shown, packages, jobRows, bindingRows, credentials, files ? { root: files.root, home: files.home, caches } : undefined)
+  if (files && !light)
     await Promise.all(skills.map(async (sk) => {
       if (!sk.dir) return
       try {
@@ -195,12 +203,14 @@ export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now(
     }))
   const jobs = jobRows.map((j) => jobView(j, ticketRows, now, skills))
   const attention = attentionItems({ doctor, due, jobsLs, jobs, skills, skillsDoctor, search, conflicts: conflicts?.pages ?? [], ticketRows })
-  const runner = (runnerLs?.wikis ?? []).some((w) => w.wiki_key === wikiKey && w.installed !== null)
+  const runner = previous ? previous.runner : (runnerLs?.wikis ?? []).some((w) => w.wiki_key === wikiKey && w.installed !== null)
   const pageRows = pages?.pages ?? []
   // An older CLI lists no change state; then the queue is unknowable rather than empty.
   const tellsChange = pageRows.some((p) => 'change' in p)
   const errors_ = attention.filter((a) => a.severity === 'error').length
   const count = errors_ + attention.filter((a) => a.severity === 'warn').length
+  // The reads a light pass skipped keep their last verdict, so a known hole does not look healed.
+  if (previous) for (const [k, v] of Object.entries(previous.errors)) if (!(k in errors) && /^(wiki\.skills|wiki\.credentials|wiki\.packages|machine\.runner)/.test(k)) errors[k] = v
   return {
     takenAt: now,
     wikiKey,
@@ -401,10 +411,10 @@ function attentionItems(input: {
     // A stopped job whose credential is the problem: fixing the credential is the button, and the retry rides along.
     if (job?.credential && job.skill) {
       const c = job.credential
-      out.push({ id: `parked:${t.id}`, severity: 'warn', title: `${name} stopped: ${c.name ? `${c.name} is ${c.problem}` : `${job.skill} needs a credential`}`, detail: t.reason ?? undefined, action: { kind: 'credential', skill: job.skill, slot: c.slot, ...(c.name ? { name: c.name } : {}), retry: t.id } })
+      out.push({ id: `parked:${t.id}`, severity: 'warn', title: `${name} stopped: ${c.name ? `${c.name} is ${c.problem}` : `${job.skill} needs ${slotWords(c.slot).what}`}`, detail: t.reason ?? undefined, action: { kind: 'credential', skill: job.skill, slot: c.slot, ...(c.name ? { name: c.name } : {}), retry: t.id, job: t.job } })
       continue
     }
-    out.push({ id: `parked:${t.id}`, severity: 'warn', title: `${name} ${t.stage} stopped${t.reason ? `: ${t.reason}` : ''}`, detail: `ticket ${t.id}`, action: { kind: 'retry', ticket: t.id } })
+    out.push({ id: `parked:${t.id}`, severity: 'warn', title: `${name} ${t.stage} stopped${t.reason ? `: ${t.reason}` : ''}`, detail: `ticket ${t.id}`, action: { kind: 'retry', ticket: t.id, slug: t.job } })
   }
   const stopped = new Set(parked.map((t) => t.job))
   for (const r of unboundRows) if (!stopped.has(r.id.slice('unbound:'.length))) out.push(r)

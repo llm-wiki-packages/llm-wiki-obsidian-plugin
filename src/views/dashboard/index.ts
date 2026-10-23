@@ -26,9 +26,11 @@ export interface TabContext {
   plugin: LlmWikiPlugin
   /** Runs a row's action: a write through Actions, or a hand-off to chat. */
   act(action: Action): Promise<void>
-  /** A write the tab asked for; the dashboard refreshes after it and reports the outcome. */
-  write(run: () => Promise<{ ok: boolean; message: string }>): Promise<void>
+  /** A write the tab asked for; the dashboard refreshes after it and reports the outcome. `quiet` skips the Notice when the row itself will show the change. */
+  write(run: () => Promise<{ ok: boolean; message: string }>, quiet?: boolean): Promise<void>
   goTo(tab: Tab): void
+  /** Per-view scratch a tab keeps across renders: a filter, an expansion. */
+  memo: Record<string, unknown>
 }
 
 /** What a failed read is called on screen. */
@@ -44,6 +46,7 @@ export class DashboardView extends ItemView {
   private tabBar!: HTMLElement
   private refreshedEl!: HTMLElement
   private healthPill!: HTMLElement
+  private readonly memo: Record<string, unknown> = {}
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -118,7 +121,10 @@ export class DashboardView extends ItemView {
 
   private render(): void {
     for (const b of Array.from(this.tabBar.children)) b.toggleClass('is-active', (b as HTMLElement).dataset.tab === this.tab)
+    // A poll redraws in place; the reader keeps their scroll position.
+    const scrollTop = this.contentEl.scrollTop
     this.panel.empty()
+    window.requestAnimationFrame(() => (this.contentEl.scrollTop = scrollTop))
     const snapshot = this.plugin.snapshot
     if (!snapshot) {
       this.healthPill.setText(this.plugin.problem ? 'not ready' : 'loading')
@@ -130,9 +136,15 @@ export class DashboardView extends ItemView {
     }
     this.healthPill.setText(snapshot.health.count ? `${snapshot.health.count} need you` : 'ok')
     this.healthPill.className = `llm-wiki-pill is-${snapshot.health.tone}`
-    this.refreshedEl.setText(`refreshed ${new Date(snapshot.takenAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`)
-    const ctx = this.context(snapshot)
     const errors = Object.entries(snapshot.errors)
+    const at = new Date(snapshot.takenAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    this.refreshedEl.setText(errors.length ? `could not read everything · ${at}` : `refreshed ${at}`)
+    const ctx = this.context(snapshot)
+    // Every read refused: this CLI predates the plugin (or refuses the read floor); one card, not fourteen notices.
+    if (errors.length >= 8 && !snapshot.jobs.length && !snapshot.skills.length) {
+      this.olderCli(errors)
+      return
+    }
     if (errors.length) {
       const notice = this.panel.createDiv({ cls: 'llm-wiki-notice llm-wiki-notice-row' })
       notice.createSpan({ text: `Could not read ${errors.map(([v]) => READ_NAMES[v] ?? v).join(', ')}; this view may be incomplete.` })
@@ -155,6 +167,16 @@ export class DashboardView extends ItemView {
     }
   }
 
+  private olderCli(errors: [string, string][]): void {
+    const card = this.panel.createDiv({ cls: 'llm-wiki-first' })
+    card.createEl('h3', { text: 'This llm-wiki-cli cannot answer the plugin' })
+    card.createEl('p', { cls: 'llm-wiki-muted', text: 'Every read was refused, which an older CLI does. Update the llm-wiki plugins, then re-detect.' })
+    card.createEl('pre', { cls: 'llm-wiki-permission-summary', text: errors.slice(0, 3).map(([v, m]) => `${v}: ${m}`).join('\n') })
+    const bar = card.createDiv({ cls: 'llm-wiki-row-actions' })
+    button(bar, 'Re-detect', () => this.plugin.detect(true), { icon: 'refresh-cw', cta: true })
+    button(bar, 'Ask the agent', () => this.act({ kind: 'ask', prompt: `The Obsidian plugin's reads of this wiki are all refused: ${errors.map(([v, m]) => `${v} (${m})`).join('; ')}. Is the llm-wiki CLI out of date, and how do I update it?` }), { icon: 'message-square' })
+  }
+
   /** The two ways to be not ready, each with its exit: a missing binary, or a vault that is not a registered wiki. */
   private notReady(problem: string): void {
     const card = this.panel.createDiv({ cls: 'llm-wiki-first' })
@@ -164,8 +186,21 @@ export class DashboardView extends ItemView {
     card.createEl('p', { cls: 'llm-wiki-muted', text: missingCli
       ? 'The plugin runs the llm-wiki CLI from your login shell PATH. Install the llm-wiki plugins, or set the path to llm-wiki-cli in the plugin settings.'
       : notWiki
-        ? `${problem.charAt(0).toUpperCase()}${problem.slice(1)}. Register and join it from a terminal inside the vault, then re-detect.`
+        ? `${problem.charAt(0).toUpperCase()}${problem.slice(1)}.`
         : problem })
+    const registered = this.plugin.registered
+    if (notWiki && registered.length) {
+      card.createDiv({ cls: 'llm-wiki-muted', text: 'If this vault is one of the registered wikis under another path, pick it:' })
+      const picks = card.createDiv({ cls: 'llm-wiki-chip-list' })
+      for (const w of registered) {
+        const chip = picks.createEl('button', { cls: 'llm-wiki-chip', text: `${w.key} · ${w.path}` })
+        chip.addEventListener('click', () => {
+          this.plugin.settings.wikiKey = w.key
+          void this.plugin.saveSettings().then(() => this.plugin.detect(true))
+        })
+      }
+      card.createDiv({ cls: 'llm-wiki-muted', text: 'Otherwise, from a terminal inside the vault:' })
+    }
     if (notWiki) card.createEl('pre', { cls: 'llm-wiki-permission-summary', text: 'llm-wiki-cli init .        # a new wiki here\nllm-wiki-ops join key=<key>   # an existing one' })
     const bar = card.createDiv({ cls: 'llm-wiki-row-actions' })
     button(bar, 'Re-detect', () => this.plugin.detect(true), { icon: 'refresh-cw', cta: true })
@@ -177,14 +212,15 @@ export class DashboardView extends ItemView {
       snapshot,
       plugin: this.plugin,
       act: (a) => this.act(a),
-      write: (run) => this.write(run),
+      write: (run, quiet) => this.write(run, quiet),
       goTo: (t) => this.goTo(t),
+      memo: this.memo,
     }
   }
 
-  private async write(run: () => Promise<{ ok: boolean; message: string }>): Promise<void> {
+  private async write(run: () => Promise<{ ok: boolean; message: string }>, quiet = false): Promise<void> {
     const out = await run()
-    new Notice(out.message, out.ok ? 4000 : 8000)
+    if (!out.ok || !quiet) new Notice(out.message, out.ok ? 4000 : 8000)
     await this.refresh()
   }
 
@@ -198,7 +234,8 @@ export class DashboardView extends ItemView {
         await this.app.workspace.openLinkText(action.path, '', true)
         return
       case 'retry':
-        if (actions) await this.write(() => actions.retryTicket(action.ticket))
+        // Without a runner a retried ticket would sit queued; run the pass for it.
+        if (actions) await this.write(() => action.slug && !this.plugin.snapshot?.runner ? actions.retryAndRun(action.ticket, action.slug) : actions.retryTicket(action.ticket))
         return
       case 'reindex':
         if (actions) await this.write(() => actions.reindex())

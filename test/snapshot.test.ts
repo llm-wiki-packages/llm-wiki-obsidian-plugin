@@ -116,7 +116,20 @@ describe('takeSnapshot: skills and credentials', () => {
     expect(snap.jobs[0]?.next).toEqual({ kind: 'unbound', detail: 'gmail_token is stale' })
     expect(snap.jobs[0]?.tickets).toEqual([{ id: 'p1', stage: 'harvest', state: 'failed', at: '2026-10-23T09:00:00Z', reason: 'login expired', runtimeS: 12 }])
     expect(snap.attention.map((a) => a.id)).toEqual(['parked:p1'])
-    expect(snap.attention[0]).toMatchObject({ title: 'inbox-joe stopped: gmail_token is stale', action: { kind: 'credential', skill: 'channel-gmail', slot: 'file', name: 'gmail_token', retry: 'p1' } })
+    expect(snap.attention[0]).toMatchObject({ title: 'inbox-joe stopped: gmail_token is stale', action: { kind: 'credential', skill: 'channel-gmail', slot: 'file', name: 'gmail_token', retry: 'p1', job: 'inbox-joe' } })
+  })
+  it('a light read carries the skills, credentials and runner over and re-reads only what moves', async () => {
+    const full = await takeSnapshot(reader(GMAIL), 'kb', NOW)
+    const seen: string[] = []
+    const spy: Reader = { run: (verb, args) => { seen.push(verb); return reader({ ...GMAIL, 'wiki.jobs.ls': { jobs: [job({ slug: 'inbox-joe', skill: 'channel-gmail', state: 'paused', verdict: { due: false, kind: 'paused' } })] } }).run(verb, args) } }
+    const light = await takeSnapshot(spy, 'kb', NOW + 10_000, undefined, full)
+    expect(seen).not.toContain('wiki.skills.ls')
+    expect(seen).not.toContain('wiki.credentials.ls')
+    expect(seen).toContain('wiki.jobs.ls')
+    expect(light.skills).toHaveLength(full.skills.length)
+    expect(light.credentials).toEqual(full.credentials)
+    expect(light.jobs[0]?.next.kind).toBe('paused')
+    expect(light.skills[0]?.jobs).toEqual(['inbox-joe'])
   })
   it('a credential whose own check failed breaks the slot it fills', async () => {
     const snap = await takeSnapshot(reader({ ...GMAIL, 'wiki.doctor': { rows: [] },
@@ -177,7 +190,7 @@ describe('takeSnapshot', () => {
       NOW,
     )
     expect(snap.attention.map((a) => a.id)).toEqual(['doctor:jobs-poll', 'parked:p1', 'blocked:gmail'])
-    expect(snap.attention[1]?.action).toEqual({ kind: 'retry', ticket: 'p1' })
+    expect(snap.attention[1]?.action).toEqual({ kind: 'retry', ticket: 'p1', slug: 'gmail' })
     expect(snap.health).toEqual({ tone: 'warn', count: 3 })
     expect(snap.runner).toBe(false)
     expect(snap.curation).toEqual([{ path: 'sources/web/a.md', title: 'a', job: 'web' }])

@@ -8,7 +8,7 @@ export const VIEW_CHAT = 'llm-wiki-chat'
 
 const CAPABILITY: Record<ChatMode, string> = {
   agent: 'Agent: runs jobs and edits pages directly; asks you before each tool it would prompt for.',
-  ask: 'Ask: read-only, jailed; cannot change anything.',
+  ask: 'Ask: read-only, jailed; each question starts fresh.',
 }
 
 export class ChatView extends ItemView {
@@ -20,6 +20,8 @@ export class ChatView extends ItemView {
   private status!: HTMLElement
   private chips!: HTMLElement
   private capability!: HTMLElement
+  private continueBtn!: HTMLButtonElement
+  private hint!: HTMLElement
   /** One backend per mode, so switching modes and back keeps the Agent session. */
   private backends: Partial<Record<ChatMode, ChatBackend>> = {}
   private mode: ChatMode
@@ -33,6 +35,8 @@ export class ChatView extends ItemView {
   ) {
     super(leaf)
     this.mode = plugin.settings.defaultChatMode
+    // Agent needs claude; without it the pane starts in Ask rather than failing on Send.
+    if (this.mode === 'agent' && !plugin.claudeBin && plugin.cliBin) this.mode = 'ask'
   }
 
   getViewType(): string {
@@ -63,11 +67,14 @@ export class ChatView extends ItemView {
     })
     const newBtn = bar.createEl('button', { text: 'New chat' })
     this.registerDomEvent(newBtn, 'click', () => this.newChat())
+    this.continueBtn = bar.createEl('button', { text: 'Continue last chat' })
+    this.registerDomEvent(this.continueBtn, 'click', () => this.continueLast())
     const skillsBtn = bar.createEl('button', { text: 'Skills…' })
     this.registerDomEvent(skillsBtn, 'click', () => this.plugin.pickSkill())
     this.status = bar.createDiv({ cls: 'llm-wiki-muted llm-wiki-chat-status' })
 
     this.transcript = root.createDiv({ cls: 'llm-wiki-transcript' })
+    this.hint = this.transcript.createDiv({ cls: 'llm-wiki-note llm-wiki-muted llm-wiki-hint' })
     this.chips = root.createDiv({ cls: 'llm-wiki-chips' })
 
     const composer = root.createDiv({ cls: 'llm-wiki-composer' })
@@ -90,19 +97,40 @@ export class ChatView extends ItemView {
     this.registerEvent(this.app.workspace.on('llm-wiki:detected' as 'layout-change', () => this.showReadiness()))
     this.registerEvent(this.app.workspace.on('active-leaf-change', () => this.showChips()))
     this.showReadiness()
-    this.showCapability()
     this.showChips()
+    this.showCapability()
     return Promise.resolve()
   }
 
   private showCapability(): void {
     this.capability.setText(CAPABILITY[this.mode])
+    const agentOption = this.modeSelect.options[0]
+    if (agentOption) {
+      agentOption.disabled = !this.plugin.claudeBin
+      agentOption.title = this.plugin.claudeBin ? '' : 'claude was not found; set its path in the plugin settings'
+    }
+    this.continueBtn.toggle(Boolean(this.plugin.settings.lastSession) && this.transcript.childElementCount <= 1 && !this.backends.agent)
+    this.hint.setText(this.plugin.claudeBin || this.mode === 'ask' ? 'Ask about the wiki, or tell the agent what to do.' : 'Agent mode needs claude; set its path in the plugin settings. Ask mode works without it.')
+    this.hint.toggle(this.transcript.childElementCount <= 1)
+  }
+
+  /** Picks the last Agent session back up, so closing the pane did not lose the thread. */
+  private continueLast(): void {
+    const id = this.plugin.settings.lastSession
+    if (!id) return
+    void this.plugin.backend('agent', id).then((b) => {
+      this.backends.agent = b
+      this.mode = 'agent'
+      this.modeSelect.value = 'agent'
+      this.note('continuing the last chat')
+      this.showCapability()
+    })
   }
 
   /** Three starting points above an empty transcript, by what the person is looking at. */
   private showChips(): void {
     this.chips.empty()
-    if (this.transcript.childElementCount > 0) return
+    if (this.transcript.childElementCount > 1) return
     const file = this.app.workspace.getActiveFile()
     const prompts = file
       ? [`Summarize [[${file.path}]]`, `Verify [[${file.path}]] against its sources`, `What links to [[${file.path}]]?`]
@@ -136,16 +164,19 @@ export class ChatView extends ItemView {
   }
 
   private showReadiness(): void {
-    this.status.setText(this.plugin.wiki ? `wiki ${this.plugin.wiki.key}` : this.plugin.problem ?? 'detecting…')
+    this.status.setText(this.plugin.wiki ? '' : this.plugin.problem ?? 'detecting…')
   }
 
   private newChat(): void {
     this.running?.abort()
     for (const b of Object.values(this.backends)) b.reset()
+    this.backends = {}
     this.transcript.empty()
+    this.transcript.appendChild(this.hint)
     for (const b of this.bubbles) b.dispose()
     this.bubbles = []
     this.showChips()
+    this.showCapability()
   }
 
   private note(text: string): void {
@@ -172,9 +203,12 @@ export class ChatView extends ItemView {
       this.note(e instanceof Error ? e.message : String(e))
       return
     }
-    this.composer.value = ''
     this.chips.empty()
+    this.hint.hide()
+    this.capability.hide()
+    this.continueBtn.hide()
     this.transcript.createDiv({ cls: 'llm-wiki-msg llm-wiki-user', text: prompt })
+    let failed = false
     const assistant = new AssistantBubble(this.transcript, this.app, this)
     this.bubbles.push(assistant)
     const abort = new AbortController()
@@ -191,17 +225,25 @@ export class ChatView extends ItemView {
       for await (const e of events) {
         assistant.take(e)
         this.scroll()
-        // The agent just changed the wiki; the dashboard should not wait a minute to say so.
-        if (e.type === 'tool' && /^(Running|Enabling|Installing|Declaring|Curating|Adopting|Retrying|Binding|Refreshing)/.test(toolSentence(e.name, e.detail) ?? '')) void this.plugin.refreshSnapshot()
+        if (e.type === 'error') failed = true
+        // A tool just finished, so whatever it changed is on disk; the dashboard should not wait a minute to say so.
+        if (e.type === 'tool-done') void this.plugin.refreshSnapshot()
       }
       if (abort.signal.aborted) assistant.take({ type: 'status', text: 'stopped' })
+      if (backend.sessionId && this.mode === 'agent') {
+        this.plugin.settings.lastSession = backend.sessionId
+        void this.plugin.saveSettings()
+      }
     } catch (e) {
+      failed = true
       assistant.take({ type: 'error', message: e instanceof Error ? e.message : String(e) })
     } finally {
       assistant.finish()
       this.running = null
       this.sendBtn.disabled = false
       this.stopBtn.disabled = true
+      // A failed turn keeps the prompt, so the retry is one click.
+      if (!failed) this.composer.value = ''
       this.scroll()
       void this.plugin.refreshSnapshot()
     }
@@ -254,7 +296,7 @@ class AssistantBubble {
   take(e: ChatEvent): void {
     switch (e.type) {
       case 'start':
-        if (e.detail) this.line('llm-wiki-muted', e.detail)
+      case 'tool-done':
         break
       case 'status':
         this.line('llm-wiki-muted', e.text)
@@ -277,7 +319,8 @@ class AssistantBubble {
       case 'result':
         this.flushText()
         if (e.text && !this.text) this.line(e.ok ? '' : 'llm-wiki-error', e.text)
-        if (e.detail) this.line('llm-wiki-muted', e.detail)
+        // The duration and outcome ride on the bubble, for whoever hovers.
+        if (e.detail) this.el.title = e.detail
         break
       case 'error':
         this.flushText()
@@ -294,14 +337,16 @@ class AssistantBubble {
     card.createEl('pre', { cls: 'llm-wiki-permission-summary', text: req.summary })
     const buttons = card.createDiv({ cls: 'llm-wiki-permission-buttons' })
     const allow = buttons.createEl('button', { text: 'Allow', cls: 'mod-cta' })
+    const allowTurn = buttons.createEl('button', { text: 'Allow for this turn', attr: { title: 'Every tool this turn still wants runs without asking' } })
     const deny = buttons.createEl('button', { text: 'Deny' })
     return new Promise((resolve) => {
       const settle = (d: PermissionDecision) => {
-        allow.disabled = deny.disabled = true
+        allow.disabled = allowTurn.disabled = deny.disabled = true
         card.addClass(d.allow ? 'is-allowed' : 'is-denied')
         resolve(d)
       }
       allow.addEventListener('click', () => settle({ allow: true }))
+      allowTurn.addEventListener('click', () => settle({ allow: true, forTurn: true }))
       deny.addEventListener('click', () => settle({ allow: false, reason: 'Denied in Obsidian' }))
     })
   }

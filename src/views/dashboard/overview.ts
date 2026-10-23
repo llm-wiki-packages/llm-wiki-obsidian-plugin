@@ -22,14 +22,15 @@ export function renderOverview(root: HTMLElement, ctx: TabContext): void {
   const also = snapshot.attention.filter((a) => a.severity === 'info')
   if (!counted.length) empty(needs, 'Nothing needs you.')
   for (const item of counted) attentionRow(needs, item, ctx)
-  for (const item of also) {
+  for (const [n, item] of also.entries()) {
     const row = needs.createDiv({ cls: 'llm-wiki-also' })
+    if (n === 0) row.createSpan({ cls: 'llm-wiki-also-label', text: 'Also' })
     row.createSpan({ cls: 'llm-wiki-muted', text: item.title })
     if (item.action) button(row, item.action.kind === 'ask' ? (item.action.label ?? 'Ask the agent') : LABEL[item.action.kind], () => ctx.act(item.action!), {})
   }
   if (!snapshot.runner) {
     const notice = needs.createDiv({ cls: 'llm-wiki-notice llm-wiki-notice-row' })
-    notice.createSpan({ text: 'No runner is installed on this machine, so nothing runs on its schedule. Jobs run when you press Run.' })
+    notice.createSpan({ text: 'No runner on this machine. Another machine may run the schedule; here, jobs run when you press Run.' })
     button(notice, 'Install the runner', () => ctx.act({ kind: 'ask', prompt: 'Install the llm-wiki runner on this machine so jobs run on their schedule.' }), { icon: 'message-square' })
   }
 
@@ -59,7 +60,7 @@ export function renderOverview(root: HTMLElement, ctx: TabContext): void {
   const failed = snapshot.recent.filter((r) => r.outcome === 'failed').length
   const recent = section(root, 'Last day', { count: snapshot.recent.length })
   if (!snapshot.recent.length) empty(recent, 'No runs in the last day.')
-  else recent.createDiv({ cls: 'llm-wiki-muted', text: `${snapshot.recent.length} ${snapshot.recent.length === 1 ? 'run' : 'runs'}${failed ? `, ${failed} failed` : ''}. ${snapshot.curation.length ? `${snapshot.curation.length} ${snapshot.curation.length === 1 ? 'page is' : 'pages are'} waiting for review.` : ''}` })
+  else if (failed) recent.createDiv({ cls: 'llm-wiki-muted', text: `${snapshot.recent.length} runs, ${failed} failed.` })
   for (const r of snapshot.recent.slice(0, 10)) {
     const job = r.job ? snapshot.jobs.find((j) => j.slug === r.job) : undefined
     const row = recent.createDiv({ cls: job ? 'llm-wiki-row is-link' : 'llm-wiki-row' })

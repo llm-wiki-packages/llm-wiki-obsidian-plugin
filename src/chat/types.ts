@@ -13,6 +13,8 @@ export type ChatEvent =
   | { type: 'start'; detail?: string }
   | { type: 'text'; text: string }
   | { type: 'tool'; name: string; detail?: string }
+  /** A tool finished; the wiki may have changed. */
+  | { type: 'tool-done'; name?: string }
   | { type: 'status'; text: string }
   | { type: 'result'; ok: boolean; text?: string; detail?: string }
   | { type: 'error'; message: string }
@@ -24,7 +26,7 @@ export interface PermissionRequest {
   summary: string
 }
 
-export type PermissionDecision = { allow: true } | { allow: false; reason?: string }
+export type PermissionDecision = { allow: true; forTurn?: boolean } | { allow: false; reason?: string }
 
 export interface TurnContext {
   wiki: WikiTarget
@@ -35,6 +37,8 @@ export interface TurnContext {
 }
 
 export interface ChatBackend {
+  /** The session a backend can pick up again later, when it has one. */
+  sessionId?: string
   /** One turn: the events as they land, ending in a `result` or an `error`. */
   send(prompt: string, ctx: TurnContext): AsyncIterable<ChatEvent>
   /** Forget the conversation. */

@@ -21,11 +21,7 @@ export function renderPages(root: HTMLElement, ctx: TabContext): void {
     if (groups.size > 1 || folder) {
       const head = body.createDiv({ cls: 'llm-wiki-group llm-wiki-group-row' })
       head.createSpan({ text: `${folder || 'other'} · ${items.length}` })
-      if (items.length > 1 && actions) button(head, `Accept all in ${folder || 'other'}`, () => ctx.write(async () => {
-        const outs = await Promise.all(items.map((c) => actions.accept(c.path)))
-        const ok = outs.filter((o) => o.ok).length
-        return { ok: ok === outs.length, message: ok === outs.length ? `accepted ${ok} pages` : `accepted ${ok} of ${outs.length}: ${outs.find((o) => !o.ok)?.message ?? ''}` }
-      }), { icon: 'check-check' })
+      if (items.length > 1 && actions) button(head, `Accept all in ${folder || 'other'}`, () => ctx.write(() => actions.accept(items.map((c) => c.path)), true), { icon: 'check-check', cta: true })
     }
     for (const c of items) pageRow(body, c, ctx, true)
   }
@@ -35,7 +31,7 @@ export function renderPages(root: HTMLElement, ctx: TabContext): void {
     count: unadopted.length,
     actions: (bar) => {
       if (unadopted.length > 1 && actions)
-        button(bar, 'Adopt all', () => ctx.write(() => actions.adopt(unadopted.map((c) => c.path))), { icon: 'check-check' })
+        button(bar, 'Adopt all', () => ctx.write(() => actions.adopt(unadopted.map((c) => c.path)), true), { icon: 'check-check' })
     },
   })
   if (snapshot.unadopted === null) empty(fresh, 'This CLI cannot tell which files are new.', 'Update the llm-wiki plugins; a current `page ls` reports each page’s change state.')
@@ -58,13 +54,14 @@ function pageRow(parent: HTMLElement, c: CurationItem, ctx: TabContext, curating
   const bar = row.createDiv({ cls: 'llm-wiki-row-actions' })
   if (!actions) return
   if (!curating) {
-    button(bar, 'Adopt', () => ctx.write(() => actions.adopt([c.path])), { icon: 'check' })
+    button(bar, 'Adopt', () => ctx.write(() => actions.adopt([c.path]), true), { icon: 'check' })
     return
   }
-  button(bar, 'Accept', () => ctx.write(() => actions.accept(c.path)), { icon: 'check', cta: true })
+  // Plain buttons per row; the folder's Accept all is the one accent.
+  button(bar, 'Accept', () => ctx.write(() => actions.accept([c.path]), true), { icon: 'check' })
   button(bar, 'Reject…', async () => {
     const reason = await promptText(ctx.plugin.app, { title: `Reject ${c.title}`, placeholder: 'Why? One line; it is stamped on the page.', cta: 'Reject' })
-    if (reason) await ctx.write(() => actions.reject(c.path, reason))
+    if (reason) await ctx.write(() => actions.reject(c.path, reason), true)
   }, { icon: 'x' })
 }
 

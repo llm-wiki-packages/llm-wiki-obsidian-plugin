@@ -28,8 +28,8 @@ export function openSkillModal(app: App, s: SkillView, ctx: TabContext): void {
         for (const slot of s.slots) {
           const row = c.createDiv({ cls: 'llm-wiki-row' })
           const main = row.createDiv({ cls: 'llm-wiki-row-main' })
-          main.createDiv({ cls: 'llm-wiki-row-title', text: `${slotWords(slot.name).label} · ${slot.required ? 'required' : 'optional'}` })
-          main.createDiv({ cls: 'llm-wiki-row-detail', text: slot.credential ? `${slot.credential}${slot.problem ? ` (${slot.problem})` : ''}` : 'not set' })
+          main.createDiv({ cls: 'llm-wiki-row-title', text: slot.credential ? slotWords(slot.name).label : `${slotWords(slot.name).label} · ${slot.required ? 'required' : 'optional'}` })
+          main.createDiv({ cls: 'llm-wiki-row-detail', text: slot.credential ? `${slot.credential}${slot.problem ? ` · ${slot.problem}` : ''}` : 'not set' })
           if (!slot.credential || slot.problem) button(row.createDiv({ cls: 'llm-wiki-row-actions' }), slot.credential ? 'Replace credential' : 'Set credential', () => { this.close(); return ctx.act({ kind: 'credential', skill: s.name, slot: slot.name, ...(slot.credential ? { name: slot.credential } : {}) }) }, { icon: 'key-round', cta: slot.required })
         }
       }
@@ -60,6 +60,7 @@ export function openSkillModal(app: App, s: SkillView, ctx: TabContext): void {
       const bar = c.createDiv({ cls: 'llm-wiki-composer-buttons' })
       const a = skillAction(s)
       if (a) button(bar, s.state === 'available' ? 'Install and enable' : a.label, () => { this.close(); return runSkillAction(a.action, ctx) }, { icon: a.icon, cta: a.cta })
+      if (s.outdated) button(bar, 'Update', () => { this.close(); return ctx.act({ kind: 'ask', prompt: `/llm-wiki:enable ${s.name}` }) }, { icon: 'arrow-up-circle' })
       if (s.state !== 'available') button(bar, 'Add a source with it', () => { this.close(); return ctx.act({ kind: 'ask', prompt: addWith(s) }) }, { icon: 'plus' })
       button(bar, 'Close', () => this.close())
     }
