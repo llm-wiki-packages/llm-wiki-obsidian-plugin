@@ -1,14 +1,12 @@
-import { FileSystemAdapter, FuzzySuggestModal, Notice, Plugin, type WorkspaceLeaf } from 'obsidian'
+import { FileSystemAdapter, FuzzySuggestModal, Notice, Plugin } from 'obsidian'
 import { ClaudeSdkBackend } from './chat/claudeSdk'
 import { HarnessRunBackend } from './chat/harnessRun'
 import { listSkills, pluginDirs, slashCommand, type SkillEntry } from './chat/skills'
 import type { ChatBackend, WikiTarget } from './chat/types'
 import { log } from './logger'
 import { DEFAULT_SETTINGS, LlmWikiSettingTab, type ChatMode, type LlmWikiSettings } from './settings'
-import { ChatView, VIEW_CHAT } from './views/chat'
-import { DashboardView, VIEW_DASHBOARD } from './views/dashboard/index'
+import { DashboardView, VIEW_DASHBOARD, type Tab } from './views/dashboard/index'
 import { nextText } from './views/dashboard/jobs'
-import { SearchView, VIEW_SEARCH } from './views/search'
 import { promptText } from './ui/modals'
 import { openCredentialModal, type CredentialPrompt } from './ui/credentialModal'
 import { Actions } from './wiki/actions'
@@ -44,13 +42,11 @@ export default class LlmWikiPlugin extends Plugin {
     await this.loadSettings()
     log.setDebug(this.settings.debug)
     this.addSettingTab(new LlmWikiSettingTab(this.app, this))
-    this.registerView(VIEW_SEARCH, (leaf) => new SearchView(leaf, this))
-    this.registerView(VIEW_CHAT, (leaf) => new ChatView(leaf, this))
     this.registerView(VIEW_DASHBOARD, (leaf) => new DashboardView(leaf, this))
-    this.addRibbonIcon('layout-dashboard', 'Open LLM wiki', () => void this.openDashboard())
+    this.addRibbonIcon('brain', 'Open LLM wiki', () => void this.openDashboard())
     this.addCommand({ id: 'open-dashboard', name: 'Open dashboard', callback: () => void this.openDashboard() })
-    this.addCommand({ id: 'open-chat', name: 'Open chat', callback: () => void this.openChat() })
-    this.addCommand({ id: 'open-search', name: 'Open search', callback: () => void this.activateView(VIEW_SEARCH) })
+    this.addCommand({ id: 'open-chat', name: 'Open chat', callback: () => void this.openDashboard('chat') })
+    this.addCommand({ id: 'open-search', name: 'Open search', callback: () => void this.openDashboard('search') })
     this.addCommand({ id: 'run-job', name: 'Run a job…', callback: () => this.pickJobToRun() })
     this.addCommand({ id: 'add-job', name: 'Add a source…', callback: () => void this.addJob() })
     this.addCommand({ id: 'open-job', name: 'Open a job…', callback: () => this.pickJob() })
@@ -222,7 +218,8 @@ export default class LlmWikiPlugin extends Plugin {
     this.statusBar.setText(`llm-wiki · ${text}`)
   }
 
-  async openDashboard(): Promise<void> {
+  /** The one view; with a tab, lands on it. */
+  async openDashboard(tab?: Tab): Promise<DashboardView | null> {
     const { workspace } = this.app
     let leaf = workspace.getLeavesOfType(VIEW_DASHBOARD)[0] ?? null
     if (!leaf) {
@@ -230,6 +227,9 @@ export default class LlmWikiPlugin extends Plugin {
       await leaf.setViewState({ type: VIEW_DASHBOARD, active: true })
     }
     await workspace.revealLeaf(leaf)
+    const view = leaf.view instanceof DashboardView ? leaf.view : null
+    if (tab && view) view.goTo(tab)
+    return view
   }
 
   /** One field; the add skill decides the rest in chat. */
@@ -363,22 +363,9 @@ export default class LlmWikiPlugin extends Plugin {
     return new ClaudeSdkBackend({ claudePath: this.claudeBin, path: await effectivePath(), model: this.settings.model || undefined }, resume)
   }
 
-  /** Opens chat; with text, the composer is filled and focused so one click starts the conversation. */
+  /** Opens the Chat tab; with text, the composer is filled and focused so one click starts the conversation. */
   async openChat(prefill?: string): Promise<void> {
-    const leaf = await this.activateView(VIEW_CHAT)
-    const view = leaf?.view
-    if (prefill && view instanceof ChatView) view.prefill(prefill)
-  }
-
-  async activateView(type: string): Promise<WorkspaceLeaf | null> {
-    const { workspace } = this.app
-    let leaf: WorkspaceLeaf | null = workspace.getLeavesOfType(type)[0] ?? null
-    if (!leaf) {
-      leaf = workspace.getRightLeaf(false)
-      if (!leaf) return null
-      await leaf.setViewState({ type, active: true })
-    }
-    await workspace.revealLeaf(leaf)
-    return leaf
+    const view = await this.openDashboard('chat')
+    if (prefill && view) view.chat.prefill(prefill)
   }
 }

@@ -3,7 +3,7 @@ import { openJobModal } from '../../ui/jobModal'
 import type { AttentionItem, Snapshot } from '../../wiki/model'
 import type { TabContext } from './index'
 import { jobCard, sorted } from './jobs'
-import { titleOf } from './pages'
+import { titleOf } from './ingest'
 
 /** Do I need to do anything? The verdict first, then what needs a person, then what is moving. */
 export function renderOverview(root: HTMLElement, ctx: TabContext): void {
@@ -51,7 +51,7 @@ export function renderOverview(root: HTMLElement, ctx: TabContext): void {
 
   const curation = section(root, 'Waiting for curation', {
     count: snapshot.curation.length,
-    actions: (bar) => button(bar, 'Review', () => ctx.goTo('pages')),
+    actions: (bar) => button(bar, 'Review', () => ctx.goTo('ingest')),
   })
   if (snapshot.unadopted?.length) curation.createDiv({ cls: 'llm-wiki-muted', text: `${snapshot.unadopted.length} new under sources/ not yet in the wiki.` })
   if (!snapshot.curation.length) empty(curation, 'No pages are waiting.')

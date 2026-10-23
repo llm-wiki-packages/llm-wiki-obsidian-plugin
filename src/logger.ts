@@ -1,4 +1,5 @@
-// The one console boundary.
+// The one console boundary. Debug lines are console.debug, which Obsidian's
+// developer console shows only with its Verbose level on; the setting says so.
 let debugOn = false
 
 export const log = {

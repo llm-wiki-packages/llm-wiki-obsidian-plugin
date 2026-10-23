@@ -101,7 +101,7 @@ export class LlmWikiSettingTab extends PluginSettingTab {
     new Setting(containerEl).setName('Diagnostics').setHeading()
     new Setting(containerEl)
       .setName('Debug logging')
-      .setDesc('Log every CLI call and harness stderr line to the developer console.')
+      .setDesc('Log every CLI call (verb, exit code, duration), chat event, link click and harness stderr line to the developer console, prefixed [llm-wiki]. They are debug-level lines: in the console (Cmd-Option-I), set the level filter to include Verbose, or they stay hidden.')
       .addToggle((t) => t.setValue(s.debug).onChange((v) => { s.debug = v; save() }))
   }
 }

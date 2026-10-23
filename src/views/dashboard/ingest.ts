@@ -3,18 +3,32 @@ import { promptText } from '../../ui/modals'
 import type { CurationItem } from '../../wiki/model'
 import type { TabContext } from './index'
 
-/** Pages waiting on a judgment, grouped by where they landed. Open the note beside this view, then Accept or Reject here. */
-export function renderPages(root: HTMLElement, ctx: TabContext): void {
+/** The intake pipeline, top to bottom: a file under sources/ is adopted as a draft, then accepted or rejected. */
+export function renderIngest(root: HTMLElement, ctx: TabContext): void {
   const { snapshot } = ctx
   const actions = ctx.plugin.actions
-  const body = section(root, 'Awaiting curation', {
+  root.createDiv({ cls: 'llm-wiki-muted llm-wiki-flow', text: 'How a page gets in: a file lands under sources/, is adopted into the wiki as a draft, and waits for you to accept or reject it. Work moves down this page.' })
+
+  const unadopted = snapshot.unadopted ?? []
+  const fresh = section(root, '1 · New under sources/', {
+    count: unadopted.length,
+    actions: (bar) => {
+      if (unadopted.length > 1 && actions)
+        button(bar, 'Adopt all', () => ctx.write(() => actions.adopt(unadopted.map((c) => c.path)), true), { icon: 'check-check' })
+    },
+  })
+  if (snapshot.unadopted === null) empty(fresh, 'This CLI cannot tell which files are new.', 'Update the llm-wiki plugins; a current page listing reports each page’s change state.')
+  else if (!unadopted.length) empty(fresh, 'Everything under sources/ is known to the wiki.', 'A file dropped into sources/ shows here until it is adopted.')
+  for (const c of unadopted) pageRow(fresh, c, ctx, false)
+
+  const body = section(root, '2 · Awaiting curation', {
     count: snapshot.curation.length,
     actions: (bar) => {
       if (snapshot.curation.length)
         button(bar, 'Ask the agent to curate', () => ctx.act({ kind: 'ask', prompt: `/llm-wiki:curate ${snapshot.curation.slice(0, 20).map((c) => c.path).join(' ')}` }), { icon: 'message-square' })
     },
   })
-  if (!snapshot.curation.length) empty(body, 'No pages are waiting for curation.', 'Captured pages land here as drafts until you accept or reject them.')
+  if (!snapshot.curation.length) empty(body, 'No drafts are waiting.', 'An adopted file and every page a job captures sit here as drafts until you accept or reject them. Accepted pages are in the wiki.')
   const groups = new Map<string, CurationItem[]>()
   for (const c of snapshot.curation) groups.set(c.job ?? '', [...(groups.get(c.job ?? '') ?? []), c])
   for (const [folder, items] of groups) {
@@ -25,18 +39,6 @@ export function renderPages(root: HTMLElement, ctx: TabContext): void {
     }
     for (const c of items) pageRow(body, c, ctx, true)
   }
-
-  const unadopted = snapshot.unadopted ?? []
-  const fresh = section(root, 'Not yet in the wiki', {
-    count: unadopted.length,
-    actions: (bar) => {
-      if (unadopted.length > 1 && actions)
-        button(bar, 'Adopt all', () => ctx.write(() => actions.adopt(unadopted.map((c) => c.path)), true), { icon: 'check-check' })
-    },
-  })
-  if (snapshot.unadopted === null) empty(fresh, 'This CLI cannot tell which files are new.', 'Update the llm-wiki plugins; a current page listing reports each page’s change state.')
-  else if (!unadopted.length) empty(fresh, 'Everything under sources/ is known to the wiki.', 'A file dropped into sources/ shows here until it is adopted.')
-  for (const c of unadopted) pageRow(fresh, c, ctx, false)
 }
 
 function pageRow(parent: HTMLElement, c: CurationItem, ctx: TabContext, curating: boolean): void {

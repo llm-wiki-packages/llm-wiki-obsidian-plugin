@@ -10,17 +10,19 @@ export function tolerateRendererSignals(): void {
   if (guarded) return
   guarded = true
   const original = events.setMaxListeners.bind(events)
-  events.setMaxListeners = (n?: number, ...targets: unknown[]): void => {
-    const own = targets.filter((t) => t instanceof events.EventEmitter || isNodeTarget(t))
-    if (targets.length === 0 || own.length > 0) original(n, ...(own as Parameters<typeof original>[1][]))
+  // The probe calls the original, never the patched function: a probe through
+  // the patch recursed until the stack ran out, and the answer depended on how deep.
+  const tunable = (t: unknown): boolean => {
+    if (t instanceof events.EventEmitter) return true
+    try {
+      original(1, t as EventTarget)
+      return true
+    } catch {
+      return false
+    }
   }
-}
-
-function isNodeTarget(t: unknown): boolean {
-  try {
-    events.setMaxListeners(1, t as EventTarget)
-    return true
-  } catch {
-    return false
+  events.setMaxListeners = (n?: number, ...targets: unknown[]): void => {
+    const own = targets.filter(tunable)
+    if (targets.length === 0 || own.length > 0) original(n, ...(own as EventTarget[]))
   }
 }

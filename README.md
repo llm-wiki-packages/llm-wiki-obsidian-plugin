@@ -10,8 +10,13 @@ spawns local processes.
 
 ## What it does
 
-**Dashboard**, a tab in the main area (ribbon icon, or the status bar item, or
-*LLM Wiki: Open dashboard*):
+One view, **LLM Wiki** (the brain icon in the ribbon, the status bar item, or
+*LLM Wiki: Open dashboard*), opened as a tab in the main area; drag it into a
+side split to keep it beside a note. Seven tabs: Overview, Jobs, Skills,
+Credentials and Ingest on the left for managing the wiki, Search and Chat on
+the right for talking to it. The health pill in the header reads `ok` or `N
+need you`, lists what needs you on hover, and opens the Overview from any tab;
+the gear opens the plugin settings.
 
 - **Overview**: one sentence about what is moving; **Needs you**, one row and
   one button per item (a job that cannot run here until a credential is set,
@@ -43,11 +48,15 @@ spawns local processes.
   credential dialog says in words what is needed, pipes the secret to the
   CLI's stdin, binds it to the skill (or one job), and then retries a stopped
   job or runs a due one, in the same step.
-- **Pages**: pages awaiting curation, grouped by the folder they landed in,
-  with Accept all per folder. Click opens the note; **Accept** and
-  **Reject…** go through `page curate`; one button hands the queue to the
-  agent with `/llm-wiki:curate`. Below it, **Not yet in the wiki**: files
-  under `sources/` the wiki has not taken up, with **Adopt** (`page adopt`).
+- **Credentials**: every credential the CLI holds for this wiki, by name,
+  kind and state, never a value, with who uses it; Replace, Remove, Log in,
+  Add. Below, what an enabled skill still needs, with **Set credential**.
+- **Ingest**: the intake pipeline top to bottom. **New under sources/**:
+  files the wiki has not taken up, with **Adopt** (`page adopt`). Then
+  **Awaiting curation**: drafts grouped by the folder they landed in, Accept
+  all per folder; click opens the note; **Accept** and **Reject…** go through
+  `page curate`; one button hands the queue to the agent with
+  `/llm-wiki:curate`.
   That queue needs a CLI that reports page change state; an older one says so.
 
 The dashboard polls every 10 s while something is running, every minute while
@@ -56,7 +65,7 @@ bar reads `llm-wiki · ok`, `2 need you`, `1 stopped`, or `running <job>`, with
 `· no runner` when none is installed; clicking it opens the dashboard. A job
 that stops between two polls raises a Notice.
 
-**Chat** (right sidebar), two modes:
+**Chat** (a tab of the view), two modes:
 
 - **Agent**: a Claude Code session at the wiki root, with the wiki's own
   committed `.claude/settings.json` in force (write guard, `op record`, the
@@ -68,9 +77,14 @@ that stops between two polls raises a Notice.
   on hover and in the permission card. Suggested prompts sit above an empty
   transcript, tuned to the note you have open.
 - **Ask**: one jailed, read-only `harness run` question per turn, the same thing
-  the reference dashboard's Ask runs. It cannot change anything.
+  the reference dashboard's Ask runs. It cannot change anything, and it keeps
+  no context between turns yet (see `docs/ux.md`, Known gaps).
 
-**Search** (right sidebar): `search query` through the CLI; results open as notes.
+Wikilinks and URLs in a reply open on click; a reply has a Copy button on
+hover; text is selectable everywhere.
+
+**Search** (a tab of the view): `search query` through the CLI, no model
+involved; results open as notes.
 
 **Chat skills**: *Run a skill…* (a command, and the **Skills…** button in chat)
 lists the `/llm-wiki:` slash skills, read from the llm-wiki plugin Claude Code
@@ -108,9 +122,10 @@ npm run install-to-vault -- /path/to/your/vault
 ```
 
 Then in Obsidian: Settings → Community plugins → turn off Restricted mode
-(if on) → enable **LLM Wiki**. The ribbon's speech-bubble icon opens chat;
-the command palette has **LLM Wiki: Open search** and **Open chat**. The
-status bar shows which wiki the vault resolved to, or why it did not.
+(if on) → enable **LLM Wiki**. The ribbon's brain icon opens the view; the
+command palette has **LLM Wiki: Open chat** and **Open search**, which land on
+those tabs. The status bar shows which wiki the vault resolved to, or why it
+did not.
 
 Once releases exist, [BRAT](https://github.com/TfTHacker/obsidian42-brat)
 installs from the GitHub repo and tracks releases.
@@ -142,8 +157,8 @@ LLM_WIKI_E2E_BIN=$(which llm-wiki-cli) LLM_WIKI_E2E_VAULT=/path/to/wiki npm test
 | `src/wiki/model.ts` | what the dashboard shows: `Snapshot`, jobs with a plain-words `next`, attention items with one action |
 | `src/wiki/snapshot.ts` | CLI answers into a `Snapshot`; the one place that knows the answers' field names |
 | `src/wiki/actions.ts` | the writes a click makes, each one verb, each answering one sentence |
-| `src/views/dashboard/` | the main-area view: `index.ts` (header, tabs, action routing), one file per tab |
-| `src/views/chat.ts`, `src/views/search.ts` | the sidebar panes |
+| `src/views/dashboard/` | the one view: `index.ts` (header, tabs, action routing), one file per data tab |
+| `src/views/chat.ts`, `src/views/search.ts` | the Chat and Search panes the view hosts |
 | `src/ui/` | DOM helpers, the prompt and confirm modals, the credential dialog, the skill inspector |
 | `docs/cli-shapes.md` | the CLI answers the plugin reads, field by field |
 | `docs/ux.md` | what a person sees and can do, surface by surface; the review log |

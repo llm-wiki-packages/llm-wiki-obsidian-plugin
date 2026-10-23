@@ -2,6 +2,7 @@
 // the way the reference dashboard does it: routes choose the verb, and nothing
 // typed into Obsidian reaches a command line except as one validated argument.
 import { spawn, type ChildProcess } from 'node:child_process'
+import { log } from '../logger'
 
 // The renderer's own timers where there is a window (popout-safe); node's own in the tests, which have none.
 const timers = typeof window === 'undefined' ? global : window
@@ -299,6 +300,7 @@ export class Cli {
   run<T = unknown>(verb: Verb, args: Args = {}, opts: RunOptions = {}): Promise<T> {
     const timeoutMs = opts.timeoutMs ?? this.config.timeoutMs
     const argv = [...(this.config.prefix ?? []), ...VERBS[verb](args)]
+    const started = Date.now()
     return new Promise<T>((resolve, reject) => {
       const child = spawn(this.config.bin, argv, {
         env: childEnv(this.config.env, verb),
@@ -332,6 +334,7 @@ export class Cli {
         timers.clearTimeout(timer)
         this.live.delete(child)
         opts.signal?.removeEventListener('abort', onAbort)
+        log.debug('cli', verb, `rc ${String(rc)}`, `${Date.now() - started}ms`, err.trim() ? tail(err) : '')
         let parsed: unknown
         try {
           parsed = out.trim() ? JSON.parse(out) : undefined

@@ -21,9 +21,13 @@ needs a person) / `llm-wiki · not ready`. Click opens the dashboard. A job
 that stops between two polls raises an Obsidian Notice; writes whose row
 visibly changes (accept, pause, remove…) raise none.
 
-### Dashboard (main area tab; ribbon icon, command "Open dashboard")
-Header: title, one health pill (`ok` or `N need you`), refreshed time, Refresh,
-Chat. Four tabs, remembered per tab leaf.
+### The view (main area tab; brain ribbon icon, command "Open dashboard")
+Header: title, one health pill (`ok` or `N need you`; a button: hover lists
+what needs you, click opens the Overview from any tab), refreshed time,
+Refresh, a gear for the plugin settings. Seven tabs, remembered per leaf:
+Overview, Jobs, Skills, Credentials, Ingest on the left; Search and Chat on
+the right. Chat and Search are panes built once and kept across tab
+switches; a snapshot never redraws them. Text is selectable everywhere.
 
 **Overview** — do I need to do anything?
 - One sentence: "2 things need you. Running Curate…. 1 job is due now."
@@ -86,11 +90,19 @@ the state, the reason and the last failure), Close.
   that is failed or empty. "Add a credential…" opens the dialog with nothing
   prefilled.
 
-**Pages** — *Awaiting curation* grouped by the folder they landed in, each
-group with **Accept all in <folder>**; rows (title from frontmatter, path):
-click or Enter opens the note; Accept, Reject… (one-line reason); "Ask the
-agent to curate". *Not yet in the wiki*: files under sources/ the wiki has not adopted:
-Adopt / Adopt all. An older CLI says it cannot tell.
+**Credentials** — *Stored on this machine*: every credential by name, kind
+(secret / folder / login) and state pill (verified · failed · stale · empty ·
+not verified yet), who uses it; Replace… (the accent only when it is broken
+and used), Remove (confirm names who loses it), Log in for a harness login;
+"Add a credential…". *Needed by an enabled skill*: each empty required slot
+with **Set credential**.
+
+**Ingest** — the intake pipeline, top to bottom, with one line saying so.
+*1 · New under sources/*: files the wiki has not adopted: Adopt / Adopt all;
+an older CLI says it cannot tell. *2 · Awaiting curation*: drafts grouped by
+the folder they landed in, each group with **Accept all in <folder>**; rows
+(title from frontmatter, path): click or Enter opens the note; Accept,
+Reject… (one-line reason); "Ask the agent to curate".
 
 ### Inspect (skill dialog)
 Header: state · version · package, then the unit's description sentence. *What it needs on this machine*: each slot
@@ -117,7 +129,7 @@ does not wait) or **Save and run** (the skill's one job can run now). Errors
 stay in the dialog; the Notice names the end state and never the value. The
 write runs as an attended session because a person clicked.
 
-### Chat (right sidebar)
+### Chat (tab)
 Mode select Agent / Ask (Agent is disabled, and Ask selected, when `claude`
 is not found; one hint line says so). **Continue last chat** picks the last
 Agent session back up when the pane was closed. A permission card offers
@@ -126,16 +138,18 @@ composer. Session, model and cost lines are gone; the duration sits on the
 bubble's hover. Agent = a Claude Code session at the wiki root,
 unjailed, with the wiki's hooks, permission cards in the pane ("Run this?",
 Allow / Deny), `credentials get` denied. Ask = one jailed `harness run` per
-turn, read-only. New chat, **Commands…** (a fuzzy list of the `/llm-wiki:` slash
-commands read from the installed Claude Code plugin; asks for arguments;
+turn, read-only. New chat, **Skills…** (a fuzzy list of the `/llm-wiki:` slash
+skills read from the installed Claude Code plugin; asks for arguments;
 starts the turn). Chips: three prompts by the active note. Composer with Send / Stop.
+A wikilink or URL in a reply opens on click (Cmd-click in a new tab); a
+finished reply shows a Copy button on hover.
 Every dashboard hand-off lands here prefilled, not sent. A tool row for an
 llm-wiki command reads in words ("Running inbox-joe", "Reading the job
 list"), the command itself on hover; the permission card keeps the raw
 command. Chips on an empty chat: "What needs attention in this wiki?", "What
 did the wiki learn since yesterday?", "Add a source…".
 
-### Search (right sidebar)
+### Search (tab)
 One field; a pause in typing or Enter searches, and a new search kills the one
 in flight. Results with title, path and snippet; click opens the note. "No
 pages match" for zero hits, the degradation reason when the engine is
@@ -244,3 +258,19 @@ It renders the real views over fixture data with a stand-in for Obsidian's API.
   ask for a secret in chat; search cancels its pending debounce on Enter
   and clears on Escape; "stopped" for tickets everywhere; the chat button
   is Commands…; the not-ready card hides the tabs; one accent per dialog.
+
+### Cycle 6 — the owner's first live session (2026-10-23)
+Twelve findings from the owner using the branch in a live wiki on a Mac.
+Done: wikilinks in a reply open (the view wires its own link clicks); the
+AbortSignal error on a later turn was the renderer guard probing through
+itself and recursing, fixed with a test that counts what reaches Node; one
+view with Chat and Search as tabs instead of two sidebar panes nobody found
+(the ribbon showed one icon); standalone Search with a hint; the health pill
+is a button with a tooltip; Credentials is its own tab with what enabled
+skills still need; Pages is Ingest, ordered as the pipeline runs (new under
+sources/, then awaiting curation) with a sentence saying so; text is
+selectable and a reply has Copy; Commands… is Skills…; a gear opens the
+settings; the icon is a brain; the Debug logging setting says the console's
+Verbose level must be on. Confirmed as intended: Agent is unjailed and Ask is
+the jailed mode. Open: Ask mode keeps no context between turns (Known gaps).
+

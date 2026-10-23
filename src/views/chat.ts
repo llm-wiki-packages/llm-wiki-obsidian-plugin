@@ -1,10 +1,9 @@
-import { Component, ItemView, MarkdownRenderer, setIcon, type WorkspaceLeaf } from 'obsidian'
+import { Component, MarkdownRenderer, Notice, setIcon, type App } from 'obsidian'
 import type { ChatBackend, ChatEvent, PermissionDecision, PermissionRequest } from '../chat/types'
 import { log } from '../logger'
+import { wireLinks } from '../ui/links'
 import type LlmWikiPlugin from '../main'
 import type { ChatMode } from '../settings'
-
-export const VIEW_CHAT = 'llm-wiki-chat'
 
 /** Tools after which the wiki may have changed. */
 const WRITE_TOOLS = new Set(['Bash', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
@@ -14,7 +13,8 @@ const CAPABILITY: Record<ChatMode, string> = {
   ask: 'Ask: read-only, jailed; each question starts fresh.',
 }
 
-export class ChatView extends ItemView {
+/** The chat pane: lives inside the dashboard's Chat tab, built once and kept across tab switches. */
+export class ChatPane extends Component {
   private transcript!: HTMLElement
   private composer!: HTMLTextAreaElement
   private sendBtn!: HTMLButtonElement
@@ -35,32 +35,24 @@ export class ChatView extends ItemView {
   /** Rendered turns hold a Component each while on screen; New chat releases them. */
   private bubbles: AssistantBubble[] = []
 
+  private get app(): App {
+    return this.plugin.app
+  }
+
   constructor(
-    leaf: WorkspaceLeaf,
     private readonly plugin: LlmWikiPlugin,
+    private readonly root: HTMLElement,
   ) {
-    super(leaf)
+    super()
     this.mode = plugin.settings.defaultChatMode
     // Agent needs claude; without it the pane starts in Ask rather than failing on Send.
     if (this.mode === 'agent' && !plugin.claudeBin && plugin.cliBin) this.mode = 'ask'
   }
 
-  getViewType(): string {
-    return VIEW_CHAT
-  }
-
-  getDisplayText(): string {
-    return 'LLM wiki chat'
-  }
-
-  getIcon(): string {
-    return 'message-square'
-  }
-
-  onOpen(): Promise<void> {
-    const root = this.contentEl
+  onload(): void {
+    const root = this.root
     root.empty()
-    root.addClass('llm-wiki', 'llm-wiki-chat')
+    root.addClass('llm-wiki-chat')
 
     const bar = root.createDiv({ cls: 'llm-wiki-chat-bar' })
     this.modeSelect = bar.createEl('select', { cls: 'dropdown' })
@@ -76,11 +68,12 @@ export class ChatView extends ItemView {
     this.continueBtn = bar.createEl('button', { text: 'Continue last chat' })
     this.registerDomEvent(this.continueBtn, 'click', () => this.continueLast())
     this.newBtn = newBtn
-    const skillsBtn = bar.createEl('button', { text: 'Commands…', attr: { title: 'The /llm-wiki: commands the installed plugin ships' } })
+    const skillsBtn = bar.createEl('button', { text: 'Skills…', attr: { title: 'The /llm-wiki: skills the installed Claude Code plugin ships; one becomes a chat turn' } })
     this.registerDomEvent(skillsBtn, 'click', () => this.plugin.pickSkill())
     this.status = bar.createDiv({ cls: 'llm-wiki-muted llm-wiki-chat-status' })
 
     this.transcript = root.createDiv({ cls: 'llm-wiki-transcript' })
+    wireLinks(this.transcript, this.app, (el, ev, fn) => this.registerDomEvent(el, ev, fn))
     this.hint = this.transcript.createDiv({ cls: 'llm-wiki-note llm-wiki-muted llm-wiki-hint' })
     this.chips = root.createDiv({ cls: 'llm-wiki-chips' })
 
@@ -106,7 +99,10 @@ export class ChatView extends ItemView {
     this.showReadiness()
     this.showChips()
     this.showCapability()
-    return Promise.resolve()
+  }
+
+  focus(): void {
+    this.composer.focus()
   }
 
   private showCapability(): void {
@@ -158,9 +154,8 @@ export class ChatView extends ItemView {
     }
   }
 
-  onClose(): Promise<void> {
+  onunload(): void {
     this.running?.abort()
-    return Promise.resolve()
   }
 
   /** Put text in the composer and focus it, for a button elsewhere that starts a conversation. */
@@ -193,7 +188,8 @@ export class ChatView extends ItemView {
     this.showCapability()
   }
 
-  private note(text: string): void {
+  /** Said in the pane rather than the console, for a hand-off that failed to start. */
+  note(text: string): void {
     this.transcript.createDiv({ cls: 'llm-wiki-note llm-wiki-muted', text })
     this.scroll()
   }
@@ -237,6 +233,7 @@ export class ChatView extends ItemView {
         onStderr: (chunk) => log.debug('harness stderr', chunk),
       })
       for await (const e of events) {
+        log.debug('chat', e.type, e.type === 'tool' ? e.name : e.type === 'error' ? e.message : '')
         assistant.take(e)
         this.scroll()
         if (e.type === 'error') failed = true
@@ -299,9 +296,12 @@ class AssistantBubble {
   private renderTimer: number | null = null
   private readonly renderer = new Component()
 
+  /** Everything the agent said this turn, for Copy. */
+  private all = ''
+
   constructor(
     parent: HTMLElement,
-    private readonly app: ItemView['app'],
+    private readonly app: App,
     private readonly owner: Component,
   ) {
     this.el = parent.createDiv({ cls: 'llm-wiki-msg llm-wiki-assistant' })
@@ -319,6 +319,7 @@ class AssistantBubble {
         break
       case 'text':
         this.text += e.text
+        this.all += e.text
         this.scheduleRender()
         break
       case 'tool': {
@@ -369,6 +370,11 @@ class AssistantBubble {
 
   finish(): void {
     this.flushText()
+    if (!this.all.trim()) return
+    const copy = this.el.createEl('button', { cls: 'llm-wiki-copy clickable-icon', attr: { 'aria-label': 'Copy the reply as markdown' } })
+    setIcon(copy, 'copy')
+    const text = this.all
+    copy.addEventListener('click', () => void navigator.clipboard.writeText(text).then(() => new Notice('Copied', 1500)))
   }
 
   dispose(): void {

@@ -39,10 +39,14 @@ export function setIcon(el: HTMLElement, name: string) {
 
 export class Component {
   private children: Component[] = []
-  addChild<T extends Component>(c: T): T { this.children.push(c); return c }
-  removeChild<T extends Component>(c: T): T { this.children = this.children.filter((x) => x !== c); return c }
-  load() {}
-  unload() {}
+  addChild<T extends Component>(c: T): T { this.children.push(c); c.load(); return c }
+  removeChild<T extends Component>(c: T): T { this.children = this.children.filter((x) => x !== c); c.unload(); return c }
+  load() { this.onload() }
+  unload() { this.onunload() }
+  onload() {}
+  onunload() {}
+  registerDomEvent(el: EventTarget, ev: string, fn: (e: any) => void) { el.addEventListener(ev, fn) }
+  registerEvent() {}
 }
 
 export class App {
@@ -75,8 +79,6 @@ export class ItemView extends Component {
     this.contentEl = document.createElement('div')
     this.contentEl.className = 'view-content'
   }
-  registerDomEvent(el: EventTarget, ev: string, fn: (e: any) => void) { el.addEventListener(ev, fn) }
-  registerEvent() {}
   getState(): any { return {} }
   async setState() {}
 }

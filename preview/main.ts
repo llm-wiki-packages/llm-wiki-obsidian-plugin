@@ -2,8 +2,6 @@
 /* eslint-disable */
 import { App, WorkspaceLeaf } from 'obsidian'
 import { DashboardView, type Tab } from '../src/views/dashboard/index'
-import { ChatView } from '../src/views/chat'
-import { SearchView } from '../src/views/search'
 import type { Snapshot } from '../src/wiki/model'
 import { openCredentialModal } from '../src/ui/credentialModal'
 import { openSkillModal } from '../src/ui/skillModal'
@@ -71,7 +69,7 @@ const plugin: any = {
   problem: new URLSearchParams(location.search).get('problem') === 'cli' ? 'llm-wiki-cli not found on the login shell PATH; set its path in the plugin settings' : new URLSearchParams(location.search).get('problem') === 'wiki' ? 'the vault is not a registered wiki (2 registered); join it, or set the wiki key in the plugin settings' : null,
   actions: new Proxy({}, { get: (_t, verb) => (...args: unknown[]) => { console.log('action', verb, args); return Promise.resolve({ ok: true, message: `${String(verb)} ok` }) } }),
   refreshSnapshot: () => Promise.resolve(),
-  openChat: (text?: string) => { console.log('chat', text); chat.prefill(text ?? ''); return Promise.resolve() },
+  openChat: (text?: string) => { console.log('chat', text); dash.goTo('chat'); dash.chat.prefill(text ?? ''); return Promise.resolve() },
   addJob: () => console.log('add job'),
   pickSkill: () => console.log('pick skill'),
   credentialModal: (p: unknown) => openCredentialModal(app, snapshot, plugin.actions, p as any, async () => {}),
@@ -86,25 +84,17 @@ const plugin: any = {
 if (plugin.problem) plugin.snapshot = null
 
 const main = document.getElementById('main')!
-const side = document.getElementById('side')!
 const leaf = new WorkspaceLeaf(app)
 const dash: any = new DashboardView(leaf as any, plugin)
 main.appendChild(dash.contentEl)
 void dash.onOpen()
-const chat = new ChatView(new WorkspaceLeaf(app) as any, plugin)
-side.appendChild(chat.contentEl)
-void chat.onOpen()
+const chat = dash.chat
 
-// Driven from the screenshot script: ?tab=jobs, ?modal=credential|skill, ?theme=dark, ?pane=search
+// Driven from the screenshot script: ?tab=jobs|chat|search, ?modal=credential|skill, ?theme=dark, ?narrow=1
 const q = new URLSearchParams(location.search)
 if (q.get('theme') === 'dark') document.body.className = 'theme-dark'
+if (q.get('narrow') === '1') main.style.maxWidth = '420px'
 if (q.get('tab')) dash.goTo(q.get('tab') as Tab)
-if (q.get('pane') === 'search') {
-  side.replaceChildren()
-  const search = new SearchView(new WorkspaceLeaf(app) as any, plugin)
-  side.appendChild(search.contentEl)
-  void search.onOpen()
-}
 if (q.get('modal') === 'credential') plugin.credentialModal({ skill: 'channel-gmail', slot: 'file' })
 const ctx = { snapshot, plugin, act: async (a: any) => console.log('act', a), write: async (run: any) => console.log(await run()), goTo: (t: Tab) => dash.goTo(t) }
 if (q.get('modal') === 'skill') openSkillModal(app, snapshot.skills[Number(q.get('skill') ?? 0)]!, ctx as any)
@@ -118,7 +108,8 @@ if (q.get('many') === '1') {
 if (q.get('modal') === 'replace') plugin.credentialModal({ name: 'yt-cookies', kind: 'dir', skill: 'channel-youtube', slot: 'dir', retry: 't9', job: 'yt-subs' })
 if (q.get('chat') === 'turn') {
   // A fabricated transcript, to see the bubbles.
-  const t = chat.contentEl.querySelector('.llm-wiki-transcript')!
+  dash.goTo('chat')
+  const t = dash.contentEl.querySelector('.llm-wiki-transcript')!
   ;(t as any).createDiv({ cls: 'llm-wiki-msg llm-wiki-user', text: 'Check my inbox now and tell me what needs a reply' })
   const a = (t as any).createDiv({ cls: 'llm-wiki-msg llm-wiki-assistant' })
   const tool = a.createDiv({ cls: 'llm-wiki-tool' })

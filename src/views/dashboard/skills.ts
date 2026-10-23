@@ -1,11 +1,10 @@
-import { button, empty, pill, relativeTime, section } from '../../ui/dom'
-import { confirm } from '../../ui/modals'
-import type { Action, CredentialView, SkillView } from '../../wiki/model'
+import { button, empty, pill, section } from '../../ui/dom'
+import type { Action, SkillView } from '../../wiki/model'
 import { unboundSlot } from '../../wiki/snapshot'
 import { slotWords } from '../../wiki/slots'
 import type { TabContext } from './index'
 
-/** The units the wiki holds and this machine loads, which Obsidian itself hides; then the credentials they spend. */
+/** The units the wiki holds and this machine loads, which Obsidian itself hides. */
 export function renderSkills(root: HTMLElement, ctx: TabContext): void {
   const { snapshot } = ctx
   const enabled = snapshot.skills.filter((s) => s.state === 'enabled')
@@ -20,8 +19,6 @@ export function renderSkills(root: HTMLElement, ctx: TabContext): void {
     const held = section(root, 'In the wiki, not enabled here', { count: installed.length })
     for (const s of installed) skillRow(held, s, ctx)
   }
-
-  renderCredentials(root, ctx)
 
   if (available.length) {
     const more = section(root, 'Available from the package', { count: available.length })
@@ -88,46 +85,4 @@ export function problem(s: SkillView): { text: string; tone: 'warn' | 'info' } |
   if (s.drifted) return { text: 'differs from the wiki', tone: 'warn' }
   if (s.outdated) return { text: 'update available', tone: 'info' }
   return null
-}
-
-const KIND: Record<string, string> = { value: 'secret', dir: 'folder', harness: 'login' }
-
-function renderCredentials(root: HTMLElement, ctx: TabContext): void {
-  const { snapshot } = ctx
-  const actions = ctx.plugin.actions
-  const body = section(root, 'Credentials', {
-    count: snapshot.credentials.length,
-    actions: (bar) => button(bar, 'Add a credential…', () => ctx.plugin.credentialModal({}), { icon: 'plus' }),
-  })
-  body.createDiv({ cls: 'llm-wiki-muted', text: 'Stored on this machine for this wiki. A value is never shown again.' })
-  if (!snapshot.credentials.length) empty(body, 'No credentials yet.', 'A skill that pulls from a signed-in service needs one; its row says so once it is enabled.')
-  for (const c of snapshot.credentials) credentialRow(body, c, ctx, actions)
-}
-
-function credentialRow(parent: HTMLElement, c: CredentialView, ctx: TabContext, actions: TabContext['plugin']['actions']): void {
-  const row = parent.createDiv({ cls: 'llm-wiki-row' })
-  const main = row.createDiv({ cls: 'llm-wiki-row-main' })
-  const title = main.createDiv({ cls: 'llm-wiki-row-title' })
-  title.createSpan({ text: c.name })
-  title.createSpan({ cls: 'llm-wiki-muted', text: ` · ${KIND[c.kind] ?? c.kind}` })
-  const stale = c.uses.find((u) => u.problem)
-  if (c.state === 'failed') pill(title, 'failed', 'error')
-  else if (stale) pill(title, stale.problem ?? 'stale', 'warn')
-  else if (c.state === 'verified' || c.state === 'ok') pill(title, c.verified ? `verified ${relativeTime(c.verified)}` : 'verified', 'ok')
-  else if (c.state === 'none') pill(title, 'empty', 'warn')
-  else pill(title, 'not verified yet')
-  const uses = c.uses.map((u) => u.job ?? u.skill ?? '')
-  main.createDiv({ cls: 'llm-wiki-row-detail', text: c.kind === 'harness' ? 'Used by Ask mode and by every skill that runs a model session' : uses.length ? `Used by ${uses.join(', ')}` : 'Not used by any skill or job' })
-  const bar = row.createDiv({ cls: 'llm-wiki-row-actions' })
-  if (!actions) return
-  if (c.kind === 'harness') {
-    if (c.state === 'failed' || c.state === 'none') button(bar, 'Log in', () => ctx.write(() => actions.loginCredential(c.name)), { icon: 'log-in', cta: true })
-    return
-  }
-  button(bar, 'Replace…', () => ctx.plugin.credentialModal({ name: c.name, kind: c.kind === 'dir' ? 'dir' : 'value' }), { icon: 'refresh-cw', cta: (c.state === 'failed' || Boolean(stale)) && c.uses.length > 0 })
-  button(bar, 'Remove', async () => {
-    const who = c.uses.map((u) => u.job ?? u.skill).filter(Boolean)
-    const ok = await confirm(ctx.plugin.app, { title: `Remove ${c.name}?`, body: who.length ? `${who.join(', ')} will lose it and cannot run here until another credential is bound.` : 'It is not bound anywhere.', cta: 'Remove' })
-    if (ok) await ctx.write(() => actions.removeCredential(c.name), true)
-  }, { icon: 'trash-2' })
 }

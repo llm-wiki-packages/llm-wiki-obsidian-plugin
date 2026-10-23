@@ -155,3 +155,21 @@ tr:focus-visible, .llm-wiki-row:focus-visible { outline: 2px solid var(--interac
 .llm-wiki-also { padding-left: calc(0.6em + var(--size-4-3) + var(--size-4-3)); }
 .llm-wiki-button.llm-wiki-small { height: 24px; padding: 0 var(--size-4-2); font-size: var(--font-ui-smaller); }
 .llm-wiki-next.is-unbound { font-weight: var(--font-normal); }
+
+/* Cycle 6 */
+.llm-wiki, .llm-wiki-chat, .llm-wiki-search { user-select: text; -webkit-user-select: text; }
+.llm-wiki-dashboard.is-pane { overflow: hidden; }
+.llm-wiki-pane { display: flex; flex-direction: column; flex: 1; min-height: 0; gap: var(--size-4-2); }
+.llm-wiki-tabs-gap { flex: 1; }
+.llm-wiki-pill-button { border: none; box-shadow: none; cursor: pointer; height: auto; line-height: 1.6; font-weight: var(--font-normal); }
+.llm-wiki-pill-button:hover { background: var(--background-modifier-hover); }
+.llm-wiki-assistant { position: relative; }
+.llm-wiki-copy { position: absolute; top: var(--size-2-2); right: var(--size-2-2); opacity: 0; padding: var(--size-2-1); }
+.llm-wiki-assistant:hover .llm-wiki-copy, .llm-wiki-copy:focus-visible { opacity: 1; }
+.llm-wiki-copy svg { width: 1em; height: 1em; }
+.llm-wiki-flow { padding: var(--size-4-2) var(--size-4-3); border-left: 2px solid var(--background-modifier-border); }
+.llm-wiki-search-bar { display: flex; }
+.llm-wiki-composer-input, .llm-wiki-search-input { box-sizing: border-box; }
+.llm-wiki-search-hint { padding: var(--size-4-3) 0; text-align: center; }
+.llm-wiki-tabs { flex-wrap: wrap; }
+.llm-wiki-row-actions { flex-wrap: wrap; justify-content: flex-end; }
