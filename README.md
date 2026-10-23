@@ -50,9 +50,14 @@ open, every 5 minutes otherwise. The status bar reads `llm-wiki · ok`,
 
 **Search** (right sidebar): `search query` through the CLI; results open as notes.
 
+**Skills**: *Run a skill…* (a command, and the **Skills…** button in chat) lists
+the llm-wiki skills a person starts by hand, with what each does and what it
+takes, and turns the pick into a chat turn such as `/llm-wiki:research <goal>`.
+A skill that belongs to a job runs through **Run** on the Jobs tab instead.
+
 **Commands**: Open dashboard, Open chat, Open search, Run a job… (a fuzzy list;
-the fastest Run there is), Add a job…, Ask the agent about this note, Refresh
-the dashboard, Re-detect wiki and binaries.
+the fastest Run there is), Add a job…, Run a skill…, Ask the agent about this
+note, Refresh the dashboard, Re-detect wiki and binaries.
 
 ## Requirements
 
@@ -108,7 +113,8 @@ LLM_WIKI_E2E_BIN=$(which llm-wiki-cli) LLM_WIKI_E2E_VAULT=/path/to/wiki npm test
 | `src/wiki/resolve.ts` | the login shell's PATH, binary lookup, and matching the vault to a registered wiki |
 | `src/chat/types.ts` | the chat contract: a backend turns a harness's protocol into `ChatEvent`s and asks permission through one callback |
 | `src/chat/claudeSdk.ts` | the Agent backend on `@anthropic-ai/claude-agent-sdk`, driving the user's own `claude` |
-| `src/chat/harnessRun.ts` | the Safe backend on `harness run --stream` |
+| `src/chat/harnessRun.ts` | the Ask backend on `harness run --stream` |
+| `src/chat/skills.ts` | the skills a person starts by hand: name, one line, what it takes |
 | `src/wiki/model.ts` | what the dashboard shows: `Snapshot`, jobs with a plain-words `next`, attention items with one action |
 | `src/wiki/snapshot.ts` | CLI answers into a `Snapshot`; the one place that knows the answers' field names |
 | `src/wiki/actions.ts` | the writes a click makes, each one verb, each answering one sentence |

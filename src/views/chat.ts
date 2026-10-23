@@ -63,6 +63,8 @@ export class ChatView extends ItemView {
     })
     const newBtn = bar.createEl('button', { text: 'New chat' })
     this.registerDomEvent(newBtn, 'click', () => this.newChat())
+    const skillsBtn = bar.createEl('button', { text: 'Skills…' })
+    this.registerDomEvent(skillsBtn, 'click', () => this.plugin.pickSkill())
     this.status = bar.createDiv({ cls: 'llm-wiki-muted llm-wiki-chat-status' })
 
     this.transcript = root.createDiv({ cls: 'llm-wiki-transcript' })

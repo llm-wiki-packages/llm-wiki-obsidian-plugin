@@ -1,6 +1,7 @@
 import { FileSystemAdapter, FuzzySuggestModal, Notice, Plugin, type WorkspaceLeaf } from 'obsidian'
 import { ClaudeSdkBackend } from './chat/claudeSdk'
 import { HarnessRunBackend } from './chat/harnessRun'
+import { SKILLS, slashCommand, type SkillEntry } from './chat/skills'
 import type { ChatBackend, WikiTarget } from './chat/types'
 import { log } from './logger'
 import { DEFAULT_SETTINGS, LlmWikiSettingTab, type ChatMode, type LlmWikiSettings } from './settings'
@@ -43,6 +44,7 @@ export default class LlmWikiPlugin extends Plugin {
     this.addCommand({ id: 'open-search', name: 'Open search', callback: () => void this.activateView(VIEW_SEARCH) })
     this.addCommand({ id: 'run-job', name: 'Run a job…', callback: () => this.pickJobToRun() })
     this.addCommand({ id: 'add-job', name: 'Add a job…', callback: () => void this.addJob() })
+    this.addCommand({ id: 'run-skill', name: 'Run a skill…', callback: () => this.pickSkill() })
     this.addCommand({ id: 'ask-about-note', name: 'Ask the agent about this note', checkCallback: (checking) => {
       const file = this.app.workspace.getActiveFile()
       if (!file) return false
@@ -176,6 +178,26 @@ export default class LlmWikiPlugin extends Plugin {
   async addJob(): Promise<void> {
     const text = await this.promptAddJob()
     if (text) await this.openChat(`/llm-wiki:add ${text}`)
+  }
+
+  /** The skills a person starts by hand, as a fuzzy list; the chosen one becomes a chat turn. */
+  pickSkill(): void {
+    const start = (skill: SkillEntry) =>
+      void (async () => {
+        const args = skill.args ? await promptText(this.app, { title: `/llm-wiki:${skill.name}`, description: skill.description, placeholder: skill.args, cta: 'Start' }) : ''
+        if (args !== null) await this.openChat(slashCommand(skill, args))
+      })()
+    const modal = new (class extends FuzzySuggestModal<SkillEntry> {
+      getItems = () => SKILLS
+      getItemText = (s: SkillEntry) => `${s.name} ${s.description}`
+      onChooseItem = (s: SkillEntry) => start(s)
+      renderSuggestion = (item: { item: SkillEntry }, el: HTMLElement) => {
+        el.createDiv({ text: `/llm-wiki:${item.item.name}${item.item.args ? ` ${item.item.args}` : ''}` })
+        el.createDiv({ cls: 'llm-wiki-muted', text: item.item.description })
+      }
+    })(this.app)
+    modal.setPlaceholder('Which skill?')
+    modal.open()
   }
 
   /** The fastest Run there is: a fuzzy list of jobs. */
