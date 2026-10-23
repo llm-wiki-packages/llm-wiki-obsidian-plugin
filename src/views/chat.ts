@@ -10,7 +10,7 @@ const WRITE_TOOLS = new Set(['Bash', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit
 
 const CAPABILITY: Record<ChatMode, string> = {
   agent: 'Agent: runs jobs and edits pages directly; asks you before each tool it would prompt for.',
-  ask: 'Ask: read-only, jailed; each question starts fresh.',
+  ask: 'Ask: read-only, kept apart from the vault; each question starts fresh.',
 }
 
 /** The chat pane: lives inside the dashboard's Chat tab, built once and kept across tab switches. */
@@ -273,9 +273,9 @@ export function toolSentence(tool: string, detail?: string): string | null {
   const arg = c && !c.includes('=') && !c.startsWith('-') ? c : undefined
   const table: Record<string, string> = {
     'jobs request': `Running ${arg ?? 'a job'}`, 'jobs ls': 'Reading the job list', 'jobs due': 'Reading what is due', 'jobs show': `Reading job ${arg ?? ''}`, 'jobs add': 'Declaring a job', 'jobs run': 'Running the pass',
-    'tickets ls': 'Reading the ticket list', 'tickets retry': `Retrying ticket ${arg ?? ''}`, 'page ls': 'Reading the page list', 'page curate': 'Curating pages', 'page adopt': 'Adopting pages',
+    'tickets ls': 'Reading the run list', 'tickets retry': `Retrying run ${arg ?? ''}`, 'page ls': 'Reading the page list', 'page curate': 'Curating pages', 'page adopt': 'Adopting pages',
     'search query': 'Searching the wiki', 'search index': 'Refreshing the search index', 'doctor': 'Running the doctor', 'status': 'Reading the status', 'skills ls': 'Reading the skills', 'skills install': `Installing ${arg ?? 'a skill'}`,
-    'skills enable': `Enabling ${arg ?? 'a skill'}`, 'skills bind': 'Binding a skill stage to its sandbox', 'sandboxes enable': `Enabling the ${arg ?? ''} sandbox`, 'credentials ls': 'Reading the credential list', 'credentials bind': 'Binding a credential',
+    'skills enable': `Enabling ${arg ?? 'a skill'}`, 'skills bind': 'Binding a skill to its profile', 'sandboxes enable': `Enabling the ${arg ?? ''} profile`, 'credentials ls': 'Reading the credential list', 'credentials bind': 'Binding a credential',
     'op since': 'Reading recent runs', 'op record': 'Recording the run', 'git commit': 'Committing', 'git sync': 'Syncing',
   }
   return table[`${a} ${b}`] ?? table[a ?? ''] ?? null

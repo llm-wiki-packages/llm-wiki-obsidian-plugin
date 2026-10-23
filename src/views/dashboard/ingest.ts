@@ -10,7 +10,7 @@ export function renderIngest(root: HTMLElement, ctx: TabContext): void {
   root.createDiv({ cls: 'llm-wiki-muted llm-wiki-flow', text: 'How a page gets in: a file lands under sources/, is adopted into the wiki as a draft, and waits for you to accept or reject it. Work moves down this page.' })
 
   const unadopted = snapshot.unadopted ?? []
-  const fresh = section(root, '1 · New under sources/', {
+  const fresh = section(root, 'New under sources/', {
     count: unadopted.length,
     actions: (bar) => {
       if (unadopted.length > 1 && actions)
@@ -21,7 +21,7 @@ export function renderIngest(root: HTMLElement, ctx: TabContext): void {
   else if (!unadopted.length) empty(fresh, 'Everything under sources/ is known to the wiki.', 'A file dropped into sources/ shows here until it is adopted.')
   for (const c of unadopted) pageRow(fresh, c, ctx, false)
 
-  const body = section(root, '2 · Awaiting curation', {
+  const body = section(root, 'Awaiting curation', {
     count: snapshot.curation.length,
     actions: (bar) => {
       if (snapshot.curation.length)

@@ -14,7 +14,7 @@ export function renderCredentials(root: HTMLElement, ctx: TabContext): void {
     count: snapshot.credentials.length,
     actions: (bar) => button(bar, 'Add a credential…', () => ctx.plugin.credentialModal({}), { icon: 'plus' }),
   })
-  body.createDiv({ cls: 'llm-wiki-muted', text: 'Held for this wiki by the llm-wiki CLI, outside the vault. A value is never shown again; a job that needs one gets it inside its own jail.' })
+  body.createDiv({ cls: 'llm-wiki-muted', text: 'Held for this wiki by the llm-wiki CLI, outside the vault. A value is never shown again; a job that needs one is handed it, apart from the vault and the chat.' })
   if (!snapshot.credentials.length) empty(body, 'No credentials yet.', 'A skill that pulls from a signed-in service needs one; its row on the Skills tab says so once it is enabled.')
   for (const c of snapshot.credentials) credentialRow(body, c, ctx, actions)
   const missing = snapshot.skills.filter((s) => s.state === 'enabled').flatMap((s) => s.slots.filter((x) => x.credential === null && x.required).map((x) => ({ skill: s.name, slot: x.name })))

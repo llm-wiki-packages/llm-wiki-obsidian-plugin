@@ -24,9 +24,10 @@ visibly changes (accept, pause, remove…) raise none.
 ### The view (main area tab; brain ribbon icon, command "Open dashboard")
 Header: title, one health pill (`ok` or `N need you`; a button: hover lists
 what needs you, click opens the Overview from any tab), refreshed time,
-Refresh, a gear for the plugin settings. Seven tabs, remembered per leaf:
-Overview, Jobs, Skills, Credentials, Ingest on the left; Search and Chat on
-the right. Chat and Search are panes built once and kept across tab
+Refresh (icon), a gear for the plugin settings. Seven tabs, remembered per leaf:
+Overview, Jobs, Skills, Ingest, Credentials on the left; Search and Chat on
+the right. A note opened from the view goes to a new tab (Cmd-click: a
+split), never into the view's own leaf. Chat and Search are panes built once and kept across tab
 switches; a snapshot never redraws them. Text is selectable everywhere.
 
 **Overview** — do I need to do anything?
@@ -71,7 +72,7 @@ ok / stopped / dropped, reason, when, runtime, Retry on a stopped one).
 Footer: Run / Pause / Replace credential, Ask the agent (the prompt carries
 the state, the reason and the last failure), Close.
 
-**Skills** — three groups then credentials.
+**Skills** — three groups.
 - *Enabled on this machine*: name · venue, one pill at most (`credential
   missing` / `credential stale` › `differs from the wiki` › `update
   available`), the jobs using it. One button: **Set credential** or **Replace
@@ -82,14 +83,6 @@ the state, the reason and the last failure), Close.
   `/llm-wiki:enable <name>`.
 - *Available from the package*: rows with the unit's description (read from
   the package cache's SKILL.md); **Add** → chat `/llm-wiki:enable <name>`.
-- *Credentials*: name · kind (secret / folder / login), a state pill always
-  (verified 2d ago / failed / stale / empty / not verified yet), "Used by …";
-  a harness login says it is used by chat and every model session.
-  **Replace…** (same dialog, name fixed; primary when failed or stale),
-  **Remove** (confirm names who loses it), **Log in** for a harness login
-  that is failed or empty. "Add a credential…" opens the dialog with nothing
-  prefilled.
-
 **Credentials** — *Stored on this machine*: every credential by name, kind
 (secret / folder / login) and state pill (verified · failed · stale · empty ·
 not verified yet), who uses it; Replace… (the accent only when it is broken
@@ -98,8 +91,8 @@ and used), Remove (confirm names who loses it), Log in for a harness login;
 with **Set credential**.
 
 **Ingest** — the intake pipeline, top to bottom, with one line saying so.
-*1 · New under sources/*: files the wiki has not adopted: Adopt / Adopt all;
-an older CLI says it cannot tell. *2 · Awaiting curation*: drafts grouped by
+*New under sources/*: files the wiki has not adopted: Adopt / Adopt all;
+an older CLI says it cannot tell. *Awaiting curation*: drafts grouped by
 the folder they landed in, each group with **Accept all in <folder>**; rows
 (title from frontmatter, path): click or Enter opens the note; Accept,
 Reject… (one-line reason); "Ask the agent to curate".
@@ -273,4 +266,11 @@ selectable and a reply has Copy; Commands… is Skills…; a gear opens the
 settings; the icon is a brain; the Debug logging setting says the console's
 Verbose level must be on. Confirmed as intended: Agent is unjailed and Ask is
 the jailed mode. Open: Ask mode keeps no context between turns (Known gaps).
+Review 6 (docs/reviews/2026-10-23-review-6.md) folded the same day: notes
+open in a new tab from search, replies and Ingest rows, never in the view's
+own leaf; Ingest before Credentials, the Overview button says Ingest, no
+section numbers; Refresh is an icon; narrow widths stack row actions under
+their text; "jail", "ticket", "sandbox", "skill stage" no longer reach the
+screen. Left for later: a "Move to the sidebar" item, drafts grouped by job
+name with a "pages written" row that lands on them.
 

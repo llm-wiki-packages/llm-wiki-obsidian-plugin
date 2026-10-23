@@ -173,3 +173,12 @@ tr:focus-visible, .llm-wiki-row:focus-visible { outline: 2px solid var(--interac
 .llm-wiki-search-hint { padding: var(--size-4-3) 0; text-align: center; }
 .llm-wiki-tabs { flex-wrap: wrap; }
 .llm-wiki-row-actions { flex-wrap: wrap; justify-content: flex-end; }
+
+/* Narrow (a side split): actions drop under their text, long commands break. */
+.llm-wiki-dashboard { container-type: inline-size; }
+.llm-wiki-permission-summary { word-break: break-word; }
+@container (max-width: 600px) {
+  .llm-wiki-row, .llm-wiki-also { flex-wrap: wrap; }
+  .llm-wiki-row > .llm-wiki-row-actions, .llm-wiki-also > .llm-wiki-row-actions { width: 100%; justify-content: flex-end; }
+  .llm-wiki-header-actions { margin-left: 0; }
+}

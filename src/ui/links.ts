@@ -24,7 +24,8 @@ export function wireLinks(root: HTMLElement, app: App, register: (el: HTMLElemen
     e.preventDefault()
     e.stopPropagation()
     log.debug('link', target)
-    if (target.kind === 'internal') void app.workspace.openLinkText(target.path, '', e.metaKey || e.ctrlKey)
+    // Never the active leaf: that is this view, and a note in its place would end the chat.
+    if (target.kind === 'internal') void app.workspace.openLinkText(target.path, '', e.metaKey || e.ctrlKey ? 'split' : 'tab')
     else window.open(target.url)
   })
 }

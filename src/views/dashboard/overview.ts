@@ -51,7 +51,7 @@ export function renderOverview(root: HTMLElement, ctx: TabContext): void {
 
   const curation = section(root, 'Waiting for curation', {
     count: snapshot.curation.length,
-    actions: (bar) => button(bar, 'Review', () => ctx.goTo('ingest')),
+    actions: (bar) => button(bar, 'Ingest', () => ctx.goTo('ingest')),
   })
   if (snapshot.unadopted?.length) curation.createDiv({ cls: 'llm-wiki-muted', text: `${snapshot.unadopted.length} new under sources/ not yet in the wiki.` })
   if (!snapshot.curation.length) empty(curation, 'No pages are waiting.')

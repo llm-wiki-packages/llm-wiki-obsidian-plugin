@@ -31,7 +31,7 @@ export class SearchPane extends Component {
     this.input = bar.createEl('input', { type: 'search', placeholder: 'Search the wiki…', cls: 'llm-wiki-search-input' })
     this.status = root.createDiv({ cls: 'llm-wiki-muted llm-wiki-search-status' })
     this.results = root.createDiv({ cls: 'llm-wiki-search-results' })
-    this.results.createDiv({ cls: 'llm-wiki-muted llm-wiki-search-hint', text: 'Finds pages by meaning, through the wiki’s own search index. Enter searches now; a result opens as a note, Cmd-click in a new tab.' })
+    this.results.createDiv({ cls: 'llm-wiki-muted llm-wiki-search-hint', text: 'Finds pages by meaning, through the wiki’s own search index. Enter searches now; a result opens as a note in a new tab, Cmd-click in a split.' })
     // A pause in typing searches; Enter searches now. Each search is one CLI process, so bursts are not.
     const run = debounce(() => void this.search(), 600, true)
     this.registerDomEvent(this.input, 'input', () => run())
@@ -100,7 +100,7 @@ export class SearchPane extends Component {
       row.createDiv({ cls: 'llm-wiki-hit-path llm-wiki-muted', text: path })
       if (h.snippet) row.createDiv({ cls: 'llm-wiki-hit-snippet', text: h.snippet.replace(/\s+/g, ' ').trim() })
       row.addEventListener('click', (ev) => {
-        void this.app.workspace.openLinkText(path, '', ev.metaKey || ev.ctrlKey)
+        void this.app.workspace.openLinkText(path, '', ev.metaKey || ev.ctrlKey ? 'split' : 'tab')
       })
     }
   }

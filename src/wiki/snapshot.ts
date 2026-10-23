@@ -446,12 +446,12 @@ function attentionItems(input: {
       out.push({ id: `parked:${t.id}`, severity: 'warn', title: `${name} stopped: ${c.name ? `${c.name} is ${c.problem}` : `${job.skill} needs ${slotWords(c.slot).what}`}`, detail: t.reason ?? undefined, action: { kind: 'credential', skill: job.skill, slot: c.slot, ...(c.name ? { name: c.name } : {}), retry: t.id, job: t.job } })
       continue
     }
-    out.push({ id: `parked:${t.id}`, severity: 'warn', title: `${name} ${t.stage} stopped${t.reason ? `: ${t.reason}` : ''}`, detail: `ticket ${t.id}`, action: { kind: 'retry', ticket: t.id, slug: t.job } })
+    out.push({ id: `parked:${t.id}`, severity: 'warn', title: `${name} ${t.stage} stopped${t.reason ? `: ${t.reason}` : ''}`, detail: `run ${t.id}`, action: { kind: 'retry', ticket: t.id, slug: t.job } })
   }
   const stopped = new Set(parked.map((t) => t.job))
   for (const r of unboundRows) if (!stopped.has(r.id.slice('unbound:'.length))) out.push(r)
   for (const t of input.due?.review ?? [])
-    out.push({ id: `review:${t.id}`, severity: 'info', title: `${t.job} ${t.stage} asks for review${t.reason ? `: ${t.reason}` : ''}`, detail: `ticket ${t.id}`, action: { kind: 'ask', prompt: `Ticket ${t.id} of job ${t.job} is in review${t.reason ? ` (${t.reason})` : ''}. Show me what it needs and help me judge it.` } })
+    out.push({ id: `review:${t.id}`, severity: 'info', title: `${t.job} ${t.stage} asks for review${t.reason ? `: ${t.reason}` : ''}`, detail: `run ${t.id}`, action: { kind: 'ask', prompt: `Ticket ${t.id} of job ${t.job} is in review${t.reason ? ` (${t.reason})` : ''}. Show me what it needs and help me judge it.` } })
   for (const j of input.jobs)
     if (j.next.kind === 'blocked' && !j.paused)
       out.push({ id: `blocked:${j.slug}`, severity: 'warn', title: `${j.name}: ${j.next.detail ?? 'blocked'}`, detail: j.slug, action: { kind: 'ask', prompt: `Job ${j.slug} is blocked: ${j.next.detail ?? 'blocked'}. What does it need, and can you fix it?` } })

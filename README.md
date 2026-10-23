@@ -13,8 +13,10 @@ spawns local processes.
 One view, **LLM Wiki** (the brain icon in the ribbon, the status bar item, or
 *LLM Wiki: Open dashboard*), opened as a tab in the main area; drag it into a
 side split to keep it beside a note. Seven tabs: Overview, Jobs, Skills,
-Credentials and Ingest on the left for managing the wiki, Search and Chat on
-the right for talking to it. The health pill in the header reads `ok` or `N
+Ingest and Credentials on the left for managing the wiki, Search and Chat on
+the right for talking to it. A note opened from the view (a search hit, a
+link in a reply, an Ingest row) opens in a new tab, never in the view's own
+place; Cmd-click opens a split. The health pill in the header reads `ok` or `N
 need you`, lists what needs you on hover, and opens the Overview from any tab;
 the gear opens the plugin settings.
 
@@ -43,20 +45,18 @@ the gear opens the plugin settings.
   it, one button (Set or Replace credential, Run job, Enable, Add). Click a
   row for the **inspector**: what it needs on this machine, the jobs using it,
   SKILL.md and its enable and usage notes rendered, Add a source with it.
-  **Credentials**: what this wiki may use on this machine, names and states
-  only, who uses each; Replace…, Remove, Log in, Add a credential…. The
-  credential dialog says in words what is needed, pipes the secret to the
-  CLI's stdin, binds it to the skill (or one job), and then retries a stopped
-  job or runs a due one, in the same step.
-- **Credentials**: every credential the CLI holds for this wiki, by name,
-  kind and state, never a value, with who uses it; Replace, Remove, Log in,
-  Add. Below, what an enabled skill still needs, with **Set credential**.
 - **Ingest**: the intake pipeline top to bottom. **New under sources/**:
   files the wiki has not taken up, with **Adopt** (`page adopt`). Then
   **Awaiting curation**: drafts grouped by the folder they landed in, Accept
   all per folder; click opens the note; **Accept** and **Reject…** go through
   `page curate`; one button hands the queue to the agent with
   `/llm-wiki:curate`.
+- **Credentials**: every credential the CLI holds for this wiki, by name,
+  kind and state, never a value, with who uses it; Replace, Remove, Log in,
+  Add. Below, what an enabled skill still needs, with **Set credential**.
+  The credential dialog says in words what is needed, pipes the secret to the
+  CLI's stdin, binds it to the skill (or one job), and then retries a stopped
+  job or runs a due one, in the same step.
   That queue needs a CLI that reports page change state; an older one says so.
 
 The dashboard polls every 10 s while something is running, every minute while

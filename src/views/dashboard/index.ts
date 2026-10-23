@@ -21,8 +21,8 @@ const TABS: { id: Tab; label: string; side?: true }[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'jobs', label: 'Jobs' },
   { id: 'skills', label: 'Skills' },
-  { id: 'credentials', label: 'Credentials' },
   { id: 'ingest', label: 'Ingest' },
+  { id: 'credentials', label: 'Credentials' },
   { id: 'search', label: 'Search', side: true },
   { id: 'chat', label: 'Chat', side: true },
 ]
@@ -44,7 +44,7 @@ export interface TabContext {
 
 /** What a failed read is called on screen. */
 const READ_NAMES: Record<string, string> = {
-  'wiki.doctor': 'the doctor report', 'wiki.jobs.ls': 'the job list', 'wiki.jobs.due': 'what is due', 'wiki.tickets.ls': 'the ticket list', 'wiki.page.ls': 'the page list',
+  'wiki.doctor': 'the doctor report', 'wiki.jobs.ls': 'the job list', 'wiki.jobs.due': 'what is due', 'wiki.tickets.ls': 'the run list', 'wiki.page.ls': 'the page list',
   'wiki.op.since': 'recent runs', 'wiki.search.status': 'the search status', 'wiki.git.conflicts': 'conflicts', 'machine.runner.ls': 'the runner', 'wiki.skills.ls': 'the skills',
   'wiki.skills.doctor': 'the skills doctor', 'wiki.packages.ls': 'the packages', 'wiki.credentials.ls': 'the credentials', 'wiki.credentials.bindings': 'the credential bindings',
 }
@@ -104,7 +104,7 @@ export class DashboardView extends ItemView {
     this.registerDomEvent(this.healthPill, 'click', () => this.goTo('overview'))
     this.refreshedEl = header.createSpan({ cls: 'llm-wiki-muted' })
     const actions = header.createDiv({ cls: 'llm-wiki-header-actions' })
-    button(actions, 'Refresh', () => this.refresh(), { icon: 'refresh-cw' })
+    button(actions, '', () => this.refresh(), { icon: 'refresh-cw', title: 'Read the wiki again' })
     button(actions, '', () => this.plugin.openSettings(), { icon: 'settings', title: 'LLM Wiki settings' })
     this.tabBar = root.createDiv({ cls: 'llm-wiki-tabs' })
     for (const t of TABS) {
@@ -271,7 +271,7 @@ export class DashboardView extends ItemView {
         await this.plugin.openChat(action.prompt)
         return
       case 'open':
-        await this.app.workspace.openLinkText(action.path, '', true)
+        await this.app.workspace.openLinkText(action.path, '', 'tab')
         return
       case 'retry':
         // Without a runner a retried ticket would sit queued; run the pass for it.
