@@ -1,5 +1,6 @@
 import { button, clockTime, empty, pill, relativeTime, section, table } from '../../ui/dom'
 import type { JobView, NextKind } from '../../wiki/model'
+import { unboundSlot } from '../../wiki/snapshot'
 import type { TabContext } from './index'
 
 /** The jobs, what each is waiting on, and one Run button each. */
@@ -65,6 +66,7 @@ export function nextText(j: JobView): string {
     case 'held': return n.at ? `Held until ${clockTime(n.at)}` : 'Held'
     case 'at': return n.at ? relativeTime(n.at) : (n.detail ?? 'Scheduled')
     case 'blocked': return `Blocked — ${n.detail ?? ''}`
+    case 'unbound': return 'Needs a credential'
     case 'manual': return 'Manual'
     case 'unknown': return ''
   }
@@ -90,6 +92,10 @@ function jobButtons(parent: HTMLElement, j: JobView, ctx: TabContext): void {
   if (j.paused) {
     button(parent, 'Resume', () => ctx.write(() => actions.resumeJob(j.slug)), { icon: 'play' })
     return
+  }
+  if (j.next.kind === 'unbound' && j.skill) {
+    const slot = unboundSlot(ctx.snapshot.skills.find((s) => s.name === j.skill))
+    if (slot) button(parent, 'Set credential', () => ctx.act({ kind: 'credential', skill: j.skill!, slot: slot.name }), { icon: 'key-round', cta: true })
   }
   if (!j.running && RUNNABLE.includes(j.next.kind)) {
     button(parent, 'Run', () => ctx.write(() => actions.runJob(j.slug)), { icon: 'play', cta: j.next.kind === 'due', title: `llm-wiki-ops jobs request ${j.slug}` })

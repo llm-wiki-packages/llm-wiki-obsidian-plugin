@@ -45,10 +45,78 @@ function reader(answers: Partial<Record<Verb, unknown>>): Reader {
   return {
     run<T>(verb: Verb, _args?: Args): Promise<T> {
       if (!(verb in answers)) return Promise.reject(new Error(`${verb}: refused`))
+      if (answers[verb] === undefined) return Promise.reject(new Error(`${verb}: refused`))
       return Promise.resolve(answers[verb] as T)
     },
   }
 }
+
+const EMPTY_UNITS: Partial<Record<Verb, unknown>> = {
+  'wiki.skills.ls': { skills: [] },
+  'wiki.skills.doctor': { findings: [] },
+  'wiki.packages.ls': { this_wiki: [] },
+  'wiki.credentials.ls': { rows: [] },
+  'wiki.credentials.bindings': { skills: [], jobs: [] },
+}
+
+/** The scratch wiki of 2026-10-23: channel-gmail enabled, its `file` slot empty, one job on it; the doctor's two sentences about that. */
+const GMAIL: Partial<Record<Verb, unknown>> = {
+  'wiki.doctor': { rows: [
+    { check: 'jobs-skipped', status: 'warn', detail: 'inbox-joe/harvest: harvest requires file and this machine fills none of it', fix: 'llm-wiki-ops credentials bind skill channel-gmail <name>=<credential>' },
+    { check: 'bindings', status: 'warn', detail: 'inbox-joe: harvest requires file and this machine fills none of it; channel-gmail: required file unmapped on this machine', fix: 'llm-wiki-ops credentials bind skill <unit> <name>=<credential>' },
+  ] },
+  'wiki.jobs.ls': { jobs: [job({ slug: 'inbox-joe', description: '', skill: 'channel-gmail', kind: 'pipeline', verdict: { due: true, kind: null, reasons: ['never run'] } })] },
+  'wiki.jobs.due': { parked: [], review: [], handoffs: { problems: [] } },
+  'wiki.tickets.ls': { tickets: [] },
+  'wiki.page.ls': { pages: [] },
+  'wiki.op.since': { runs: [] },
+  'wiki.search.status': {},
+  'wiki.git.conflicts': { pages: [] },
+  'machine.runner.ls': { wikis: [] },
+  'wiki.skills.ls': { skills: [{ name: 'channel-gmail', state: 'enabled', from: 'llm-wiki-packages/llm-wiki-skills@v0.5.0', venue: 'gmail', version: '0.1.0', stages: ['harvest', 'process'], drifted: false, outdated: false, next: '/channel-gmail ticket=<id>', warnings: [], mapped: '0/1' }] },
+  'wiki.skills.show': { skills: [{ name: 'channel-gmail', state: 'enabled', venue: 'gmail', version: '0.1.0', next: '/channel-gmail ticket=<id>', mapped: '0/1', manifest: { usage: '/channel-gmail ticket=<id>', requires: { credentials: { file: 'required' } }, watch: { inputs: { mailbox: { prompt: 'Which mailbox does this watch pull?', required: true } } } }, enable_notes: 'references/enable.md', usage_notes: 'references/usage.md' }] },
+  'wiki.skills.doctor': { findings: [] },
+  'wiki.packages.ls': { this_wiki: [{ package: 'llm-wiki-packages/llm-wiki-skills', current: '0.5.0' }] },
+  'wiki.packages.show': { shown: '0.5.0', manifest: { artifacts: [{ type: 'skill', name: 'channel-gmail' }, { type: 'skill', name: 'channel-youtube' }, { type: 'skill', name: 'web-page' }] } },
+  'wiki.credentials.ls': { rows: [{ name: 'claude_login', kind: 'harness', login: 'hand', state: 'unverified', verified: null }, { name: 'gmail_token', kind: 'value', login: 'none', state: 'unverified', verified: null }] },
+  'wiki.credentials.bindings': { skills: [], jobs: [] },
+}
+
+describe('takeSnapshot: skills and credentials', () => {
+  it('derives the job that cannot run here from the empty slot, in place of the doctor rows about it', async () => {
+    const snap = await takeSnapshot(reader(GMAIL), 'kb', NOW)
+    expect(snap.errors).toEqual({})
+    expect(snap.jobs[0]?.next).toEqual({ kind: 'unbound', detail: 'channel-gmail needs a credential for file' })
+    expect(snap.attention.map((a) => a.id)).toEqual(['unbound:inbox-joe'])
+    expect(snap.attention[0]?.action).toEqual({ kind: 'credential', skill: 'channel-gmail', slot: 'file' })
+    expect(snap.health).toEqual({ tone: 'warn', count: 1 })
+    const gmail = snap.skills.find((s) => s.name === 'channel-gmail')
+    expect(gmail).toMatchObject({ state: 'enabled', usage: '/channel-gmail ticket=<id>', jobs: ['inbox-joe'], slots: [{ name: 'file', required: true, credential: null }], inputs: [{ name: 'mailbox', required: true }], notes: { skill: 'SKILL.md', enable: 'references/enable.md', usage: 'references/usage.md' }, dir: '.llm-wiki/skills/channel-gmail' })
+    expect(snap.skills.map((s) => `${s.name}:${s.state}`)).toEqual(['channel-gmail:enabled', 'channel-youtube:available', 'web-page:available'])
+    expect(snap.credentials.map((c) => c.name)).toEqual(['claude_login', 'gmail_token'])
+  })
+  it('clears the job once the skill slot is bound, and names the credential’s uses', async () => {
+    const snap = await takeSnapshot(reader({ ...GMAIL, 'wiki.doctor': { rows: [] }, 'wiki.credentials.bindings': { skills: [{ skill: 'channel-gmail', name: 'file', credential: 'gmail_token', upstream: null, state: 'bound' }], jobs: [] } }), 'kb', NOW)
+    expect(snap.jobs[0]?.next.kind).toBe('due')
+    expect(snap.attention).toEqual([])
+    expect(snap.skills[0]?.slots).toEqual([{ name: 'file', required: true, credential: 'gmail_token' }])
+    expect(snap.credentials[1]?.uses).toEqual([{ skill: 'channel-gmail', slot: 'file' }])
+  })
+  it('keeps the doctor’s own sentence when the manifest is unreadable but the count says a slot is empty', async () => {
+    const snap = await takeSnapshot(reader({ ...GMAIL, 'wiki.skills.show': undefined }), 'kb', NOW)
+    expect(snap.skills[0]?.slots).toEqual([{ name: 'credential', required: true, credential: null }])
+    expect(snap.jobs[0]?.next.kind).toBe('unbound')
+  })
+  it('a stale binding counts as empty, and drift and updates become attention', async () => {
+    const snap = await takeSnapshot(reader({ ...GMAIL, 'wiki.doctor': { rows: [] },
+      'wiki.skills.ls': { skills: [{ name: 'channel-gmail', state: 'drifted' }] },
+      'wiki.skills.show': { skills: [{ name: 'channel-gmail', state: 'drifted', drifted: true, outdated: true, warnings: ['enabled copy differs from the wiki copy'], manifest: { requires: { credentials: { file: 'required' } } } }] },
+      'wiki.credentials.bindings': { skills: [{ skill: 'channel-gmail', name: 'file', credential: 'gmail_token', state: 'stale' }], jobs: [] } }), 'kb', NOW)
+    expect(snap.jobs[0]?.next.kind).toBe('unbound')
+    expect(snap.attention.map((a) => a.id)).toEqual(['unbound:inbox-joe', 'drifted:channel-gmail'])
+    expect(snap.credentials[1]?.uses).toEqual([{ skill: 'channel-gmail', slot: 'file', problem: 'stale' }])
+  })
+})
 
 describe('takeSnapshot', () => {
   it('builds attention from doctor, parked tickets and blocked jobs, and says when there is no runner', async () => {
@@ -63,6 +131,7 @@ describe('takeSnapshot', () => {
         'wiki.search.status': { engine_configured: false, realm_ready: false, serving: 'grep' },
         'wiki.git.conflicts': { pages: [] },
         'machine.runner.ls': { wikis: [] },
+        ...EMPTY_UNITS,
       }),
       'kb',
       NOW,
@@ -96,6 +165,7 @@ describe('takeSnapshot', () => {
         'wiki.search.status': {},
         'wiki.git.conflicts': { pages: [] },
         'machine.runner.ls': { wikis: [{ wiki_key: 'kb', installed: {} }] },
+        ...EMPTY_UNITS,
       }),
       'kb',
       NOW,

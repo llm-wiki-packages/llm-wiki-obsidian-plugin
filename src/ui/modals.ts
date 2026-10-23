@@ -49,3 +49,39 @@ export function promptText(app: App, opts: TextPromptOptions): Promise<string | 
     modal.open()
   })
 }
+
+export interface ConfirmOptions {
+  title: string
+  body?: string
+  cta?: string
+}
+
+/** One sentence and two buttons; resolves true on the destructive choice. */
+export function confirm(app: App, opts: ConfirmOptions): Promise<boolean> {
+  return new Promise((resolve) => {
+    let settled = false
+    const done = (v: boolean) => {
+      if (settled) return
+      settled = true
+      resolve(v)
+    }
+    const modal = new (class extends Modal {
+      onOpen(): void {
+        this.setTitle(opts.title)
+        if (opts.body) this.contentEl.createEl('p', { text: opts.body })
+        new Setting(this.contentEl)
+          .addButton((b) => b.setButtonText('Cancel').onClick(() => this.close()))
+          .addButton((b) => b.setButtonText(opts.cta ?? 'OK').setWarning().onClick(() => {
+            done(true)
+            this.close()
+          }))
+      }
+
+      onClose(): void {
+        this.contentEl.empty()
+        done(false)
+      }
+    })(app)
+    modal.open()
+  })
+}

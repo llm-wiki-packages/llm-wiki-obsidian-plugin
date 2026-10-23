@@ -10,7 +10,8 @@ export function renderOverview(root: HTMLElement, ctx: TabContext): void {
   health.createSpan({ cls: `llm-wiki-dot is-${snapshot.health.tone}` })
   health.createSpan({ text: healthSentence(snapshot) })
 
-  const needs = section(root, 'Needs you', { count: snapshot.attention.length })
+  // The count is the pill's: what needs a person. Info rows follow, uncounted and dimmer.
+  const needs = section(root, 'Needs you', { count: snapshot.health.count })
   if (!snapshot.attention.length) empty(needs, 'Nothing needs you.')
   for (const item of snapshot.attention) attentionRow(needs, item, ctx)
 
@@ -62,6 +63,9 @@ export function healthSentence(s: Snapshot): string {
   return parts.join(' ')
 }
 
+const LABEL: Record<Exclude<AttentionItem['action'], undefined>['kind'], string> = { ask: 'Ask the agent', open: 'Open', retry: 'Retry', reindex: 'Reindex', credential: 'Set credential', inspect: 'Inspect' }
+const ICON: Record<Exclude<AttentionItem['action'], undefined>['kind'], string | undefined> = { ask: 'message-square', open: undefined, retry: 'rotate-ccw', reindex: undefined, credential: 'key-round', inspect: 'file-text' }
+
 function attentionRow(parent: HTMLElement, item: AttentionItem, ctx: TabContext): void {
   const row = parent.createDiv({ cls: 'llm-wiki-row' })
   row.createSpan({ cls: `llm-wiki-dot is-${item.severity}` })
@@ -72,6 +76,6 @@ function attentionRow(parent: HTMLElement, item: AttentionItem, ctx: TabContext)
   const actions = row.createDiv({ cls: 'llm-wiki-row-actions' })
   const a = item.action
   if (!a) return
-  const label = a.kind === 'ask' ? (a.label ?? 'Ask the agent') : a.kind === 'open' ? 'Open' : a.kind === 'retry' ? 'Retry' : 'Reindex'
-  button(actions, label, () => ctx.act(a), { icon: a.kind === 'ask' ? 'message-square' : undefined })
+  const label = a.kind === 'ask' ? (a.label ?? 'Ask the agent') : LABEL[a.kind]
+  button(actions, label, () => ctx.act(a), { icon: ICON[a.kind], cta: a.kind === 'credential' })
 }

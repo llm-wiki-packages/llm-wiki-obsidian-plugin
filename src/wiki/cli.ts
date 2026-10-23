@@ -24,6 +24,17 @@ export interface Args {
   since?: string
   /** `jobs request`: seconds to wait for the landing. */
   wait?: number
+  /** A skill unit's name, a package, or a credential's name, by verb. */
+  name?: string
+  /** `credentials set`: `value` or `dir`. */
+  kind?: 'value' | 'dir'
+  /** `credentials set kind=dir`: the directory to adopt. */
+  dir?: string
+  /** `credentials bind`: the slot (`file`, `dir`, `env.NAME`, or a route) and what fills it. */
+  slot?: string
+  credential?: string
+  /** `credentials bind`: a skill unit or a job slug. */
+  subject?: 'skill' | 'job'
 }
 
 export interface CliConfig {
@@ -60,6 +71,10 @@ const SINCE = /^\d{1,4}[hd]$/
 const REL = /^(?!\/)(?!.*(^|\/)\.\.(\/|$))[^\x00-\x1f]{1,512}$/
 const WORD = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/
 const SKILL = /^[a-z0-9][a-z0-9-]{0,63}(:[a-z0-9][a-z0-9-]{0,63})?$/
+const PACKAGE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}\/[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/
+const CREDENTIAL = /^[a-z0-9][a-z0-9_.-]{0,63}$/
+const BIND_SLOT = /^[a-z][a-z0-9_]{0,31}(\.[A-Za-z_][A-Za-z0-9_]{0,63})?$/
+const ABS_DIR = /^\/[^\x00-\x1f]{0,1023}$/ // eslint-disable-line no-control-regex -- rejecting control characters is the point
 // eslint-disable-next-line no-control-regex -- rejecting control characters is the point
 const ONE_LINE = /^[^\x00-\x1f]{1,200}$/
 
@@ -107,6 +122,26 @@ function oneLine(v: string): string {
   return t
 }
 
+function credential(v: string | undefined): string {
+  if (!v || !CREDENTIAL.test(v)) throw new CliError(`bad credential name: ${String(v)}`, 'args')
+  return v
+}
+
+function bindSlot(v: string | undefined): string {
+  if (!v || !BIND_SLOT.test(v)) throw new CliError(`bad binding slot: ${String(v)}`, 'args')
+  return v
+}
+
+function unit(v: string | undefined): string {
+  if (!v || !SLUG.test(v)) throw new CliError(`bad skill name: ${String(v)}`, 'args')
+  return v
+}
+
+function pkg(v: string | undefined): string {
+  if (!v || !PACKAGE.test(v)) throw new CliError(`bad package: ${String(v)}`, 'args')
+  return v
+}
+
 function skill(v: string | undefined): string {
   if (!v || !SKILL.test(v)) throw new CliError(`bad skill: ${String(v)}`, 'args')
   return v
@@ -128,6 +163,11 @@ export function question(v: string | undefined): string {
     throw new CliError('a question is 1 to 8192 bytes of text', 'args')
   if (t.startsWith('-')) throw new CliError('a question cannot start with a dash', 'args')
   return t
+}
+
+function absDir(v: string): string {
+  if (!ABS_DIR.test(v)) throw new CliError('a directory is an absolute path', 'args')
+  return v
 }
 
 function topK(a: Args): string {
@@ -153,6 +193,15 @@ export const VERBS = {
   'wiki.page.ls': (a: Args) => wiki(a, 'page', 'ls'),
   'wiki.git.conflicts': (a: Args) => wiki(a, 'git', 'conflicts'),
   'wiki.op.since': (a: Args) => wiki(a, 'op', 'since', since(a.since, '1d')),
+  'wiki.skills.ls': (a: Args) => wiki(a, 'skills', 'ls'),
+  // An exact name carries the manifest: what the unit needs and how it is used.
+  'wiki.skills.show': (a: Args) => wiki(a, 'skills', 'ls', unit(a.name)),
+  'wiki.skills.doctor': (a: Args) => wiki(a, 'skills', 'doctor'),
+  'wiki.packages.ls': (a: Args) => wiki(a, 'packages', 'ls'),
+  'wiki.packages.show': (a: Args) => wiki(a, 'packages', 'show', pkg(a.name)),
+  // The CLI counts these as writes (they refresh the status store), so they run without the floor; they still show no value.
+  'wiki.credentials.ls': (a: Args) => write(a, 'credentials', 'ls'),
+  'wiki.credentials.bindings': (a: Args) => write(a, 'credentials', 'bindings'),
   // Writes a click asks for. None is a protected write under the attendance rule.
   'wiki.jobs.request': (a: Args) => write(a, 'jobs', 'request', slug(a.slug), ...(a.wait ? [`wait=${Math.max(1, Math.min(600, Math.trunc(a.wait)))}s`] : [])),
   'wiki.jobs.pause': (a: Args) => write(a, 'jobs', 'pause', slug(a.slug)),
@@ -161,6 +210,13 @@ export const VERBS = {
   // Accept, or reject with a reason: `reject=` is the whole rejection.
   'wiki.page.curate': (a: Args) => write(a, 'page', 'curate', ...paths(a.paths), ...(a.reason === undefined ? [] : [`reject=${oneLine(a.reason)}`])),
   'wiki.search.index': (a: Args) => write(a, 'search', 'index'),
+  // Protected writes: a person clicked, so the child is marked attended. A value arrives on stdin, never here.
+  'wiki.credentials.set': (a: Args) => write(a, 'credentials', 'set', credential(a.name), `kind=${a.kind === 'dir' ? 'dir' : 'value'}`,
+    ...(a.kind === 'dir' && a.dir ? [`path=${absDir(a.dir)}`] : [])),
+  'wiki.credentials.bind': (a: Args) => write(a, 'credentials', 'bind', a.subject === 'job' ? 'job' : 'skill',
+    a.subject === 'job' ? slug(a.slug) : unit(a.name), `${bindSlot(a.slot)}=${credential(a.credential)}`),
+  'wiki.credentials.login': (a: Args) => write(a, 'credentials', 'login', credential(a.name)),
+  'wiki.credentials.remove': (a: Args) => write(a, 'credentials', 'remove', credential(a.name)),
   // Mint identity into pages the wiki does not know yet.
   'wiki.page.adopt': (a: Args) => write(a, 'page', 'adopt', ...paths(a.paths)),
   // The text goes after `--`, so a query starting with a dash is never read as a flag.
@@ -180,15 +236,21 @@ export const VERBS = {
 
 export type Verb = keyof typeof VERBS
 
+/** Writes a person asked for by clicking; the ones the CLI would otherwise ask a terminal to confirm are marked attended. */
+const ATTENDED: ReadonlySet<Verb> = new Set<Verb>(['wiki.credentials.set', 'wiki.credentials.bind', 'wiki.credentials.login', 'wiki.credentials.remove'])
+
 const WRITES: ReadonlySet<Verb> = new Set<Verb>([
   'wiki.harness.run', 'wiki.jobs.request', 'wiki.jobs.pause', 'wiki.jobs.resume', 'wiki.tickets.retry', 'wiki.page.curate', 'wiki.page.adopt', 'wiki.search.index',
+  'wiki.credentials.ls', 'wiki.credentials.bindings', ...ATTENDED,
 ])
 
-/** The child's environment: the read floor unless the verb writes. */
+/** The child's environment: the read floor unless the verb writes, and the attendance mark on a protected write. */
 export function childEnv(base: NodeJS.ProcessEnv, verb: Verb): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...base }
   if (WRITES.has(verb)) delete env.LLM_WIKI_PERMISSIONS
   else env.LLM_WIKI_PERMISSIONS = 'read'
+  if (ATTENDED.has(verb)) env.LLM_WIKI_SESSION_ATTENDED = '1'
+  else delete env.LLM_WIKI_SESSION_ATTENDED
   return env
 }
 
@@ -200,6 +262,8 @@ export type StreamLine =
 export interface RunOptions {
   timeoutMs?: number
   signal?: AbortSignal
+  /** Bytes for the child's stdin, closed after; a secret travels this way and never through argv. */
+  stdin?: string
 }
 
 function tail(s: string, n = 600): string {
@@ -236,10 +300,12 @@ export class Cli {
     return new Promise<T>((resolve, reject) => {
       const child = spawn(this.config.bin, argv, {
         env: childEnv(this.config.env, verb),
-        stdio: ['ignore', 'pipe', 'pipe'],
+        stdio: ['pipe', 'pipe', 'pipe'],
         detached: true,
       })
       this.live.add(child)
+      // Closed at once, empty or with the secret: no verb here waits on a terminal.
+      child.stdin.end(opts.stdin ?? '')
       let out = ''
       let err = ''
       const timer = timers.setTimeout(() => {

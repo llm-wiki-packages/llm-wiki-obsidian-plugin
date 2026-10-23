@@ -34,6 +34,19 @@ describe.skipIf(!bin || !vault)('the seam against a real CLI', () => {
     expect(snap.health.count).toBeGreaterThanOrEqual(0)
   })
 
+  it('reads skills, credentials and the job an empty slot keeps from running here', async () => {
+    const snap = await takeSnapshot(cli(), 'scratch')
+    expect(Object.keys(snap.errors).filter((k) => k.startsWith('wiki.skills') || k.startsWith('wiki.credentials') || k.startsWith('wiki.packages'))).toEqual([])
+    const gmail = snap.skills.find((s) => s.name === 'channel-gmail')
+    if (!gmail) return
+    expect(gmail.state).toBe('enabled')
+    expect(gmail.slots.map((x) => x.name)).toContain('file')
+    expect(snap.skills.some((s) => s.state === 'available')).toBe(true)
+    expect(snap.credentials.map((c) => c.name)).toContain('claude_login')
+    const job = snap.jobs.find((j) => j.skill === 'channel-gmail')
+    if (job && gmail.slots.some((x) => x.required && !x.credential)) expect(job.next.kind).toBe('unbound')
+  })
+
   it('refuses a harness run on a wiki with no enabled sandbox, through the stream', async () => {
     const types: string[] = []
     let exit: { rc: number | null; stderr: string } | undefined

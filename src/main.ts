@@ -1,7 +1,7 @@
 import { FileSystemAdapter, FuzzySuggestModal, Notice, Plugin, type WorkspaceLeaf } from 'obsidian'
 import { ClaudeSdkBackend } from './chat/claudeSdk'
 import { HarnessRunBackend } from './chat/harnessRun'
-import { SKILLS, slashCommand, type SkillEntry } from './chat/skills'
+import { listSkills, pluginDirs, slashCommand, type SkillEntry } from './chat/skills'
 import type { ChatBackend, WikiTarget } from './chat/types'
 import { log } from './logger'
 import { DEFAULT_SETTINGS, LlmWikiSettingTab, type ChatMode, type LlmWikiSettings } from './settings'
@@ -10,6 +10,7 @@ import { DashboardView, VIEW_DASHBOARD } from './views/dashboard/index'
 import { nextText } from './views/dashboard/jobs'
 import { SearchView, VIEW_SEARCH } from './views/search'
 import { promptText } from './ui/modals'
+import { openCredentialModal, type CredentialPrompt } from './ui/credentialModal'
 import { Actions } from './wiki/actions'
 import { Cli, type WikiRow } from './wiki/cli'
 import type { JobView, Snapshot } from './wiki/model'
@@ -180,15 +181,38 @@ export default class LlmWikiPlugin extends Plugin {
     if (text) await this.openChat(`/llm-wiki:add ${text}`)
   }
 
-  /** The skills a person starts by hand, as a fuzzy list; the chosen one becomes a chat turn. */
+  /** The credential dialog; after a save the dashboard re-reads, since the binding is the CLI's to confirm. */
+  credentialModal(prompt: CredentialPrompt): void {
+    const { snapshot, actions } = this
+    if (!snapshot || !actions) {
+      new Notice(this.problem ?? 'The wiki has not been read yet')
+      return
+    }
+    openCredentialModal(this.app, snapshot, actions, prompt, async (out) => {
+      new Notice(out.message, 5000)
+      await this.refreshSnapshot()
+    })
+  }
+
+  /** The chat slash skills the installed plugins ship, as a fuzzy list; the chosen one becomes a chat turn. */
   pickSkill(): void {
+    void pluginDirs().then(listSkills).then((skills) => {
+      if (!skills.length) {
+        new Notice('No llm-wiki skills found under ~/.claude/plugins; install the llm-wiki plugin in Claude Code first')
+        return
+      }
+      this.pickFrom(skills)
+    })
+  }
+
+  private pickFrom(skills: SkillEntry[]): void {
     const start = (skill: SkillEntry) =>
       void (async () => {
         const args = skill.args ? await promptText(this.app, { title: `/llm-wiki:${skill.name}`, description: skill.description, placeholder: skill.args, cta: 'Start' }) : ''
         if (args !== null) await this.openChat(slashCommand(skill, args))
       })()
     const modal = new (class extends FuzzySuggestModal<SkillEntry> {
-      getItems = () => SKILLS
+      getItems = () => skills
       getItemText = (s: SkillEntry) => `${s.name} ${s.description}`
       onChooseItem = (s: SkillEntry) => start(s)
       renderSuggestion = (item: { item: SkillEntry }, el: HTMLElement) => {

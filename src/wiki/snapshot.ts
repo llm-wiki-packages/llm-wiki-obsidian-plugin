@@ -2,7 +2,7 @@
 // answers' field names (docs/cli-shapes.md). Every read is soft, so one
 // failing verb leaves a hole and a note, never an empty dashboard.
 import type { Args, Verb } from './cli'
-import type { AttentionItem, CurationItem, JobView, RecentRun, Snapshot } from './model'
+import type { AttentionItem, CredentialView, CurationItem, JobView, RecentRun, SkillView, SlotView, Snapshot } from './model'
 
 /** What the builder needs of a Cli, so a test can hand it fixtures. */
 export interface Reader {
@@ -16,6 +16,7 @@ export interface DoctorAnswer {
 export interface JobRow {
   slug: string
   description?: string
+  skill?: string | null
   every?: string | null
   state?: 'active' | 'paused' | 'archived'
   kind?: string
@@ -67,6 +68,58 @@ export interface SearchStatusAnswer {
 export interface RunnerLsAnswer {
   wikis?: { wiki_key: string; installed: object | null }[]
 }
+export interface SkillRow {
+  name: string
+  state: string
+  from?: string | null
+  venue?: string | null
+  version?: string | null
+  next?: string | null
+  drifted?: boolean | null
+  outdated?: boolean
+  warnings?: string[]
+  /** `filled/required` credential slots, null when the unit declares none. */
+  mapped?: string | null
+  /** Only on an exact `skills ls <name>`. */
+  manifest?: {
+    requires?: { credentials?: Record<string, string> }
+    usage?: string
+    watch?: { inputs?: Record<string, { prompt?: string; required?: boolean }> }
+  }
+  path?: string
+  enable_notes?: string | null
+  usage_notes?: string | null
+}
+export interface SkillsLsAnswer {
+  skills?: SkillRow[]
+}
+export interface SkillsDoctorAnswer {
+  findings?: { name: string; level: 'fail' | 'warn' | 'info'; what: string; fix: string | null }[]
+}
+export interface PackagesLsAnswer {
+  this_wiki?: { package: string; current?: string | null }[]
+}
+export interface PackagesShowAnswer {
+  shown?: string | null
+  manifest?: { artifacts?: { type: string; name: string }[] }
+}
+export interface CredentialRow {
+  name: string
+  kind: string
+  state: string
+  verified?: string | null
+}
+export interface BindingRow {
+  skill?: string
+  job?: string
+  name: string
+  credential: string
+  state: string
+}
+export interface BindingsAnswer {
+  skills?: BindingRow[]
+  jobs?: BindingRow[]
+}
 
 export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now()): Promise<Snapshot> {
   const errors: Record<string, string> = {}
@@ -78,7 +131,7 @@ export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now(
       return null
     }
   }
-  const [doctor, jobsLs, due, tickets, pages, ops, search, conflicts, runnerLs] = await Promise.all([
+  const [doctor, jobsLs, due, tickets, pages, ops, search, conflicts, runnerLs, skillsLs, skillsDoctor, packagesLs, credentialsLs, bindings] = await Promise.all([
     soft<DoctorAnswer>('wiki.doctor'),
     soft<JobsLsAnswer>('wiki.jobs.ls'),
     soft<JobsDueAnswer>('wiki.jobs.due'),
@@ -88,11 +141,26 @@ export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now(
     soft<SearchStatusAnswer>('wiki.search.status'),
     soft<{ pages?: string[] }>('wiki.git.conflicts'),
     soft<RunnerLsAnswer>('machine.runner.ls'),
+    soft<SkillsLsAnswer>('wiki.skills.ls'),
+    soft<SkillsDoctorAnswer>('wiki.skills.doctor'),
+    soft<PackagesLsAnswer>('wiki.packages.ls'),
+    soft<CredentialRow[] | { rows?: CredentialRow[] }>('wiki.credentials.ls'),
+    soft<BindingsAnswer>('wiki.credentials.bindings'),
+  ])
+  // A second round, per unit and per package: the manifest names the slots, the package names what else could be installed.
+  const skillRows = skillsLs?.skills ?? []
+  const [shown, packages] = await Promise.all([
+    Promise.all(skillRows.map((r) => soft<SkillsLsAnswer>('wiki.skills.show', { name: r.name }).then((a) => a?.skills?.[0] ?? r))),
+    Promise.all((packagesLs?.this_wiki ?? []).map((p) => soft<PackagesShowAnswer>('wiki.packages.show', { name: p.package }).then((a) => ({ name: p.package, answer: a })))),
   ])
 
   const ticketRows = tickets?.tickets ?? []
-  const jobs = (jobsLs?.jobs ?? []).filter((j) => j.state !== 'archived').map((j) => jobView(j, ticketRows, now))
-  const attention = attentionItems({ doctor, due, jobsLs, jobs, search, conflicts: conflicts?.pages ?? [], ticketRows })
+  const jobRows = (jobsLs?.jobs ?? []).filter((j) => j.state !== 'archived')
+  const bindingRows = [...(bindings?.skills ?? []), ...(bindings?.jobs ?? [])]
+  const skills = skillViews(shown, packages, jobRows, bindingRows)
+  const credentials = credentialViews(Array.isArray(credentialsLs) ? credentialsLs : (credentialsLs?.rows ?? []), bindingRows)
+  const jobs = jobRows.map((j) => jobView(j, ticketRows, now, skills))
+  const attention = attentionItems({ doctor, due, jobsLs, jobs, skills, skillsDoctor, search, conflicts: conflicts?.pages ?? [], ticketRows })
   const runner = (runnerLs?.wikis ?? []).some((w) => w.wiki_key === wikiKey && w.installed !== null)
   const pageRows = pages?.pages ?? []
   // An older CLI lists no change state; then the queue is unknowable rather than empty.
@@ -106,6 +174,8 @@ export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now(
     attention,
     runner,
     jobs,
+    skills,
+    credentials,
     curation: pageRows.filter((p) => p.status === 'draft').map(curationItem),
     unadopted: tellsChange ? pageRows.filter((p) => p.change === 'new' && p.path.startsWith('sources/')).map(curationItem) : null,
     recent: (ops?.runs ?? []).map(recentRun),
@@ -115,8 +185,15 @@ export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now(
 
 const STAGE_DONE: Record<string, string> = { harvest: 'harvesting', transcribe: 'transcribing', enrich: 'enriching', process: 'processing', routine: 'running' }
 
-export function jobView(j: JobRow, tickets: TicketRow[], now: number): JobView {
+/** The required slot a job's unit leaves empty on this machine, if any: the job is due by the clock and cannot run here. */
+export function unboundSlot(skill: SkillView | undefined): SlotView | undefined {
+  return skill?.slots.find((s) => s.required && (s.credential === null || s.problem))
+}
+
+export function jobView(j: JobRow, tickets: TicketRow[], now: number, skills: SkillView[] = []): JobView {
   const paused = j.state === 'paused'
+  const unit = j.skill ? skills.find((s) => s.name === j.skill) : undefined
+  const unbound = unboundSlot(unit)
   const v = j.verdict
   const active = j.running?.[0]
   const mine = tickets.filter((t) => t.slug === j.slug)
@@ -132,6 +209,7 @@ export function jobView(j: JobRow, tickets: TicketRow[], now: number): JobView {
   else if (paused) next = { kind: 'paused' }
   else if (held) next = { kind: 'held', at: held, detail: pending?.reason ?? detail }
   else if (pending) next = { kind: 'queued', detail }
+  else if (unbound && unit) next = { kind: 'unbound', detail: `${unit.name} needs a credential for ${unbound.name}` }
   else if (j.blocked) next = { kind: 'blocked', detail: j.blocked }
   else if (v?.due ?? j.due) next = { kind: 'due', detail }
   else if (!v) next = { kind: 'unknown' }
@@ -160,6 +238,7 @@ export function jobView(j: JobRow, tickets: TicketRow[], now: number): JobView {
     slug: j.slug,
     name: j.description?.trim() || j.slug,
     kind: j.kind ?? '',
+    skill: j.skill ?? null,
     schedule: j.every ? (j.every === 'once' ? 'once' : `every ${j.every}`) + (j.window ? ` · ${j.window}` : '') : 'manual',
     paused,
     last,
@@ -168,18 +247,89 @@ export function jobView(j: JobRow, tickets: TicketRow[], now: number): JobView {
   }
 }
 
+/** One view per unit the wiki holds or this machine loads, then the package's units not yet installed. */
+function skillViews(rows: SkillRow[], packages: { name: string; answer: PackagesShowAnswer | null }[], jobs: JobRow[], bindings: BindingRow[]): SkillView[] {
+  const held = rows.map((r): SkillView => {
+    const declared = r.manifest?.requires?.credentials ?? {}
+    const bound = bindings.filter((b) => b.skill === r.name)
+    const names = [...new Set([...Object.keys(declared), ...bound.map((b) => b.name)])]
+    const slots = names.map((name): SlotView => {
+      const b = bound.find((x) => x.name === name)
+      return { name, required: declared[name] === 'required', credential: b?.credential ?? null, ...(b && b.state !== 'bound' ? { problem: b.state } : {}) }
+    })
+    // Without the manifest, the CLI's own count still says whether something is missing.
+    const m = /^(\d+)\/(\d+)$/.exec(r.mapped ?? '')
+    if (!r.manifest && m && Number(m[1]) < Number(m[2]) && !slots.some((s) => s.required && !s.credential))
+      slots.push({ name: 'credential', required: true, credential: null })
+    const enabled = r.state === 'enabled' || r.state === 'drifted' || r.state === 'linked'
+    const inputs = Object.entries(r.manifest?.watch?.inputs ?? {}).map(([name, i]) => ({ name, prompt: i.prompt ?? name, required: i.required ?? false }))
+    const dir = r.path ?? `.llm-wiki/skills/${r.name}`
+    return {
+      name: r.name,
+      state: enabled ? 'enabled' : 'installed',
+      venue: r.venue ?? null,
+      version: r.version ?? null,
+      from: r.from ?? null,
+      usage: r.manifest?.usage ?? (enabled ? (r.next ?? null) : null),
+      drifted: r.drifted === true,
+      outdated: r.outdated === true,
+      warnings: r.warnings ?? [],
+      slots,
+      jobs: jobs.filter((j) => j.skill === r.name).map((j) => j.slug),
+      inputs,
+      notes: { skill: 'SKILL.md', ...(r.enable_notes ? { enable: r.enable_notes } : {}), ...(r.usage_notes ? { usage: r.usage_notes } : {}) },
+      dir,
+    }
+  })
+  const known = new Set(held.map((s) => s.name))
+  const available: SkillView[] = []
+  for (const p of packages)
+    for (const a of p.answer?.manifest?.artifacts ?? [])
+      if (a.type === 'skill' && !known.has(a.name)) {
+        known.add(a.name)
+        available.push({
+          name: a.name, state: 'available', venue: null, version: null, from: p.answer?.shown ? `${p.name}@${p.answer.shown}` : p.name,
+          usage: null, drifted: false, outdated: false, warnings: [], slots: [], jobs: [], inputs: [], notes: { skill: 'SKILL.md' }, dir: null,
+        })
+      }
+  const rank = { enabled: 0, installed: 1, available: 2 }
+  return [...held, ...available].sort((a, b) => rank[a.state] - rank[b.state] || a.name.localeCompare(b.name))
+}
+
+function credentialViews(rows: CredentialRow[], bindings: BindingRow[]): CredentialView[] {
+  return rows.map((r) => ({
+    name: r.name,
+    kind: r.kind,
+    state: r.state,
+    verified: r.verified ?? null,
+    uses: bindings.filter((b) => b.credential === r.name).map((b) => ({ ...(b.skill ? { skill: b.skill } : {}), ...(b.job ? { job: b.job } : {}), slot: b.name, ...(b.state !== 'bound' ? { problem: b.state } : {}) })),
+  }))
+}
+
 function attentionItems(input: {
   doctor: DoctorAnswer | null
   due: JobsDueAnswer | null
   jobsLs: JobsLsAnswer | null
   jobs: JobView[]
+  skills: SkillView[]
+  skillsDoctor: SkillsDoctorAnswer | null
   search: SearchStatusAnswer | null
   conflicts: string[]
   ticketRows: TicketRow[]
 }): AttentionItem[] {
   const out: AttentionItem[] = []
+  // A job whose unit has an empty slot here: one row with the fix as a button, in place of the doctor's two sentences about it.
+  const unbound = input.jobs.filter((j) => j.next.kind === 'unbound')
+  for (const j of unbound) {
+    const unit = input.skills.find((s) => s.name === j.skill)
+    const slot = unboundSlot(unit)
+    if (!unit || !slot) continue
+    out.push({ id: `unbound:${j.slug}`, severity: 'warn', title: `${j.name} cannot run on this machine`, detail: j.next.detail, action: { kind: 'credential', skill: unit.name, slot: slot.name } })
+  }
+  const covered = new Set(unbound.length ? ['bindings', 'jobs-skipped'] : [])
   for (const r of input.doctor?.rows ?? []) {
     if (r.status !== 'fail' && r.status !== 'warn') continue
+    if (covered.has(r.check)) continue
     out.push({
       id: `doctor:${r.check}`,
       severity: r.status === 'fail' ? 'error' : 'warn',
@@ -197,6 +347,17 @@ function attentionItems(input: {
   for (const j of input.jobs)
     if (j.next.kind === 'blocked' && !j.paused)
       out.push({ id: `blocked:${j.slug}`, severity: 'warn', title: `${j.name}: ${j.next.detail ?? 'blocked'}`, detail: j.slug, action: { kind: 'ask', prompt: `Job ${j.slug} is blocked: ${j.next.detail ?? 'blocked'}. What does it need, and can you fix it?` } })
+  for (const s of input.skills) {
+    if (s.drifted) out.push({ id: `drifted:${s.name}`, severity: 'warn', title: `${s.name} differs from the wiki's copy on this machine`, detail: s.warnings[0], action: { kind: 'inspect', skill: s.name } })
+    else if (s.outdated) out.push({ id: `outdated:${s.name}`, severity: 'info', title: `A newer ${s.name} is in its package`, action: { kind: 'ask', prompt: `/llm-wiki:enable ${s.name}`, label: 'Update' } })
+    const enabledUnbound = s.state === 'enabled' && !s.jobs.length ? unboundSlot(s) : undefined
+    if (enabledUnbound) out.push({ id: `slot:${s.name}`, severity: 'info', title: `${s.name} needs a credential for ${enabledUnbound.name}`, action: { kind: 'credential', skill: s.name, slot: enabledUnbound.name } })
+  }
+  for (const f of input.skillsDoctor?.findings ?? []) {
+    if (f.level === 'info') continue
+    const unit = input.skills.find((s) => s.name === f.name)
+    out.push({ id: `skill:${f.name}`, severity: f.level === 'fail' ? 'error' : 'warn', title: f.what, detail: f.name, fix: f.fix ?? undefined, action: unit ? { kind: 'inspect', skill: unit.name } : { kind: 'ask', prompt: `The skills doctor reports for ${f.name}: ${f.what}${f.fix ? ` It suggests: ${f.fix}` : ''} Please check and fix it if that is safe.`, label: 'Fix with the agent' } })
+  }
   for (const u of input.jobsLs?.unreadable ?? [])
     out.push({ id: `unreadable:${u.slug}`, severity: 'warn', title: `${u.slug}: ${u.reason}`, action: { kind: 'ask', prompt: `Job ${u.slug} cannot be read: ${u.reason}. Please repair its record.` } })
   for (const p of input.due?.handoffs?.problems ?? []) out.push({ id: `handoff:${p}`, severity: 'warn', title: p, action: { kind: 'ask', prompt: `A job handoff reports: ${p}. What is wrong?` } })

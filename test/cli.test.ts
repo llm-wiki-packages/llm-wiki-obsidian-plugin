@@ -29,6 +29,18 @@ describe('the verb table', () => {
     expect(argv).toEqual(['wiki', 'kb', 'harness', 'run', 'sandbox=read-search', 'skill=llm-wiki:search', 'model=opus', '--stream', '--', 'what is new?'])
   })
 
+  it('spells the skills, packages and credentials verbs, with the secret nowhere in argv', () => {
+    expect(VERBS['wiki.skills.show']({ wiki: 'kb', name: 'channel-gmail' })).toEqual(['wiki', '--read-only', 'kb', 'skills', 'ls', 'channel-gmail', '--json'])
+    expect(VERBS['wiki.packages.show']({ wiki: 'kb', name: 'llm-wiki-packages/llm-wiki-skills' })).toEqual(['wiki', '--read-only', 'kb', 'packages', 'show', 'llm-wiki-packages/llm-wiki-skills', '--json'])
+    expect(VERBS['wiki.credentials.set']({ wiki: 'kb', name: 'gmail-token', kind: 'value' })).toEqual(['wiki', 'kb', 'credentials', 'set', 'gmail-token', 'kind=value', '--json'])
+    expect(VERBS['wiki.credentials.set']({ wiki: 'kb', name: 'yt-cookies', kind: 'dir', dir: '/Users/me/cookies' })).toEqual(['wiki', 'kb', 'credentials', 'set', 'yt-cookies', 'kind=dir', 'path=/Users/me/cookies', '--json'])
+    expect(VERBS['wiki.credentials.bind']({ wiki: 'kb', subject: 'skill', name: 'channel-gmail', slot: 'file', credential: 'gmail-token' })).toEqual(['wiki', 'kb', 'credentials', 'bind', 'skill', 'channel-gmail', 'file=gmail-token', '--json'])
+    expect(VERBS['wiki.credentials.bind']({ wiki: 'kb', subject: 'job', slug: 'inbox-joe', slot: 'env.API_KEY', credential: 'gmail-token' })).toEqual(['wiki', 'kb', 'credentials', 'bind', 'job', 'inbox-joe', 'env.API_KEY=gmail-token', '--json'])
+    expect(() => VERBS['wiki.credentials.set']({ wiki: 'kb', name: 'a b' })).toThrow(CliError)
+    expect(() => VERBS['wiki.credentials.set']({ wiki: 'kb', name: 'x', kind: 'dir', dir: 'relative' })).toThrow(CliError)
+    expect(() => VERBS['wiki.credentials.bind']({ wiki: 'kb', subject: 'skill', name: 'u', slot: 'file=x', credential: 'c' })).toThrow(CliError)
+  })
+
   it('refuses a dash-led or oversized question', () => {
     expect(() => question('--version')).toThrow(/dash/)
     expect(() => question('x'.repeat(9000))).toThrow(/8192/)
@@ -39,6 +51,11 @@ describe('the child environment', () => {
   it('sets the read floor on a read verb and clears it on harness run', () => {
     expect(childEnv({ PATH: '/bin' }, 'wiki.doctor').LLM_WIKI_PERMISSIONS).toBe('read')
     expect(childEnv({ PATH: '/bin', LLM_WIKI_PERMISSIONS: 'read' }, 'wiki.harness.run').LLM_WIKI_PERMISSIONS).toBeUndefined()
+  })
+  it('marks only a credential write as attended, and strips an inherited mark from everything else', () => {
+    expect(childEnv({ PATH: '/bin' }, 'wiki.credentials.set').LLM_WIKI_SESSION_ATTENDED).toBe('1')
+    expect(childEnv({ PATH: '/bin', LLM_WIKI_SESSION_ATTENDED: '1' }, 'wiki.jobs.request').LLM_WIKI_SESSION_ATTENDED).toBeUndefined()
+    expect(childEnv({ PATH: '/bin', LLM_WIKI_SESSION_ATTENDED: '1' }, 'wiki.doctor').LLM_WIKI_SESSION_ATTENDED).toBeUndefined()
   })
 })
 
@@ -55,6 +72,12 @@ describe('the runner against a stand-in binary', () => {
   it('reports the envelope error key on a refusal', async () => {
     const cli = new Cli({ bin: node, prefix: ['-e', 'process.stdout.write(process.env.FAKE_OUT); process.exit(2)'], env: { ...process.env, FAKE_OUT: '{"error":"refused","message":"no such wiki"}' }, timeoutMs: 5000 })
     await expect(cli.run('machine.wikis.ls')).rejects.toMatchObject({ kind: 'exit', rc: 2, message: expect.stringContaining('no such wiki') })
+  })
+
+  it('hands stdin to the child and closes it', async () => {
+    const cli = new Cli({ bin: node, prefix: ['-e', 'let b="";process.stdin.on("data",d=>b+=d).on("end",()=>process.stdout.write(JSON.stringify({got:b})))'], env: process.env, timeoutMs: 5000 })
+    expect(await cli.run('wiki.credentials.set', { wiki: 'kb', name: 'x' }, { stdin: 's3cret' })).toEqual({ got: 's3cret' })
+    expect(await cli.run('wiki.doctor', { wiki: 'kb' })).toEqual({ got: '' })
   })
 
   it('streams JSON lines and ends with its own _exit line', async () => {

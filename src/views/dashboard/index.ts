@@ -5,13 +5,16 @@ import type { Action, Snapshot } from '../../wiki/model'
 import { renderJobs } from './jobs'
 import { renderOverview } from './overview'
 import { renderPages } from './pages'
+import { renderSkills } from './skills'
+import { openSkillModal } from '../../ui/skillModal'
 
 export const VIEW_DASHBOARD = 'llm-wiki-dashboard'
 
-export type Tab = 'overview' | 'jobs' | 'pages'
+export type Tab = 'overview' | 'jobs' | 'skills' | 'pages'
 const TABS: { id: Tab; label: string }[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'jobs', label: 'Jobs' },
+  { id: 'skills', label: 'Skills' },
   { id: 'pages', label: 'Pages' },
 ]
 
@@ -128,6 +131,9 @@ export class DashboardView extends ItemView {
       case 'jobs':
         renderJobs(this.panel, ctx)
         break
+      case 'skills':
+        renderSkills(this.panel, ctx)
+        break
       case 'pages':
         renderPages(this.panel, ctx)
         break
@@ -155,6 +161,14 @@ export class DashboardView extends ItemView {
       case 'reindex':
         if (actions) await this.write(() => actions.reindex())
         return
+      case 'credential':
+        this.plugin.credentialModal({ skill: action.skill, slot: action.slot })
+        return
+      case 'inspect': {
+        const s = this.plugin.snapshot?.skills.find((x) => x.name === action.skill)
+        if (s && this.plugin.wiki) openSkillModal(this.app, this.plugin.wiki.root, s, (a) => this.act(a))
+        return
+      }
     }
   }
 }

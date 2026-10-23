@@ -92,6 +92,51 @@ export class Actions {
     }
   }
 
+  /** Store a secret (on stdin) or adopt a folder, then bind it where asked. The value is never echoed, not even in the Notice. */
+  async setCredential(name: string, value: { kind: 'value'; secret: string } | { kind: 'dir'; dir: string }, bindTo: { skill?: string; job?: string; slot: string }[]): Promise<Outcome> {
+    try {
+      if (value.kind === 'value') await this.cli.run('wiki.credentials.set', { wiki: this.wiki, name, kind: 'value' }, { stdin: value.secret })
+      else await this.cli.run('wiki.credentials.set', { wiki: this.wiki, name, kind: 'dir', dir: value.dir })
+    } catch (e) {
+      return failed(`could not save ${name}`, e)
+    }
+    const bound: string[] = []
+    for (const b of bindTo) {
+      const out = await this.bindCredential(name, b)
+      if (!out.ok) return { ok: false, message: `${name} saved, but ${out.message}` }
+      bound.push(b.job ?? b.skill ?? '')
+    }
+    return { ok: true, message: bound.length ? `${name} saved and bound to ${bound.join(', ')}` : `${name} saved` }
+  }
+
+  async bindCredential(name: string, to: { skill?: string; job?: string; slot: string }): Promise<Outcome> {
+    try {
+      await this.cli.run('wiki.credentials.bind', to.job ? { wiki: this.wiki, subject: 'job', slug: to.job, slot: to.slot, credential: name } : { wiki: this.wiki, subject: 'skill', name: to.skill, slot: to.slot, credential: name })
+      return { ok: true, message: `${name} bound to ${to.job ?? to.skill ?? ''}` }
+    } catch (e) {
+      return failed(`could not bind ${name} to ${to.job ?? to.skill ?? ''}`, e)
+    }
+  }
+
+  /** Renew by the credential's declared login; a browser login opens on this machine. */
+  async loginCredential(name: string): Promise<Outcome> {
+    try {
+      await this.cli.run('wiki.credentials.login', { wiki: this.wiki, name }, { timeoutMs: 600_000 })
+      return { ok: true, message: `${name} renewed` }
+    } catch (e) {
+      return failed(`could not renew ${name}`, e)
+    }
+  }
+
+  async removeCredential(name: string): Promise<Outcome> {
+    try {
+      await this.cli.run('wiki.credentials.remove', { wiki: this.wiki, name })
+      return { ok: true, message: `${name} removed` }
+    } catch (e) {
+      return failed(`could not remove ${name}`, e)
+    }
+  }
+
   async reindex(): Promise<Outcome> {
     try {
       await this.cli.run('wiki.search.index', { wiki: this.wiki }, { timeoutMs: 600_000 })
