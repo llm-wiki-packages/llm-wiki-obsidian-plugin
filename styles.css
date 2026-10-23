@@ -35,3 +35,62 @@
 .llm-wiki-composer { display: flex; flex-direction: column; gap: var(--size-2-2); }
 .llm-wiki-composer-input { width: 100%; resize: vertical; }
 .llm-wiki-composer-buttons { display: flex; gap: var(--size-4-2); justify-content: flex-end; }
+
+/* Chat extras */
+.llm-wiki-chips { display: flex; flex-wrap: wrap; gap: var(--size-2-2); }
+.llm-wiki-chip { font-size: var(--font-ui-small); padding: var(--size-2-1) var(--size-4-2); border-radius: var(--radius-l); background: var(--background-secondary); border: 1px solid var(--background-modifier-border); cursor: pointer; }
+.llm-wiki-chip:hover { background: var(--background-modifier-hover); }
+.llm-wiki-capability { padding: 0 var(--size-2-1); }
+.llm-wiki-prompt-field { width: 100%; margin-bottom: var(--size-4-2); }
+
+/* Dashboard */
+.llm-wiki-dashboard { padding: var(--size-4-4); max-width: 1100px; margin: 0 auto; gap: var(--size-4-4); }
+.llm-wiki-header { display: flex; align-items: center; gap: var(--size-4-3); flex-wrap: wrap; }
+.llm-wiki-header h2 { margin: 0; }
+.llm-wiki-header-actions { margin-left: auto; display: flex; gap: var(--size-4-2); align-items: center; }
+.llm-wiki-tabs { display: flex; gap: var(--size-4-1); border-bottom: 1px solid var(--background-modifier-border); }
+.llm-wiki-tab { padding: var(--size-4-1) var(--size-4-3); border: none; background: none; box-shadow: none; color: var(--text-muted); border-bottom: 2px solid transparent; border-radius: 0; cursor: pointer; }
+.llm-wiki-tab:hover { color: var(--text-normal); background: var(--background-modifier-hover); }
+.llm-wiki-tab.is-active { color: var(--text-normal); border-bottom-color: var(--interactive-accent); }
+.llm-wiki-panel { display: flex; flex-direction: column; gap: var(--size-4-4); }
+.llm-wiki-health { font-size: var(--font-ui-medium); display: flex; align-items: center; gap: var(--size-4-2); }
+.llm-wiki-dot { width: 0.6em; height: 0.6em; border-radius: 50%; display: inline-block; flex: none; }
+.llm-wiki-dot.is-ok { background: var(--color-green); }
+.llm-wiki-dot.is-warn { background: var(--color-orange); }
+.llm-wiki-dot.is-error { background: var(--color-red); }
+.llm-wiki-dot.is-info, .llm-wiki-dot.is-muted { background: var(--text-faint); }
+.llm-wiki-section-head { display: flex; align-items: baseline; gap: var(--size-4-2); margin-bottom: var(--size-4-2); }
+.llm-wiki-section-title { margin: 0; font-size: var(--font-ui-medium); }
+.llm-wiki-section-actions { margin-left: auto; display: flex; gap: var(--size-4-2); }
+.llm-wiki-count { color: var(--text-muted); font-size: var(--font-ui-smaller); }
+.llm-wiki-pill { font-size: var(--font-ui-smaller); padding: 0 var(--size-4-2); border-radius: var(--radius-l); background: var(--background-secondary); color: var(--text-muted); white-space: nowrap; }
+.llm-wiki-pill.is-ok { color: var(--color-green); }
+.llm-wiki-pill.is-warn { color: var(--color-orange); }
+.llm-wiki-pill.is-error { color: var(--color-red); }
+.llm-wiki-pill.is-info { color: var(--text-accent); }
+.llm-wiki-empty { padding: var(--size-4-3); color: var(--text-muted); border: 1px dashed var(--background-modifier-border); border-radius: var(--radius-m); }
+.llm-wiki-row { display: flex; align-items: center; gap: var(--size-4-3); padding: var(--size-4-2) 0; border-bottom: 1px solid var(--background-modifier-border); }
+.llm-wiki-row:last-child { border-bottom: none; }
+.llm-wiki-row-main { flex: 1; min-width: 0; }
+.llm-wiki-row-title { font-weight: var(--font-medium); }
+.llm-wiki-row-detail { color: var(--text-muted); font-size: var(--font-ui-small); white-space: pre-wrap; }
+.llm-wiki-row-fix { font-family: var(--font-monospace); font-size: var(--font-ui-smaller); color: var(--text-faint); }
+.llm-wiki-row-actions { display: flex; gap: var(--size-4-1); flex: none; }
+.llm-wiki-row.is-link { cursor: pointer; }
+.llm-wiki-row.is-link:hover { background: var(--background-modifier-hover); }
+.llm-wiki-button { display: inline-flex; align-items: center; gap: var(--size-2-2); }
+.llm-wiki-button .llm-wiki-icon svg { width: 1em; height: 1em; }
+.llm-wiki-table { width: 100%; border-collapse: collapse; }
+.llm-wiki-table th { text-align: left; color: var(--text-muted); font-weight: var(--font-normal); font-size: var(--font-ui-smaller); padding: var(--size-4-1) var(--size-4-2); border-bottom: 1px solid var(--background-modifier-border); }
+.llm-wiki-table td { padding: var(--size-4-2); border-bottom: 1px solid var(--background-modifier-border); vertical-align: middle; }
+.llm-wiki-table tr.is-running td { background: var(--background-secondary); }
+.llm-wiki-table tr.is-paused td { color: var(--text-muted); }
+.llm-wiki-next.is-due { font-weight: var(--font-semibold); }
+.llm-wiki-next.is-blocked { color: var(--color-orange); }
+.llm-wiki-next.is-running { color: var(--text-accent); }
+.llm-wiki-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--size-4-2); }
+.llm-wiki-card { border: 1px solid var(--background-modifier-border); border-radius: var(--radius-m); padding: var(--size-4-2) var(--size-4-3); display: flex; flex-direction: column; gap: var(--size-2-2); }
+.llm-wiki-card-title { font-weight: var(--font-medium); }
+.llm-wiki-notice { padding: var(--size-4-2) var(--size-4-3); border-radius: var(--radius-m); background: var(--background-secondary); color: var(--text-muted); font-size: var(--font-ui-small); }
+.llm-wiki-spinner { display: inline-block; width: 0.8em; height: 0.8em; border: 2px solid var(--text-faint); border-top-color: var(--text-accent); border-radius: 50%; animation: llm-wiki-spin 0.8s linear infinite; vertical-align: middle; }
+@keyframes llm-wiki-spin { to { transform: rotate(360deg); } }

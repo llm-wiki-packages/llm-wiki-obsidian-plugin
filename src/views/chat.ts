@@ -6,6 +6,11 @@ import type { ChatMode } from '../settings'
 
 export const VIEW_CHAT = 'llm-wiki-chat'
 
+const CAPABILITY: Record<ChatMode, string> = {
+  agent: 'Agent: runs jobs and edits pages directly; asks you before each tool it would prompt for.',
+  ask: 'Ask: read-only, jailed; cannot change anything.',
+}
+
 export class ChatView extends ItemView {
   private transcript!: HTMLElement
   private composer!: HTMLTextAreaElement
@@ -13,6 +18,8 @@ export class ChatView extends ItemView {
   private stopBtn!: HTMLButtonElement
   private modeSelect!: HTMLSelectElement
   private status!: HTMLElement
+  private chips!: HTMLElement
+  private capability!: HTMLElement
   private backend: ChatBackend | null = null
   private mode: ChatMode
   private running: AbortController | null = null
@@ -45,22 +52,24 @@ export class ChatView extends ItemView {
     const bar = root.createDiv({ cls: 'llm-wiki-chat-bar' })
     this.modeSelect = bar.createEl('select', { cls: 'dropdown' })
     this.modeSelect.createEl('option', { value: 'agent', text: 'Agent' })
-    this.modeSelect.createEl('option', { value: 'safe', text: 'Safe (jailed)' })
+    this.modeSelect.createEl('option', { value: 'ask', text: 'Ask' })
     this.modeSelect.value = this.mode
     this.registerDomEvent(this.modeSelect, 'change', () => {
       this.mode = this.modeSelect.value as ChatMode
       this.backend = null
-      this.note(`mode: ${this.mode}`)
+      this.showCapability()
     })
     const newBtn = bar.createEl('button', { text: 'New chat' })
     this.registerDomEvent(newBtn, 'click', () => this.newChat())
     this.status = bar.createDiv({ cls: 'llm-wiki-muted llm-wiki-chat-status' })
 
     this.transcript = root.createDiv({ cls: 'llm-wiki-transcript' })
+    this.chips = root.createDiv({ cls: 'llm-wiki-chips' })
 
     const composer = root.createDiv({ cls: 'llm-wiki-composer' })
     this.composer = composer.createEl('textarea', { placeholder: 'Ask the wiki, or ask the agent to do something…', cls: 'llm-wiki-composer-input' })
     this.composer.rows = 3
+    this.capability = composer.createDiv({ cls: 'llm-wiki-muted llm-wiki-capability' })
     const buttons = composer.createDiv({ cls: 'llm-wiki-composer-buttons' })
     this.sendBtn = buttons.createEl('button', { text: 'Send', cls: 'mod-cta' })
     this.stopBtn = buttons.createEl('button', { text: 'Stop' })
@@ -74,13 +83,46 @@ export class ChatView extends ItemView {
       }
     })
     this.registerEvent(this.app.workspace.on('llm-wiki:detected' as 'layout-change', () => this.showReadiness()))
+    this.registerEvent(this.app.workspace.on('active-leaf-change', () => this.showChips()))
     this.showReadiness()
+    this.showCapability()
+    this.showChips()
     return Promise.resolve()
+  }
+
+  private showCapability(): void {
+    this.capability.setText(CAPABILITY[this.mode])
+  }
+
+  /** Three starting points above an empty transcript, by what the person is looking at. */
+  private showChips(): void {
+    this.chips.empty()
+    if (this.transcript.childElementCount > 0) return
+    const file = this.app.workspace.getActiveFile()
+    const prompts = file
+      ? [`Summarize [[${file.path}]]`, `Verify [[${file.path}]] against its sources`, `What links to [[${file.path}]]?`]
+      : ['What needs attention in this wiki?', 'Run a job for me', '/llm-wiki:add ']
+    for (const p of prompts) {
+      const chip = this.chips.createEl('button', { cls: 'llm-wiki-chip', text: p })
+      this.registerDomEvent(chip, 'click', () => this.prefill(p, this.mode))
+    }
   }
 
   onClose(): Promise<void> {
     this.running?.abort()
     return Promise.resolve()
+  }
+
+  /** Put text in the composer and focus it, for a button elsewhere that starts a conversation. */
+  prefill(text: string, mode: ChatMode = 'agent'): void {
+    if (this.mode !== mode) {
+      this.mode = mode
+      this.modeSelect.value = mode
+      this.backend = null
+    }
+    this.composer.value = text
+    this.composer.focus()
+    this.composer.setSelectionRange(text.length, text.length)
   }
 
   private showReadiness(): void {
@@ -92,6 +134,7 @@ export class ChatView extends ItemView {
     this.backend?.reset()
     this.backend = null
     this.transcript.empty()
+    this.showChips()
   }
 
   private note(text: string): void {
@@ -118,6 +161,7 @@ export class ChatView extends ItemView {
       return
     }
     this.composer.value = ''
+    this.chips.empty()
     this.transcript.createDiv({ cls: 'llm-wiki-msg llm-wiki-user', text: prompt })
     const assistant = new AssistantBubble(this.transcript, this.app, this)
     const abort = new AbortController()
@@ -143,10 +187,17 @@ export class ChatView extends ItemView {
       this.running = null
       this.sendBtn.disabled = false
       this.stopBtn.disabled = true
-      if (!this.backend?.multiTurn) this.note('safe mode: each question is its own session')
+      if (!this.backend?.multiTurn) this.note('Ask mode: each question is its own session')
       this.scroll()
     }
   }
+}
+
+/** `Run <command>?`, `Edit <path>?`: what the agent wants, not which tool. */
+function permissionTitle(req: PermissionRequest): string {
+  const verb: Record<string, string> = { Bash: 'Run', Edit: 'Edit', Write: 'Write', MultiEdit: 'Edit', NotebookEdit: 'Edit', Read: 'Read', WebFetch: 'Fetch', WebSearch: 'Search the web for' }
+  const v = verb[req.tool]
+  return v ? `${v} this?` : `Allow ${req.tool}?`
 }
 
 /** One assistant turn in the transcript: streamed markdown, tool rows, permission cards. */
@@ -204,7 +255,7 @@ class AssistantBubble {
   ask(req: PermissionRequest): Promise<PermissionDecision> {
     this.flushText()
     const card = this.el.createDiv({ cls: 'llm-wiki-permission' })
-    card.createDiv({ cls: 'llm-wiki-permission-title', text: `Allow ${req.tool}?` })
+    card.createDiv({ cls: 'llm-wiki-permission-title', text: permissionTitle(req) })
     card.createEl('pre', { cls: 'llm-wiki-permission-summary', text: req.summary })
     const buttons = card.createDiv({ cls: 'llm-wiki-permission-buttons' })
     const allow = buttons.createEl('button', { text: 'Allow', cls: 'mod-cta' })

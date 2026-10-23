@@ -1,4 +1,4 @@
-// Safe mode: one question in a jailed `harness run` session, read-only,
+// Ask mode: one question in a jailed `harness run` session, read-only,
 // exactly what the reference dashboard's Ask runs. Each turn is a fresh
 // session; the jail cannot start a job, so this backend never prompts.
 import type { Cli, StreamLine } from '../wiki/cli'
@@ -45,7 +45,7 @@ export function mapLine(l: StreamLine, sawResult: boolean): ChatEvent[] {
 
 export class HarnessRunBackend implements ChatBackend {
   readonly id = 'harness-run'
-  readonly label = 'Safe (jailed, read-only)'
+  readonly label = 'Ask'
   readonly multiTurn = false
 
   constructor(

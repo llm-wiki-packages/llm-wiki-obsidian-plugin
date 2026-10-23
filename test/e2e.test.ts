@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest'
 import { Cli, type SearchAnswer, type WikiRow } from '../src/wiki/cli'
 import { findBinary, matchWiki } from '../src/wiki/resolve'
+import { takeSnapshot } from '../src/wiki/snapshot'
 
 const bin = process.env.LLM_WIKI_E2E_BIN
 const vault = process.env.LLM_WIKI_E2E_VAULT
@@ -22,6 +23,15 @@ describe.skipIf(!bin || !vault)('the seam against a real CLI', () => {
   it('searches under the read floor and gets vault-relative paths back', async () => {
     const ans = await cli().run<SearchAnswer>('wiki.search.query', { wiki: 'scratch', text: 'money model', k: 5 })
     expect(ans.hits?.[0]?.source_path).toBe('wiki/money-models.md')
+  })
+
+  it('takes a whole snapshot of a joined wiki', async () => {
+    const snap = await takeSnapshot(cli(), 'scratch')
+    expect(snap.errors).toEqual({})
+    expect(snap.jobs.length).toBeGreaterThan(0)
+    expect(snap.jobs.every((j) => j.next.text !== '' || j.paused)).toBe(true)
+    expect(snap.runner).toBe(false)
+    expect(snap.health.sentence).toMatch(/need|clear/)
   })
 
   it('refuses a harness run on a wiki with no enabled sandbox, through the stream', async () => {

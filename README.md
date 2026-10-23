@@ -4,23 +4,52 @@ Chat with an agent, search, and operate an [llm-wiki](https://github.com/simple1
 wiki from inside Obsidian. The vault is the wiki; the plugin is a command center
 over the machine's `llm-wiki-cli`.
 
-**Status: spike.** Chat and search work. Jobs, skills and the page explorer are
-designed and not built. Desktop only, since the plugin spawns local processes.
+**Status: first usable build.** Dashboard (overview, jobs, pages), chat, search,
+a status-bar health line and the commands below. Desktop only, since the plugin
+spawns local processes.
 
 ## What it does
 
-- **Search** (right sidebar): `search query` through the CLI, results open as
-  notes in the vault.
-- **Chat** (right sidebar), two modes:
-  - **Agent**: a Claude Code session at the wiki root, unjailed, with the wiki's
-    own committed `.claude/settings.json` in force (write guard, `op record`,
-    the llm-wiki skills). It asks you in the pane before any tool it would
-    prompt for. A job it runs for you (`llm-wiki-ops jobs request <slug>`) is
-    composed into its own jail by the CLI, credentials included; the chat never
-    sees a credential, and the verbs that would print one are denied.
-    Multi-turn: the session is resumed until you press **New chat**.
-  - **Safe**: one jailed, read-only `harness run` question per turn, the same
-    thing the reference dashboard's Ask runs. It cannot start a job.
+**Dashboard**, a tab in the main area (ribbon icon, or the status bar item, or
+*LLM Wiki: Open dashboard*):
+
+- **Overview**: one health sentence; **Needs you** (doctor findings with the
+  fix they name, parked tickets, conflicts, a stale index), each with one
+  button; **Running and due**, with a notice when this machine has no runner,
+  since then jobs only run when you press Run; pages waiting for curation;
+  **Recent** runs.
+- **Jobs**: every job with its schedule, last run and what it is waiting on in
+  plain words (due now, in 40m, paused, held, blocked and why, running with a
+  spinner). **Run** starts it now through `jobs request`; **Pause**/**Resume**.
+  **Add a job…** asks one question and hands it to the agent in chat as
+  `/llm-wiki:add …`, which decides the rest. The row's state is read back from
+  the tickets, never assumed from the click.
+- **Pages**: pages awaiting curation. Click opens the note beside the
+  dashboard; **Accept** and **Reject…** go through `page curate`. One button
+  hands the queue to the agent with `/llm-wiki:curate`.
+
+The dashboard polls every 10 s while something is running, every minute while
+open, every 5 minutes otherwise. The status bar reads `llm-wiki · ok`,
+`2 need you`, or `running <job>`; clicking it opens the dashboard.
+
+**Chat** (right sidebar), two modes:
+
+- **Agent**: a Claude Code session at the wiki root, with the wiki's own
+  committed `.claude/settings.json` in force (write guard, `op record`, the
+  llm-wiki skills). It can run jobs and edit pages, and asks you in the pane
+  before any tool it would prompt for. A job it runs for you is composed into
+  its own jail by the CLI, credentials included; the chat never sees a
+  credential, and the verbs that would print one are denied. Multi-turn until
+  **New chat**. Three suggested prompts sit above an empty transcript, tuned to
+  the note you have open.
+- **Ask**: one jailed, read-only `harness run` question per turn, the same thing
+  the reference dashboard's Ask runs. It cannot change anything.
+
+**Search** (right sidebar): `search query` through the CLI; results open as notes.
+
+**Commands**: Open dashboard, Open chat, Open search, Run a job… (a fuzzy list;
+the fastest Run there is), Add a job…, Ask the agent about this note, Refresh
+the dashboard, Re-detect wiki and binaries.
 
 ## Requirements
 
@@ -77,7 +106,13 @@ LLM_WIKI_E2E_BIN=$(which llm-wiki-cli) LLM_WIKI_E2E_VAULT=/path/to/wiki npm test
 | `src/chat/types.ts` | the chat contract: a backend turns a harness's protocol into `ChatEvent`s and asks permission through one callback |
 | `src/chat/claudeSdk.ts` | the Agent backend on `@anthropic-ai/claude-agent-sdk`, driving the user's own `claude` |
 | `src/chat/harnessRun.ts` | the Safe backend on `harness run --stream` |
-| `src/views/` | the search and chat panes, plain DOM on Obsidian's CSS variables |
+| `src/wiki/model.ts` | what the dashboard shows: `Snapshot`, jobs with a plain-words `next`, attention items with one action |
+| `src/wiki/snapshot.ts` | CLI answers into a `Snapshot`; the one place that knows the answers' field names |
+| `src/wiki/actions.ts` | the writes a click makes, each one verb, each answering one sentence |
+| `src/views/dashboard/` | the main-area view: `index.ts` (header, tabs, action routing), one file per tab |
+| `src/views/chat.ts`, `src/views/search.ts` | the sidebar panes |
+| `src/ui/` | DOM helpers and the one-field prompt modal |
+| `docs/cli-shapes.md` | the CLI answers the plugin reads, field by field |
 
 Another harness is another file under `src/chat/` implementing `ChatBackend`,
 plus one case in `main.ts`'s `backend()`.
@@ -87,8 +122,11 @@ plus one case in `main.ts`'s `backend()`.
 - **Fixed argv.** Nothing typed into Obsidian reaches a command line except as
   one validated argument after `--`.
 - **Read floor by default.** Every CLI call runs with `LLM_WIKI_PERMISSIONS=read`
-  and `llm-wiki-cli wiki --read-only`, except `harness run` (it spends model
-  budget) and the agent session itself.
+  and `llm-wiki-cli wiki --read-only`, except the writes a click asks for,
+  listed in one place (`WRITES` in `src/wiki/cli.ts`): run, pause and resume a
+  job, retry a ticket, accept or reject a page, reindex, and `harness run`.
+- **Nothing on screen says running or due that the ticket store does not.**
+  Run is optimistic for one poll; the row's state comes from `tickets ls`.
 - **The agent is attended.** The session carries `LLM_WIKI_SESSION_ATTENDED=1`
   because a person is watching the pane and clicking the permission cards.
 - **No credential in a transcript.** `credentials get` is a denied tool pattern.

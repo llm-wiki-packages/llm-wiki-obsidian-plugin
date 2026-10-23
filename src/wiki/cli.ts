@@ -16,6 +16,17 @@ export interface Args {
   agent?: string
   model?: string
   effort?: string
+  /** A job slug, a ticket id, or a page path, by verb. */
+  slug?: string
+  id?: string
+  paths?: string[]
+  reason?: string
+  /** `page ls` selectors, `filter=<kind>:<value>`. */
+  selectors?: Record<string, string>
+  /** `git changed` / `op since`: an age like `1d`, `12h`. */
+  since?: string
+  /** `jobs request`: seconds to wait for the landing. */
+  wait?: number
 }
 
 export interface CliConfig {
@@ -40,6 +51,12 @@ export class CliError extends Error {
 }
 
 const KEY = /^[a-z0-9][a-z0-9_-]{0,63}$/
+const SLUG = /^[a-z0-9][a-z0-9_-]{0,63}$/
+const TICKET = /^[A-Za-z0-9][A-Za-z0-9._#:-]{0,127}$/
+const SINCE = /^\d{1,4}[hd]$/
+// eslint-disable-next-line no-control-regex -- rejecting control characters is the point
+const REL = /^(?!\/)(?!.*(^|\/)\.\.(\/|$))[^\x00-\x1f]{1,512}$/
+const PAGE_SELECTORS = new Set(['status', 'under', 'change', 'verified', 'shelf_life', 'lint'])
 const WORD = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/
 const SKILL = /^[a-z0-9][a-z0-9-]{0,63}(:[a-z0-9][a-z0-9-]{0,63})?$/
 const DATE = /^\d{4}-\d{2}-\d{2}$/
@@ -58,6 +75,50 @@ function key(v: string | undefined): string {
 function word(v: string | undefined, what: string): string {
   if (!v || !WORD.test(v)) throw new CliError(`bad ${what}: ${String(v)}`, 'args')
   return v
+}
+
+function slug(v: string | undefined): string {
+  if (!v || !SLUG.test(v)) throw new CliError(`bad job slug: ${String(v)}`, 'args')
+  return v
+}
+
+function ticket(v: string | undefined): string {
+  if (!v || !TICKET.test(v)) throw new CliError(`bad ticket id: ${String(v)}`, 'args')
+  return v
+}
+
+function since(v: string | undefined, fallback: string): string {
+  const t = v ?? fallback
+  if (!SINCE.test(t)) throw new CliError(`bad since: ${String(v)}`, 'args')
+  return `filter=since:${t}`
+}
+
+/** A vault-relative page path: no leading slash, no `..` segment. */
+function rel(v: string): string {
+  if (!REL.test(v)) throw new CliError(`bad page path: ${v}`, 'args')
+  return v
+}
+
+function paths(v: string[] | undefined): string[] {
+  if (!v?.length) throw new CliError('no paths', 'args')
+  return v.map(rel)
+}
+
+function pageSelectors(a: Args): string[] {
+  const out: string[] = []
+  for (const [kind, value] of Object.entries(a.selectors ?? {})) {
+    if (!PAGE_SELECTORS.has(kind)) throw new CliError(`unknown page selector: ${kind}`, 'args')
+    if (!FILTER_VALUE.test(value)) throw new CliError(`bad value for ${kind}`, 'args')
+    out.push(`filter=${kind}:${value}`)
+  }
+  return out
+}
+
+/** A free-text reason is one line. */
+function oneLine(v: string): string {
+  const t = v.trim()
+  if (!t || !FILTER_VALUE.test(t)) throw new CliError('a reason is one line of 1–200 characters', 'args')
+  return t
 }
 
 function skill(v: string | undefined): string {
@@ -101,17 +162,39 @@ function searchFilters(a: Args): string[] {
 /** The wiki-scoped prefix. `--read-only` sits before the selector, per the CLI grammar. */
 const wiki = (a: Args, ...rest: string[]) => ['wiki', '--read-only', key(a.wiki), ...rest, '--json']
 
+/** A wiki-scoped write: no floor flag; the verb spends or changes something the person asked for. */
+const write = (a: Args, ...rest: string[]) => ['wiki', key(a.wiki), ...rest, '--json']
+
 export const VERBS = {
   'machine.version': () => ['machine', 'version', '--json'],
   'machine.wikis.ls': () => ['machine', 'wikis', 'ls', '--json'],
+  'machine.runner.ls': () => ['machine', 'runner', 'ls', '--json'],
   'wiki.status': (a: Args) => wiki(a, 'status'),
+  'wiki.doctor': (a: Args) => wiki(a, 'doctor'),
   'wiki.search.status': (a: Args) => wiki(a, 'search', 'status'),
   'wiki.sandboxes.ls': (a: Args) => wiki(a, 'sandboxes', 'ls', '--enabled'),
+  'wiki.jobs.ls': (a: Args) => wiki(a, 'jobs', 'ls', '--verbose'),
+  'wiki.jobs.due': (a: Args) => wiki(a, 'jobs', 'due'),
+  'wiki.jobs.show': (a: Args) => wiki(a, 'jobs', 'show', slug(a.slug)),
+  'wiki.tickets.ls': (a: Args) => wiki(a, 'tickets', 'ls'),
+  'wiki.page.ls': (a: Args) => wiki(a, 'page', 'ls', ...pageSelectors(a)),
+  'wiki.git.changed': (a: Args) => wiki(a, 'git', 'changed', 'sources', 'wiki', 'research', since(a.since, '1d')),
+  'wiki.git.conflicts': (a: Args) => wiki(a, 'git', 'conflicts'),
+  'wiki.op.since': (a: Args) => wiki(a, 'op', 'since', since(a.since, '1d')),
+  // Writes a click asks for. None is a protected write under the attendance rule.
+  'wiki.jobs.request': (a: Args) => write(a, 'jobs', 'request', slug(a.slug), ...(a.wait ? [`wait=${Math.max(1, Math.min(600, Math.trunc(a.wait)))}s`] : [])),
+  'wiki.jobs.pause': (a: Args) => write(a, 'jobs', 'pause', slug(a.slug)),
+  'wiki.jobs.resume': (a: Args) => write(a, 'jobs', 'resume', slug(a.slug)),
+  'wiki.tickets.retry': (a: Args) => write(a, 'tickets', 'retry', ticket(a.id)),
+  'wiki.tickets.drop': (a: Args) => write(a, 'tickets', 'drop', ticket(a.id)),
+  // Accept, or reject with a reason: `reject=` is the whole rejection.
+  'wiki.page.curate': (a: Args) => write(a, 'page', 'curate', ...paths(a.paths), ...(a.reason === undefined ? [] : [`reject=${oneLine(a.reason)}`])),
+  'wiki.search.index': (a: Args) => write(a, 'search', 'index'),
   // The text goes after `--`, so a query starting with a dash is never read as a flag.
   'wiki.search.query': (a: Args) => [
     'wiki', '--read-only', key(a.wiki), 'search', 'query', ...searchFilters(a), '--json', '--', text(a.text),
   ],
-  // One question in a jailed harness session, streamed as JSON lines: the chat's safe mode.
+  // One question in a jailed harness session, streamed as JSON lines: the chat's Ask mode.
   // The one verb without the read floor, since it spends model budget.
   'wiki.harness.run': (a: Args) => [
     'wiki', key(a.wiki), 'harness', 'run', `sandbox=${word(a.sandbox, 'sandbox')}`, `skill=${skill(a.skill)}`,
@@ -124,7 +207,9 @@ export const VERBS = {
 
 export type Verb = keyof typeof VERBS
 
-const WRITES: ReadonlySet<Verb> = new Set<Verb>(['wiki.harness.run'])
+const WRITES: ReadonlySet<Verb> = new Set<Verb>([
+  'wiki.harness.run', 'wiki.jobs.request', 'wiki.jobs.pause', 'wiki.jobs.resume', 'wiki.tickets.retry', 'wiki.tickets.drop', 'wiki.page.curate', 'wiki.search.index',
+])
 
 /** The child's environment: the read floor unless the verb writes. */
 export function childEnv(base: NodeJS.ProcessEnv, verb: Verb): NodeJS.ProcessEnv {

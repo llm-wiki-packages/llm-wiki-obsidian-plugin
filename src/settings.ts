@@ -1,7 +1,7 @@
 import { PluginSettingTab, Setting, type App } from 'obsidian'
 import type LlmWikiPlugin from './main'
 
-export type ChatMode = 'agent' | 'safe'
+export type ChatMode = 'agent' | 'ask'
 
 export interface LlmWikiSettings {
   /** Absolute path of `llm-wiki-cli`; empty means search the login shell's PATH. */
@@ -13,10 +13,10 @@ export interface LlmWikiSettings {
   defaultChatMode: ChatMode
   /** Agent mode: a model name passed to the harness, or empty for its own default. */
   model: string
-  /** Safe mode: the enabled sandbox the jailed session composes. */
-  safeSandbox: string
-  /** Safe mode: the skill the jailed session runs. */
-  safeSkill: string
+  /** Ask mode: the enabled sandbox the jailed session composes. */
+  askSandbox: string
+  /** Ask mode: the skill the jailed session runs. */
+  askSkill: string
   searchK: number
   debug: boolean
 }
@@ -27,8 +27,8 @@ export const DEFAULT_SETTINGS: LlmWikiSettings = {
   wikiKey: '',
   defaultChatMode: 'agent',
   model: '',
-  safeSandbox: 'read-search',
-  safeSkill: 'llm-wiki:search',
+  askSandbox: 'read-search',
+  askSkill: 'llm-wiki:search',
   searchK: 20,
   debug: false,
 }
@@ -70,19 +70,19 @@ export class LlmWikiSettingTab extends PluginSettingTab {
     new Setting(containerEl).setName('Chat').setHeading()
     new Setting(containerEl)
       .setName('Default mode')
-      .setDesc('Agent runs unjailed at the wiki root with its hooks, and asks before each tool it would prompt for. Safe runs one jailed, read-only question per turn.')
-      .addDropdown((d) => d.addOptions({ agent: 'Agent', safe: 'Safe' }).setValue(s.defaultChatMode).onChange((v) => { s.defaultChatMode = v as ChatMode; save() }))
+      .setDesc('Agent runs at the wiki root with its hooks, can run jobs and edit pages, and asks before each tool it would prompt for. Ask runs one jailed, read-only question per turn.')
+      .addDropdown((d) => d.addOptions({ agent: 'Agent', ask: 'Ask' }).setValue(s.defaultChatMode).onChange((v) => { s.defaultChatMode = v as ChatMode; save() }))
     new Setting(containerEl)
       .setName('Model')
       .setDesc('Agent mode. Empty uses the harness default.')
       .addText((t) => t.setPlaceholder('Default').setValue(s.model).onChange((v) => { s.model = v.trim(); save() }))
     new Setting(containerEl)
-      .setName('Safe mode sandbox')
+      .setName('Ask mode sandbox')
       .setDesc('An enabled sandbox of the wiki; seed and enable read-search if the wiki lacks one.')
-      .addText((t) => t.setValue(s.safeSandbox).onChange((v) => { s.safeSandbox = v.trim() || DEFAULT_SETTINGS.safeSandbox; save() }))
+      .addText((t) => t.setValue(s.askSandbox).onChange((v) => { s.askSandbox = v.trim() || DEFAULT_SETTINGS.askSandbox; save() }))
     new Setting(containerEl)
-      .setName('Safe mode skill')
-      .addText((t) => t.setValue(s.safeSkill).onChange((v) => { s.safeSkill = v.trim() || DEFAULT_SETTINGS.safeSkill; save() }))
+      .setName('Ask mode skill')
+      .addText((t) => t.setValue(s.askSkill).onChange((v) => { s.askSkill = v.trim() || DEFAULT_SETTINGS.askSkill; save() }))
 
     new Setting(containerEl).setName('Search').setHeading()
     new Setting(containerEl)
