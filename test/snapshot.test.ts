@@ -59,7 +59,7 @@ describe('takeSnapshot', () => {
         'wiki.jobs.ls': { jobs: [job({}), job({ slug: 'gmail', description: 'Gmail inbox', kind: 'pipeline', verdict: { due: false, kind: 'requires', blocked_by: ['credential gmail'] } })], unreadable: [] },
         'wiki.jobs.due': { parked: [{ id: 'p1', job: 'gmail', stage: 'harvest', reason: 'login expired' }], review: [], handoffs: { problems: [] } },
         'wiki.tickets.ls': { tickets: [] },
-        'wiki.page.ls': { pages: [{ path: 'sources/web/a.md', status: 'draft' }, { path: 'wiki/n.md', status: null }, { path: 'sources/web/b.md', status: 'stable' }] },
+        'wiki.page.ls': { pages: [{ path: 'sources/web/a.md', status: 'draft' }, { path: 'wiki/n.md', status: null, change: 'new' }, { path: 'sources/web/b.md', status: 'stable' }, { path: 'sources/notes/dropped.md', status: null, change: 'new' }] },
         'wiki.op.since': { runs: [{ op: 'pass', outcome: 'ok', when: '2026-10-23T11:40:00Z', summary: 'pass ok' }] },
         'wiki.search.status': { engine_configured: false, realm_ready: false, serving: 'grep' },
         'wiki.git.conflicts': { pages: [] },
@@ -73,6 +73,7 @@ describe('takeSnapshot', () => {
     expect(snap.health).toEqual({ tone: 'warn', sentence: '3 things need you. Last run 20m ago. Next up curate what the pipeline has landed, every hour in 40m.' })
     expect(snap.runner).toBe(false)
     expect(snap.curation).toEqual([{ path: 'sources/web/a.md', title: 'a', job: 'web' }])
+    expect(snap.unadopted).toEqual([{ path: 'sources/notes/dropped.md', title: 'dropped', job: 'notes' }])
     expect(snap.recent[0]).toMatchObject({ op: 'pass', outcome: 'ok', summary: '' })
     expect(snap.errors).toEqual({})
   })

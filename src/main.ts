@@ -117,10 +117,12 @@ export default class LlmWikiPlugin extends Plugin {
         this.snapshot = snap
         this.showStatus()
         this.app.workspace.trigger('llm-wiki:snapshot')
-        this.schedulePoll()
       })
       .catch((e: unknown) => log.warn('snapshot', e))
-      .finally(() => (this.refreshing = null))
+      .finally(() => {
+        this.refreshing = null
+        this.schedulePoll()
+      })
     return this.refreshing
   }
 

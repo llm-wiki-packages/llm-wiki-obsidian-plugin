@@ -23,6 +23,8 @@ export class ChatView extends ItemView {
   private backend: ChatBackend | null = null
   private mode: ChatMode
   private running: AbortController | null = null
+  /** Rendered turns hold a Component each while on screen; New chat releases them. */
+  private bubbles: AssistantBubble[] = []
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -134,6 +136,8 @@ export class ChatView extends ItemView {
     this.backend?.reset()
     this.backend = null
     this.transcript.empty()
+    for (const b of this.bubbles) b.dispose()
+    this.bubbles = []
     this.showChips()
   }
 
@@ -164,6 +168,7 @@ export class ChatView extends ItemView {
     this.chips.empty()
     this.transcript.createDiv({ cls: 'llm-wiki-msg llm-wiki-user', text: prompt })
     const assistant = new AssistantBubble(this.transcript, this.app, this)
+    this.bubbles.push(assistant)
     const abort = new AbortController()
     this.running = abort
     this.sendBtn.disabled = true
@@ -273,6 +278,10 @@ class AssistantBubble {
 
   finish(): void {
     this.flushText()
+  }
+
+  dispose(): void {
+    this.owner.removeChild(this.renderer)
   }
 
   private line(cls: string, text: string): void {

@@ -103,6 +103,7 @@ export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now(
     runner,
     jobs,
     curation: (pages?.pages ?? []).filter((p) => p.status === 'draft').map(curationItem),
+    unadopted: (pages?.pages ?? []).filter((p) => p.change === 'new' && p.path.startsWith('sources/')).map(curationItem),
     recent: (ops?.runs ?? []).map(recentRun),
     errors,
   }

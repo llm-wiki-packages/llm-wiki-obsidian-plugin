@@ -26,7 +26,10 @@ spawns local processes.
   the tickets, never assumed from the click.
 - **Pages**: pages awaiting curation. Click opens the note beside the
   dashboard; **Accept** and **Reject…** go through `page curate`. One button
-  hands the queue to the agent with `/llm-wiki:curate`.
+  hands the queue to the agent with `/llm-wiki:curate`. Below it, **Not yet in
+  the wiki**: files under `sources/` the wiki has not taken up, with **Adopt**
+  (`page adopt`). That queue needs a CLI that reports page change state; an
+  older one leaves it empty.
 
 The dashboard polls every 10 s while something is running, every minute while
 open, every 5 minutes otherwise. The status bar reads `llm-wiki · ok`,
@@ -124,7 +127,8 @@ plus one case in `main.ts`'s `backend()`.
 - **Read floor by default.** Every CLI call runs with `LLM_WIKI_PERMISSIONS=read`
   and `llm-wiki-cli wiki --read-only`, except the writes a click asks for,
   listed in one place (`WRITES` in `src/wiki/cli.ts`): run, pause and resume a
-  job, retry a ticket, accept or reject a page, reindex, and `harness run`.
+  job, retry a ticket, accept or reject a page, adopt a page, reindex, and
+  `harness run`.
 - **Nothing on screen says running or due that the ticket store does not.**
   Run is optimistic for one poll; the row's state comes from `tickets ls`.
 - **The agent is attended.** The session carries `LLM_WIKI_SESSION_ATTENDED=1`

@@ -61,7 +61,7 @@ export class DashboardView extends ItemView {
     const tab = (state as { tab?: Tab } | null)?.tab
     if (tab && TABS.some((t) => t.id === tab)) this.tab = tab
     await super.setState(state, result)
-    this.render()
+    if (this.panel) this.render()
   }
 
   onOpen(): Promise<void> {

@@ -60,6 +60,8 @@ export interface Snapshot {
   runner: boolean
   jobs: JobView[]
   curation: CurationItem[]
+  /** Files under sources/ the wiki has not taken up: no identity yet. Empty on a CLI that cannot tell. */
+  unadopted: CurationItem[]
   recent: RecentRun[]
   /** Reads that failed, by verb, so a half-empty dashboard says why. */
   errors: Record<string, string>

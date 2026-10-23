@@ -81,6 +81,15 @@ export class Actions {
     }
   }
 
+  async adopt(paths: string[]): Promise<Outcome> {
+    try {
+      await this.cli.run('wiki.page.adopt', { wiki: this.wiki, paths })
+      return { ok: true, message: paths.length === 1 ? `adopted ${paths[0]}` : `adopted ${paths.length} pages` }
+    } catch (e) {
+      return failed('could not adopt', e)
+    }
+  }
+
   async reindex(): Promise<Outcome> {
     try {
       await this.cli.run('wiki.search.index', { wiki: this.wiki }, { timeoutMs: 600_000 })

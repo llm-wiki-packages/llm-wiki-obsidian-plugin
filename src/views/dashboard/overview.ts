@@ -30,6 +30,7 @@ export function renderOverview(root: HTMLElement, ctx: TabContext): void {
     count: snapshot.curation.length,
     actions: (bar) => button(bar, 'Review', () => ctx.goTo('pages')),
   })
+  if (snapshot.unadopted.length) curation.createDiv({ cls: 'llm-wiki-muted', text: `${snapshot.unadopted.length} new under sources/ not yet in the wiki.` })
   if (!snapshot.curation.length) empty(curation, 'No pages are waiting.')
   else curation.createDiv({ cls: 'llm-wiki-muted', text: snapshot.curation.slice(0, 5).map((c) => c.path).join(' · ') + (snapshot.curation.length > 5 ? ' · …' : '') })
 

@@ -190,6 +190,8 @@ export const VERBS = {
   // Accept, or reject with a reason: `reject=` is the whole rejection.
   'wiki.page.curate': (a: Args) => write(a, 'page', 'curate', ...paths(a.paths), ...(a.reason === undefined ? [] : [`reject=${oneLine(a.reason)}`])),
   'wiki.search.index': (a: Args) => write(a, 'search', 'index'),
+  // Mint identity into pages the wiki does not know yet.
+  'wiki.page.adopt': (a: Args) => write(a, 'page', 'adopt', ...paths(a.paths)),
   // The text goes after `--`, so a query starting with a dash is never read as a flag.
   'wiki.search.query': (a: Args) => [
     'wiki', '--read-only', key(a.wiki), 'search', 'query', ...searchFilters(a), '--json', '--', text(a.text),
@@ -208,7 +210,7 @@ export const VERBS = {
 export type Verb = keyof typeof VERBS
 
 const WRITES: ReadonlySet<Verb> = new Set<Verb>([
-  'wiki.harness.run', 'wiki.jobs.request', 'wiki.jobs.pause', 'wiki.jobs.resume', 'wiki.tickets.retry', 'wiki.tickets.drop', 'wiki.page.curate', 'wiki.search.index',
+  'wiki.harness.run', 'wiki.jobs.request', 'wiki.jobs.pause', 'wiki.jobs.resume', 'wiki.tickets.retry', 'wiki.tickets.drop', 'wiki.page.curate', 'wiki.page.adopt', 'wiki.search.index',
 ])
 
 /** The child's environment: the read floor unless the verb writes. */
