@@ -13,38 +13,48 @@ spawns local processes.
 **Dashboard**, a tab in the main area (ribbon icon, or the status bar item, or
 *LLM Wiki: Open dashboard*):
 
-- **Overview**: one health sentence; **Needs you** (doctor findings with the
-  fix they name, parked tickets, conflicts, a stale index), each with one
-  button; **Running and due**, with a notice when this machine has no runner,
-  since then jobs only run when you press Run; pages waiting for curation;
-  **Recent** runs.
-- **Jobs**: every job with its schedule, last run and what it is waiting on in
-  plain words (due now, in 40m, paused, held, blocked and why, needs a
-  credential, running with a spinner). **Run** starts it now through `jobs request`; **Pause**/**Resume**.
-  **Add a job…** asks one question and hands it to the agent in chat as
-  `/llm-wiki:add …`, which decides the rest. The row's state is read back from
-  the tickets, never assumed from the click.
+- **Overview**: one sentence about what is moving; **Needs you**, one row and
+  one button per item (a job that cannot run here until a credential is set,
+  a stopped job whose credential went stale, a parked ticket, a doctor
+  finding with the fix it names, a drifted skill, a conflict, a stale index);
+  **Running and due** cards; pages waiting for curation; **Last day**, the
+  runs in words. A wiki with no jobs gets one card that says what a job and a
+  skill are, with Add a source and Browse skills. Without a runner on this
+  machine, one notice with an Install-the-runner hand-off.
+- **Jobs**: grouped by state (needs you, running, due, scheduled, manual,
+  paused), each row with its schedule, last run (a failure shows its reason)
+  and what it is waiting on in plain words, one primary button (Set or
+  Replace credential, Run, Resume) and a menu for the rest. Click a row for
+  the **job detail dialog**: state and reasons, what it needs on this
+  machine, its last runs with Retry, Ask the agent with the failure attached.
+  **Add a source…** asks one question and hands it to the agent in chat as
+  `/llm-wiki:add …`. Run all due; Pause all / Resume all. The row's state is
+  read back from the tickets, never assumed from the click.
 - **Skills**: the units the wiki holds and this machine loads, which Obsidian
   hides under `.llm-wiki/skills` and `.agents/skills`: enabled here, in the
-  wiki but not enabled here, available from the package. One pill at most per
-  row (credential missing, differs from the wiki, update available), the jobs
-  using it; **Set credential**, **Run job**, **Enable** (hands
-  `/llm-wiki:enable <name>` to chat), **Inspect** (what it needs on this
-  machine, the jobs using it, SKILL.md and its enable and usage notes rendered
-  in a dialog). Below, **Credentials**: what this wiki may use on this machine,
-  names and states only, who uses each; **Replace…**, **Remove**, **Log in**,
-  **Add a credential…**. The credential dialog pipes the secret to the CLI's
-  stdin and binds it to the skill, or to one job, in the same step.
-- **Pages**: pages awaiting curation. Click opens the note beside the
-  dashboard; **Accept** and **Reject…** go through `page curate`. One button
-  hands the queue to the agent with `/llm-wiki:curate`. Below it, **Not yet in
-  the wiki**: files under `sources/` the wiki has not taken up, with **Adopt**
-  (`page adopt`). That queue needs a CLI that reports page change state; an
-  older one leaves it empty.
+  wiki but not enabled here, available from the package (with each unit's
+  description and what it will need). One pill at most per row (credential
+  missing or stale, differs from the wiki, update available), the jobs using
+  it, one button (Set or Replace credential, Run job, Enable, Add). Click a
+  row for the **inspector**: what it needs on this machine, the jobs using it,
+  SKILL.md and its enable and usage notes rendered, Add a source with it.
+  **Credentials**: what this wiki may use on this machine, names and states
+  only, who uses each; Replace…, Remove, Log in, Add a credential…. The
+  credential dialog says in words what is needed, pipes the secret to the
+  CLI's stdin, binds it to the skill (or one job), and then retries a stopped
+  job or runs a due one, in the same step.
+- **Pages**: pages awaiting curation, grouped by the folder they landed in,
+  with Accept all per folder. Click opens the note; **Accept** and
+  **Reject…** go through `page curate`; one button hands the queue to the
+  agent with `/llm-wiki:curate`. Below it, **Not yet in the wiki**: files
+  under `sources/` the wiki has not taken up, with **Adopt** (`page adopt`).
+  That queue needs a CLI that reports page change state; an older one says so.
 
 The dashboard polls every 10 s while something is running, every minute while
-open, every 5 minutes otherwise. The status bar reads `llm-wiki · ok`,
-`2 need you`, or `running <job>`; clicking it opens the dashboard.
+open, every 5 minutes otherwise, and again after every chat turn. The status
+bar reads `llm-wiki · ok`, `2 need you`, `1 stopped`, or `running <job>`, with
+`· no runner` when none is installed; clicking it opens the dashboard. A job
+that stops between two polls raises a Notice.
 
 **Chat** (right sidebar), two modes:
 
@@ -54,8 +64,9 @@ open, every 5 minutes otherwise. The status bar reads `llm-wiki · ok`,
   before any tool it would prompt for. A job it runs for you is composed into
   its own jail by the CLI, credentials included; the chat never sees a
   credential, and the verbs that would print one are denied. Multi-turn until
-  **New chat**. Three suggested prompts sit above an empty transcript, tuned to
-  the note you have open.
+  **New chat**. Tool rows read in words ("Running inbox-joe"); the command is
+  on hover and in the permission card. Suggested prompts sit above an empty
+  transcript, tuned to the note you have open.
 - **Ask**: one jailed, read-only `harness run` question per turn, the same thing
   the reference dashboard's Ask runs. It cannot change anything.
 
@@ -68,8 +79,9 @@ a chat turn such as `/llm-wiki:research <goal>`. The wiki's own skill units
 live on the dashboard's Skills tab.
 
 **Commands**: Open dashboard, Open chat, Open search, Run a job… (a fuzzy list;
-the fastest Run there is), Add a job…, Run a skill…, Ask the agent about this
-note, Refresh the dashboard, Re-detect wiki and binaries.
+the fastest Run there is), Open a job…, Add a source…, Set a credential…, Run a
+skill…, Ask the agent about this note, Refresh the dashboard, Re-detect wiki
+and binaries. Every row takes focus and opens on Enter.
 
 ## Requirements
 
