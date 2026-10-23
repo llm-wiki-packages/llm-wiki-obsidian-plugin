@@ -33,15 +33,13 @@
 .llm-wiki-permission-title { font-weight: var(--font-semibold); margin-bottom: var(--size-2-2); }
 .llm-wiki-permission-summary { white-space: pre-wrap; word-break: break-all; font-size: var(--font-ui-small); margin: 0 0 var(--size-2-2); }
 .llm-wiki-permission-buttons { display: flex; gap: var(--size-4-2); }
-.llm-wiki-composer { display: flex; flex-direction: column; gap: var(--size-2-2); }
+.llm-wiki-composer { display: flex; flex-direction: column; gap: var(--size-2-2); position: relative; }
 .llm-wiki-composer-input { width: 100%; resize: vertical; }
-.llm-wiki-composer-buttons { display: flex; gap: var(--size-4-2); justify-content: flex-end; }
 
 /* Chat extras */
 .llm-wiki-chips { display: flex; flex-wrap: wrap; gap: var(--size-2-2); }
 .llm-wiki-chip { font-size: var(--font-ui-small); padding: var(--size-2-1) var(--size-4-2); border-radius: var(--radius-l); background: var(--background-secondary); border: 1px solid var(--background-modifier-border); cursor: pointer; }
 .llm-wiki-chip:hover { background: var(--background-modifier-hover); }
-.llm-wiki-capability { padding: 0 var(--size-2-1); }
 .llm-wiki-prompt-field { width: 100%; margin-bottom: var(--size-4-2); }
 
 /* Dashboard */
@@ -182,3 +180,62 @@ tr:focus-visible, .llm-wiki-row:focus-visible { outline: 2px solid var(--interac
   .llm-wiki-row > .llm-wiki-row-actions, .llm-wiki-also > .llm-wiki-row-actions { width: 100%; justify-content: flex-end; }
   .llm-wiki-header-actions { margin-left: 0; }
 }
+
+/* The row under the chat box */
+.llm-wiki-composer-row { display: flex; align-items: center; gap: var(--size-2-2); flex-wrap: wrap; }
+.llm-wiki-composer-row button { white-space: nowrap; }
+.llm-wiki-composer-end { margin-left: auto; display: flex; align-items: center; gap: var(--size-4-2); }
+.llm-wiki-control { display: inline-flex; align-items: center; gap: var(--size-2-2); background: transparent; box-shadow: none; color: var(--text-muted); font-size: var(--font-ui-small); padding: 0 var(--size-2-3); }
+.llm-wiki-control:hover, .llm-wiki-control.is-active { background: var(--background-modifier-hover); color: var(--text-normal); }
+.llm-wiki-control svg, .llm-wiki-new-chat svg, .llm-wiki-send svg { width: 1em; height: 1em; }
+.llm-wiki-control span, .llm-wiki-new-chat span, .llm-wiki-send span { display: inline-flex; }
+.llm-wiki-caret svg { width: 0.8em; height: 0.8em; opacity: 0.7; }
+.llm-wiki-new-chat { display: inline-flex; align-items: center; gap: var(--size-2-2); }
+.llm-wiki-send { display: inline-flex; align-items: center; gap: var(--size-2-2); min-width: 5.5em; justify-content: center; }
+.llm-wiki-send.is-running { background: var(--color-red); color: var(--text-on-accent); }
+.llm-wiki-send.is-running:hover { background: var(--color-red); filter: brightness(1.1); }
+.llm-wiki-spin svg { animation: llm-wiki-spin 1s linear infinite; }
+@keyframes llm-wiki-spin { to { transform: rotate(360deg); } }
+
+/* Context ring */
+.llm-wiki-ring { width: 22px; height: 22px; display: inline-flex; cursor: default; }
+.llm-wiki-ring svg { width: 100%; height: 100%; }
+.llm-wiki-ring circle { fill: none; stroke-width: 2.5; }
+.llm-wiki-ring-track { stroke: var(--background-modifier-border); }
+.llm-wiki-ring-arc { stroke: var(--text-muted); stroke-linecap: round; }
+.llm-wiki-ring.is-high .llm-wiki-ring-arc { stroke: var(--text-warning); }
+.llm-wiki-ring-detail { width: 260px; pointer-events: none; }
+.llm-wiki-ring-head { display: flex; justify-content: space-between; gap: var(--size-4-2); font-size: var(--font-ui-small); }
+.llm-wiki-ring-bar { height: 6px; border-radius: 3px; background: var(--background-modifier-border); margin: var(--size-2-3) 0; overflow: hidden; }
+.llm-wiki-ring-fill { height: 100%; background: var(--text-muted); }
+
+/* Popovers: the permission panel, the model and effort lists */
+.llm-wiki-popover { position: fixed; z-index: var(--layer-menu); background: var(--background-primary); border: 1px solid var(--background-modifier-border); border-radius: var(--radius-l); box-shadow: var(--shadow-s); padding: var(--size-2-3); min-width: 220px; max-width: 360px; max-height: 60vh; overflow-y: auto; user-select: none; }
+.llm-wiki-permissions { width: 340px; }
+.llm-wiki-choice { padding: var(--size-2-3) var(--size-4-2); border-radius: var(--radius-m); cursor: pointer; }
+.llm-wiki-choice:hover { background: var(--background-modifier-hover); }
+.llm-wiki-choice.is-checked { background: var(--background-secondary); }
+.llm-wiki-choice.is-disabled { opacity: 0.5; cursor: default; }
+.llm-wiki-choice.is-disabled:hover { background: none; }
+.llm-wiki-choice-head { display: flex; align-items: center; gap: var(--size-2-3); }
+.llm-wiki-choice-icon svg, .llm-wiki-choice-check svg { width: 1em; height: 1em; }
+.llm-wiki-choice-icon { display: inline-flex; color: var(--text-muted); }
+.llm-wiki-choice-title { font-size: var(--font-ui-small); color: var(--text-normal); }
+.llm-wiki-choice-check { margin-left: auto; display: inline-flex; color: var(--interactive-accent); }
+.llm-wiki-choice-desc { font-size: var(--font-ui-smaller); color: var(--text-muted); margin-top: 2px; }
+.llm-wiki-choice-icon + .llm-wiki-choice-title { flex: 0 1 auto; }
+.llm-wiki-popover-rule { border-top: 1px solid var(--background-modifier-border); margin: var(--size-2-3) 0; }
+.llm-wiki-popover-foot { padding: var(--size-2-3) var(--size-4-2) 0; }
+.llm-wiki-switch { display: flex; align-items: center; gap: var(--size-4-3); padding: var(--size-2-3) var(--size-4-2); border-radius: var(--radius-m); cursor: pointer; }
+.llm-wiki-switch:hover { background: var(--background-modifier-hover); }
+.llm-wiki-switch.is-disabled { opacity: 0.5; cursor: default; }
+.llm-wiki-switch-text { flex: 1; }
+.llm-wiki-popover-field { display: flex; align-items: center; gap: var(--size-4-2); padding: 0 var(--size-4-2) var(--size-2-3); }
+.llm-wiki-popover-field input { flex: 1; }
+
+/* The / list, above the box */
+.llm-wiki-slash { position: absolute; left: 0; right: 0; bottom: calc(100% + 4px); z-index: var(--layer-popover); background: var(--background-primary); border: 1px solid var(--background-modifier-border); border-radius: var(--radius-l); box-shadow: var(--shadow-s); padding: var(--size-2-2); max-height: 320px; overflow-y: auto; }
+.llm-wiki-slash-row { display: flex; gap: var(--size-4-2); align-items: baseline; padding: var(--size-2-3) var(--size-4-2); border-radius: var(--radius-m); cursor: pointer; white-space: nowrap; overflow: hidden; }
+.llm-wiki-slash-row.is-selected, .llm-wiki-slash-row:hover { background: var(--background-modifier-hover); }
+.llm-wiki-slash-name { font-family: var(--font-monospace); font-size: var(--font-ui-small); }
+.llm-wiki-slash-desc { color: var(--text-muted); font-size: var(--font-ui-small); overflow: hidden; text-overflow: ellipsis; }

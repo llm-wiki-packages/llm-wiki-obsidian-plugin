@@ -42,7 +42,7 @@ function credentialRow(parent: HTMLElement, c: CredentialView, ctx: TabContext, 
   else if (c.state === 'none') pill(title, 'empty', 'warn')
   else pill(title, 'not verified yet')
   const uses = c.uses.map((u) => u.job ?? u.skill ?? '')
-  main.createDiv({ cls: 'llm-wiki-row-detail', text: c.kind === 'harness' ? 'Used by Ask mode and by every skill that runs a model session' : uses.length ? `Used by ${uses.join(', ')}` : 'Not used by any skill or job' })
+  main.createDiv({ cls: 'llm-wiki-row-detail', text: c.kind === 'harness' ? 'Used by the sandboxed chat and by every skill that runs a model session' : uses.length ? `Used by ${uses.join(', ')}` : 'Not used by any skill or job' })
   const bar = row.createDiv({ cls: 'llm-wiki-row-actions' })
   if (!actions) return
   if (c.kind === 'harness') {

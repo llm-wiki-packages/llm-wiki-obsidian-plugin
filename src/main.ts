@@ -2,9 +2,9 @@ import { FileSystemAdapter, FuzzySuggestModal, Notice, Plugin } from 'obsidian'
 import { ClaudeSdkBackend } from './chat/claudeSdk'
 import { HarnessRunBackend } from './chat/harnessRun'
 import { listSkills, pluginDirs, slashCommand, type SkillEntry } from './chat/skills'
-import type { ChatBackend, WikiTarget } from './chat/types'
+import type { BackendKind, ChatBackend, ModelChoice, WikiTarget } from './chat/types'
 import { log } from './logger'
-import { DEFAULT_SETTINGS, LlmWikiSettingTab, type ChatMode, type LlmWikiSettings } from './settings'
+import { DEFAULT_SETTINGS, LlmWikiSettingTab, type LlmWikiSettings } from './settings'
 import { DashboardView, VIEW_DASHBOARD, type Tab } from './views/dashboard/index'
 import { nextText } from './views/dashboard/jobs'
 import { promptText } from './ui/modals'
@@ -263,7 +263,9 @@ export default class LlmWikiPlugin extends Plugin {
 
   /** The chat slash skills the installed plugins ship, as a fuzzy list; the chosen one becomes a chat turn. */
   pickSkill(): void {
-    void pluginDirs().then(listSkills).then((skills) => {
+    // The palette reads the disk again, so a skill installed since launch shows; the `/` list follows it.
+    this.skillList = null
+    void this.chatSkills().then((skills) => {
       if (!skills.length) {
         new Notice('No llm-wiki skills found under ~/.claude/plugins; install the llm-wiki plugin in Claude Code first')
         return
@@ -349,18 +351,22 @@ export default class LlmWikiPlugin extends Plugin {
     modal.open()
   }
 
-  /** The chat backend for a mode, built fresh so settings changes apply; `resume` picks an Agent session back up. */
-  async backend(mode: ChatMode, resume?: string): Promise<ChatBackend> {
+  /** A chat backend: the jailed `harness run` when sandboxed, else Claude at the wiki root; `resume` picks a Claude session back up. */
+  async backend(kind: BackendKind, resume?: string): Promise<ChatBackend> {
     if (!this.cli) throw new Error(this.problem ?? 'not ready')
-    if (mode === 'ask') {
-      return new HarnessRunBackend(this.cli, {
-        sandbox: this.settings.askSandbox,
-        skill: this.settings.askSkill,
-        model: this.settings.model || undefined,
-      })
-    }
-    if (!this.claudeBin) throw new Error('claude not found on the login shell PATH; set its path in the plugin settings')
-    return new ClaudeSdkBackend({ claudePath: this.claudeBin, path: await effectivePath(), model: this.settings.model || undefined }, resume)
+    if (kind === 'sandbox') return new HarnessRunBackend(this.cli, { sandbox: this.settings.sandbox })
+    if (!this.claudeBin) throw new Error('claude not found on the login shell PATH; set its path in the plugin settings, or turn on the sandbox')
+    return new ClaudeSdkBackend({ claudePath: this.claudeBin, path: await effectivePath() }, resume)
+  }
+
+  /** The models the harness offered on the first turn of this run; empty before it. */
+  models: ModelChoice[] = []
+
+  /** The chat slash skills, read once per run; New chat does not re-read the disk. */
+  private skillList: Promise<SkillEntry[]> | null = null
+  chatSkills(): Promise<SkillEntry[]> {
+    this.skillList ??= pluginDirs().then(listSkills).catch(() => [])
+    return this.skillList
   }
 
   /** Opens the Chat tab; with text, the composer is filled and focused so one click starts the conversation. */

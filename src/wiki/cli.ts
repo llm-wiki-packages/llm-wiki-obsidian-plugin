@@ -226,10 +226,11 @@ export const VERBS = {
   'wiki.search.query': (a: Args) => [
     'wiki', '--read-only', key(a.wiki), 'search', 'query', topK(a), '--json', '--', text(a.text),
   ],
-  // One question in a jailed harness session, streamed as JSON lines: the chat's Ask mode.
+  // One question in a jailed harness session, streamed as JSON lines: the sandboxed chat.
   // The one verb without the read floor, since it spends model budget.
   'wiki.harness.run': (a: Args) => [
-    'wiki', key(a.wiki), 'harness', 'run', `sandbox=${word(a.sandbox, 'sandbox')}`, `skill=${skill(a.skill)}`,
+    'wiki', key(a.wiki), 'harness', 'run', `sandbox=${word(a.sandbox, 'sandbox')}`,
+    ...(a.skill ? [`skill=${skill(a.skill)}`] : []),
     ...(a.agent ? [`agent=${word(a.agent, 'agent')}`] : []),
     ...(a.model ? [`model=${word(a.model, 'model')}`] : []),
     ...(a.effort ? [`effort=${word(a.effort, 'effort')}`] : []),

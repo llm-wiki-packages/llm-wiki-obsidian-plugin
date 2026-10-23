@@ -1,13 +1,12 @@
-// Ask mode: one question in a jailed `harness run` session, read-only,
-// exactly what the reference dashboard's Ask runs. Each turn is a fresh
-// session; the jail cannot start a job, so this backend never prompts.
+// The sandboxed chat: each turn one jailed `harness run` session in the
+// chosen sandbox, whose profile decides what it may write. Each turn is a
+// fresh session, and a jailed session never prompts. A skill rides in the
+// prompt as `/name`, which the harness reads the way it reads `skill=`.
 import type { Cli, StreamLine } from '../wiki/cli'
 import type { ChatBackend, ChatEvent, TurnContext } from './types'
 
 export interface HarnessRunConfig {
   sandbox: string
-  skill: string
-  model?: string
 }
 
 const str = (v: unknown, fallback = ''): string => (typeof v === 'string' ? v : typeof v === 'number' ? String(v) : fallback)
@@ -57,7 +56,7 @@ export class HarnessRunBackend implements ChatBackend {
     try {
       const lines = this.cli.stream(
         'wiki.harness.run',
-        { wiki: ctx.wiki.key, text: prompt, sandbox: this.config.sandbox, skill: this.config.skill, model: this.config.model },
+        { wiki: ctx.wiki.key, text: prompt, sandbox: this.config.sandbox, model: ctx.options.model, effort: ctx.options.effort },
         { signal: ctx.signal, timeoutMs: 10 * 60 * 1000 },
       )
       for await (const l of lines) {

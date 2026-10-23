@@ -34,6 +34,16 @@ describe('Agent SDK frames into chat events', () => {
     const bad = { type: 'result', subtype: 'error_during_execution', session_id: 's1', is_error: true, errors: ['boom'] } as unknown as SDKMessage
     expect(mapMessage(bad).events[0]).toMatchObject({ type: 'result', ok: false, text: 'boom' })
   })
+
+  it('reads the context in use off a top-level reply and the window off the result', () => {
+    const usage = { input_tokens: 5, cache_creation_input_tokens: 1000, cache_read_input_tokens: 30000, output_tokens: 200 }
+    const reply = { type: 'assistant', parent_tool_use_id: null, message: { content: [{ type: 'text', text: 'x' }], usage } } as unknown as SDKMessage
+    expect(mapMessage(reply).events).toEqual([{ type: 'context', used: 31205 }])
+    const sub = { type: 'assistant', parent_tool_use_id: 't', message: { content: [], usage } } as unknown as SDKMessage
+    expect(mapMessage(sub).events).toEqual([])
+    const ok = { type: 'result', subtype: 'success', session_id: 's1', is_error: false, duration_ms: 1500, modelUsage: { 'claude-opus-5-5': { contextWindow: 1000000 } } } as unknown as SDKMessage
+    expect(mapMessage(ok).events).toContainEqual({ type: 'context', window: 1000000 })
+  })
 })
 
 describe('harness run lines into chat events', () => {

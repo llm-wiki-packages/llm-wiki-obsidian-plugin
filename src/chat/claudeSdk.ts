@@ -14,7 +14,6 @@ export interface ClaudeSdkConfig {
   claudePath: string
   /** The PATH the session runs with, which must reach `llm-wiki-ops`. */
   path: string
-  model?: string
 }
 
 const APPEND = [
@@ -33,7 +32,12 @@ const DENIED = [
   'Bash(* credentials get *)',
 ]
 
+/** The tools that write a file; a read-only chat has none of them. */
+const EDIT_TOOLS = ['Edit', 'Write', 'MultiEdit', 'NotebookEdit']
+
 export class ClaudeSdkBackend implements ChatBackend {
+  /** The catalog is the harness's, not the session's: asked once per Obsidian run. */
+  private static catalogAsked = false
   sessionId: string | undefined
 
   constructor(private readonly config: ClaudeSdkConfig, resume?: string) {
@@ -46,6 +50,7 @@ export class ClaudeSdkBackend implements ChatBackend {
   }
 
   async *send(prompt: string, ctx: TurnContext): AsyncIterable<ChatEvent> {
+    const opts = ctx.options
     const abort = new AbortController()
     const onAbort = () => abort.abort()
     if (ctx.signal.aborted) onAbort()
@@ -66,15 +71,20 @@ export class ClaudeSdkBackend implements ChatBackend {
             PATH: this.config.path,
             LLM_WIKI_SESSION_ATTENDED: '1',
             CLAUDE_AGENT_SDK_CLIENT_APP: 'llm-wiki-obsidian',
+            // The CLI's own read floor, the one `wiki --read-only` sets: every write verb refuses.
+            ...(opts.readOnly ? { LLM_WIKI_PERMISSIONS: 'read' } : {}),
           },
           abortController: abort,
           includePartialMessages: true,
           settingSources: ['user', 'project', 'local'],
           systemPrompt: { type: 'preset', preset: 'claude_code', append: APPEND + CREDENTIAL_RULE },
-          permissionMode: 'default',
-          disallowedTools: DENIED,
+          permissionMode: opts.permissionMode,
+          ...(opts.permissionMode === 'bypassPermissions' ? { allowDangerouslySkipPermissions: true } : {}),
+          // Deny rules hold in every mode, Full access included.
+          disallowedTools: opts.readOnly ? [...DENIED, ...EDIT_TOOLS] : DENIED,
           ...(this.sessionId ? { resume: this.sessionId } : {}),
-          ...(this.config.model ? { model: this.config.model } : {}),
+          ...(opts.model ? { model: opts.model } : {}),
+          ...(opts.effort ? { effort: opts.effort } : {}),
           canUseTool: async (toolName, input) => {
             if (allowTurn) return { behavior: 'allow', updatedInput: input }
             const decision = await ctx.askPermission({ tool: toolName, input, summary: summarizeTool(toolName, input) })
@@ -86,6 +96,12 @@ export class ClaudeSdkBackend implements ChatBackend {
           stderr: (chunk) => ctx.onStderr?.(chunk),
         },
       })
+      if (ctx.onModels && !ClaudeSdkBackend.catalogAsked) {
+        ClaudeSdkBackend.catalogAsked = true
+        q.supportedModels()
+          .then((models) => ctx.onModels?.(models.map((x) => ({ value: x.value, name: x.displayName, efforts: x.supportsEffort ? x.supportedEffortLevels : [], auto: x.supportsAutoMode }))))
+          .catch(() => { ClaudeSdkBackend.catalogAsked = false })
+      }
       for await (const m of q) {
         const { sessionId, events } = mapMessage(m)
         if (sessionId) this.sessionId = sessionId

@@ -6,6 +6,7 @@ import type { Snapshot } from '../src/wiki/model'
 import { openCredentialModal } from '../src/ui/credentialModal'
 import { openSkillModal } from '../src/ui/skillModal'
 import { openJobModal } from '../src/ui/jobModal'
+import { DEFAULT_SETTINGS } from '../src/settings'
 
 const NOW = Date.now()
 const ago = (min: number) => new Date(NOW - min * 60_000).toISOString()
@@ -63,7 +64,7 @@ const snapshot: Snapshot = {
 const app = new App()
 const plugin: any = {
   app,
-  settings: { defaultChatMode: 'agent', searchK: 20, lastSession: new URLSearchParams(location.search).get('last') === '1' ? 'abc' : '' },
+  settings: { ...DEFAULT_SETTINGS, defaultSkill: new URLSearchParams(location.search).get('skill') ?? '', lastSession: new URLSearchParams(location.search).get('last') === '1' ? 'abc' : '' },
   wiki: { key: 'notes', name: 'Notes', root: '/tmp/obs-scratch/wiki' },
   snapshot,
   problem: new URLSearchParams(location.search).get('problem') === 'cli' ? 'llm-wiki-cli not found on the login shell PATH; set its path in the plugin settings' : new URLSearchParams(location.search).get('problem') === 'wiki' ? 'the vault is not a registered wiki (2 registered); join it, or set the wiki key in the plugin settings' : null,
@@ -72,6 +73,14 @@ const plugin: any = {
   openChat: (text?: string) => { console.log('chat', text); dash.goTo('chat'); dash.chat.prefill(text ?? ''); return Promise.resolve() },
   addJob: () => console.log('add job'),
   pickSkill: () => console.log('pick skill'),
+  chatSkills: () => Promise.resolve([
+    { name: 'search', description: 'When asked what a wiki knows or says about something.', args: '<question>' },
+    { name: 'add', description: 'When asked to watch, follow, track, or add a source to the wiki.', args: '<url, channel or task>' },
+    { name: 'curate', description: 'When asked to review staged notes.', args: '' },
+    { name: 'status', description: 'When asked what wikis exist on this machine, or whether llm-wiki is healthy.', args: '' },
+    { name: 'doctor', description: 'When asked whether this machine is set up correctly for a wiki.', args: '' },
+  ]),
+  models: [],
   credentialModal: (p: unknown) => openCredentialModal(app, snapshot, plugin.actions, p as any, async () => {}),
   backend: () => Promise.reject(new Error('no backend in the preview')),
   detect: () => Promise.resolve(),
@@ -123,3 +132,22 @@ if (q.get('chat') === 'turn') {
   b.createEl('button', { text: 'Deny' })
   a.createDiv({ cls: 'llm-wiki-assistant-body' }).innerHTML = '<p>The harvest landed 14 new messages. Three look like they need a reply:</p><ul><li><strong>Dana</strong> about the Q4 budget review</li><li><strong>Acme support</strong> ticket 4471</li><li><strong>Sam</strong> asking for the meeting notes</li></ul>'
 }
+// The composer's states: ?busy=1 shows Stop, ?ctx=<tokens> fills the ring, ?pop=perm|model|effort|ring opens one, ?slash=<text> types into the box.
+if (q.get('busy') === '1') { (chat as any).running = new AbortController(); (chat as any).showSend() }
+if (q.get('ctx')) chat.ring.set(Number(q.get('ctx')), 1_000_000)
+if (q.get('sandbox') === '1') { plugin.settings.sandboxed = true; (chat as any).showControls() }
+if (q.get('ro') === '1') { plugin.settings.readOnly = true; (chat as any).showControls() }
+setTimeout(() => {
+  const pop = q.get('pop')
+  if (pop === 'perm') (chat as any).openPermissions()
+  if (pop === 'model') (chat as any).openModels()
+  if (pop === 'effort') (chat as any).openEfforts()
+  if (pop === 'ring') chat.ring.el.dispatchEvent(new MouseEvent('mouseenter'))
+  if (q.get('slash') !== null) {
+    const box = dash.contentEl.querySelector('.llm-wiki-composer-input') as HTMLTextAreaElement
+    box.value = q.get('slash')!
+    box.focus()
+    box.setSelectionRange(box.value.length, box.value.length)
+    box.dispatchEvent(new Event('input'))
+  }
+}, 300)

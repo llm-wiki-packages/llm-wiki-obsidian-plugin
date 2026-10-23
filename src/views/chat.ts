@@ -1,36 +1,49 @@
 import { Component, MarkdownRenderer, Notice, setIcon, type App } from 'obsidian'
-import type { ChatBackend, ChatEvent, PermissionDecision, PermissionRequest } from '../chat/types'
+import type { BackendKind, ChatBackend, ChatEvent, ModelChoice, PermissionDecision, PermissionRequest } from '../chat/types'
 import { log } from '../logger'
 import { wireLinks } from '../ui/links'
 import type LlmWikiPlugin from '../main'
-import type { ChatMode } from '../settings'
+import { EFFORT_NAMES, PERMISSION_NAMES, type Effort, type PermissionMode } from '../settings'
+import { choiceRow, ContextRing, openPopover, permissionLabel, SlashMenu, switchRow } from './composer'
 
 /** Tools after which the wiki may have changed. */
 const WRITE_TOOLS = new Set(['Bash', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
 
-const CAPABILITY: Record<ChatMode, string> = {
-  agent: 'Agent: runs jobs and edits pages directly; asks you before each tool it would prompt for.',
-  ask: 'Ask: read-only, kept apart from the vault; each question starts fresh.',
+const PERMISSION_DESC: Record<PermissionMode, string> = {
+  default: 'Asks before each command and edit.',
+  acceptEdits: 'Edits pages without asking; asks before commands.',
+  auto: 'A classifier approves routine actions and asks about the rest.',
+  bypassPermissions: 'Runs commands and edits without asking.',
 }
+const PERMISSION_ICON: Record<PermissionMode, string> = { default: 'lock', acceptEdits: 'pencil', auto: 'sparkles', bypassPermissions: 'lock-open' }
+
+/** Before the harness names its models, the aliases every Claude Code knows. */
+const ALIASES: ModelChoice[] = [
+  { value: 'opus', name: 'Opus' },
+  { value: 'sonnet', name: 'Sonnet' },
+  { value: 'haiku', name: 'Haiku' },
+]
 
 /** The chat pane: lives inside the dashboard's Chat tab, built once and kept across tab switches. */
 export class ChatPane extends Component {
   private transcript!: HTMLElement
   private composer!: HTMLTextAreaElement
   private sendBtn!: HTMLButtonElement
-  private stopBtn!: HTMLButtonElement
-  private modeSelect!: HTMLSelectElement
   private status!: HTMLElement
   private chips!: HTMLElement
-  private capability!: HTMLElement
   private continueBtn!: HTMLButtonElement
-  private newBtn!: HTMLButtonElement
+  private permBtn!: HTMLButtonElement
+  private modelBtn!: HTMLButtonElement
+  private effortBtn!: HTMLButtonElement
+  private ring!: ContextRing
+  private slash!: SlashMenu
   /** The last tool the agent called, so a refresh follows a write and not every Read. */
   private lastTool = ''
   private hint!: HTMLElement
-  /** One backend per mode, so switching modes and back keeps the Agent session. */
-  private backends: Partial<Record<ChatMode, ChatBackend>> = {}
-  private mode: ChatMode
+  /** One backend per kind, so turning the sandbox on and off again keeps the Claude session. */
+  private backends: Partial<Record<BackendKind, ChatBackend>> = {}
+  /** The kind the last turn ran in, to say so when the next one differs. */
+  private lastKind: BackendKind | null = null
   private running: AbortController | null = null
   /** Rendered turns hold a Component each while on screen; New chat releases them. */
   private bubbles: AssistantBubble[] = []
@@ -39,14 +52,19 @@ export class ChatPane extends Component {
     return this.plugin.app
   }
 
+  private get settings() {
+    return this.plugin.settings
+  }
+
+  private get kind(): BackendKind {
+    return this.settings.sandboxed ? 'sandbox' : 'claude'
+  }
+
   constructor(
     private readonly plugin: LlmWikiPlugin,
     private readonly root: HTMLElement,
   ) {
     super()
-    this.mode = plugin.settings.defaultChatMode
-    // Agent needs claude; without it the pane starts in Ask rather than failing on Send.
-    if (this.mode === 'agent' && !plugin.claudeBin && plugin.cliBin) this.mode = 'ask'
   }
 
   onload(): void {
@@ -54,22 +72,14 @@ export class ChatPane extends Component {
     root.empty()
     root.addClass('llm-wiki-chat')
 
+    // New chat sits alone up here for now; a list of past chats will join it.
     const bar = root.createDiv({ cls: 'llm-wiki-chat-bar' })
-    this.modeSelect = bar.createEl('select', { cls: 'dropdown' })
-    this.modeSelect.createEl('option', { value: 'agent', text: 'Agent' })
-    this.modeSelect.createEl('option', { value: 'ask', text: 'Ask' })
-    this.modeSelect.value = this.mode
-    this.registerDomEvent(this.modeSelect, 'change', () => {
-      this.mode = this.modeSelect.value as ChatMode
-      this.showCapability()
-    })
-    const newBtn = bar.createEl('button', { text: 'New chat' })
+    const newBtn = bar.createEl('button', { cls: 'llm-wiki-new-chat', attr: { 'aria-label': 'Start an empty chat' } })
+    setIcon(newBtn.createSpan(), 'square-pen')
+    newBtn.createSpan({ text: 'New chat' })
     this.registerDomEvent(newBtn, 'click', () => this.newChat())
     this.continueBtn = bar.createEl('button', { text: 'Continue last chat' })
     this.registerDomEvent(this.continueBtn, 'click', () => this.continueLast())
-    this.newBtn = newBtn
-    const skillsBtn = bar.createEl('button', { text: 'Skills…', attr: { title: 'The /llm-wiki: skills the installed Claude Code plugin ships; one becomes a chat turn' } })
-    this.registerDomEvent(skillsBtn, 'click', () => this.plugin.pickSkill())
     this.status = bar.createDiv({ cls: 'llm-wiki-muted llm-wiki-chat-status' })
 
     this.transcript = root.createDiv({ cls: 'llm-wiki-transcript' })
@@ -80,14 +90,28 @@ export class ChatPane extends Component {
     const composer = root.createDiv({ cls: 'llm-wiki-composer' })
     this.composer = composer.createEl('textarea', { placeholder: 'Ask the wiki, or ask the agent to do something…', cls: 'llm-wiki-composer-input' })
     this.composer.rows = 3
-    this.capability = composer.createDiv({ cls: 'llm-wiki-muted llm-wiki-capability' })
-    const buttons = composer.createDiv({ cls: 'llm-wiki-composer-buttons' })
-    this.sendBtn = buttons.createEl('button', { text: 'Send', cls: 'mod-cta' })
-    this.stopBtn = buttons.createEl('button', { text: 'Stop' })
-    this.stopBtn.disabled = true
-    this.registerDomEvent(this.sendBtn, 'click', () => void this.send())
-    this.registerDomEvent(this.stopBtn, 'click', () => this.running?.abort())
+    this.slash = new SlashMenu(composer, this.composer, () => this.plugin.chatSkills(), () => this.settings.slashComplete)
+
+    const row = composer.createDiv({ cls: 'llm-wiki-composer-row' })
+    const skillsBtn = row.createEl('button', { text: 'Skills…', attr: { 'aria-label': 'The skills the llm-wiki plugin ships; one becomes a chat turn' } })
+    this.registerDomEvent(skillsBtn, 'click', () => this.plugin.pickSkill())
+    this.permBtn = row.createEl('button', { cls: 'llm-wiki-control' })
+    this.registerDomEvent(this.permBtn, 'click', () => this.openPermissions())
+    this.modelBtn = row.createEl('button', { cls: 'llm-wiki-control' })
+    this.registerDomEvent(this.modelBtn, 'click', () => this.openModels())
+    this.effortBtn = row.createEl('button', { cls: 'llm-wiki-control' })
+    this.registerDomEvent(this.effortBtn, 'click', () => this.openEfforts())
+    // The ring and Send stay together at the right when the row wraps.
+    const end = row.createDiv({ cls: 'llm-wiki-composer-end' })
+    this.ring = new ContextRing(end)
+    this.sendBtn = end.createEl('button', { cls: 'mod-cta llm-wiki-send' })
+    this.registerDomEvent(this.sendBtn, 'click', () => (this.running ? this.running.abort() : void this.send()))
+
+    this.registerDomEvent(this.composer, 'input', () => this.slash.update())
+    this.registerDomEvent(this.composer, 'click', () => this.slash.update())
+    this.registerDomEvent(this.composer, 'blur', () => this.slash.close())
     this.registerDomEvent(this.composer, 'keydown', (e) => {
+      if (this.slash.key(e)) return
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault()
         void this.send()
@@ -98,44 +122,173 @@ export class ChatPane extends Component {
     this.registerEvent(this.app.workspace.on('active-leaf-change', () => this.showChips()))
     this.showReadiness()
     this.showChips()
-    this.showCapability()
+    this.showControls()
+    this.showSend()
+    this.startWithSkill()
   }
 
   focus(): void {
     this.composer.focus()
   }
 
-  private showCapability(): void {
-    this.capability.setText(CAPABILITY[this.mode])
-    const agentOption = this.modeSelect.options[0]
-    if (agentOption) {
-      agentOption.disabled = !this.plugin.claudeBin
-      agentOption.title = this.plugin.claudeBin ? '' : 'claude was not found; set its path in the plugin settings'
-    }
-    // One of the two shows: an empty pane with a session to pick up offers Continue; otherwise New chat.
-    const offerContinue = Boolean(this.plugin.settings.lastSession && this.plugin.claudeBin) && this.transcript.childElementCount <= 1 && !this.backends.agent
-    this.continueBtn.toggle(offerContinue)
-    this.newBtn.toggle(!offerContinue)
-    if (offerContinue && this.plugin.settings.lastPrompt) this.continueBtn.title = `Continuing: ${this.plugin.settings.lastPrompt}`
-    this.hint.setText(this.plugin.claudeBin || this.mode === 'ask' ? 'Ask about the wiki, or tell the agent what to do.' : 'Agent mode needs claude; set its path in the plugin settings. Ask mode works without it.')
-    this.hint.toggle(this.transcript.childElementCount <= 1)
+  /** A new chat's box holds the default skill, typed out, so what runs is on screen and one backspace away. */
+  private startWithSkill(): void {
+    const skill = this.settings.defaultSkill
+    this.composer.value = skill ? `/${skill} ` : ''
   }
 
-  /** Picks the last Agent session back up, so closing the pane did not lose the thread. */
+  private save(): void {
+    void this.plugin.saveSettings()
+    this.showControls()
+  }
+
+  /** The buttons under the box say the settings the next turn runs with. */
+  private showControls(): void {
+    const s = this.settings
+    this.permBtn.empty()
+    setIcon(this.permBtn.createSpan(), s.sandboxed ? 'box' : PERMISSION_ICON[s.permissionMode])
+    this.permBtn.createSpan({ text: permissionLabel(s) })
+    setIcon(this.permBtn.createSpan({ cls: 'llm-wiki-caret' }), 'chevron-down')
+    this.modelBtn.empty()
+    this.modelBtn.createSpan({ text: this.modelName(s.model) })
+    setIcon(this.modelBtn.createSpan({ cls: 'llm-wiki-caret' }), 'chevron-down')
+    this.effortBtn.empty()
+    setIcon(this.effortBtn.createSpan(), 'gauge')
+    this.effortBtn.createSpan({ text: s.effort ? EFFORT_NAMES[s.effort] : 'Effort' })
+    setIcon(this.effortBtn.createSpan({ cls: 'llm-wiki-caret' }), 'chevron-down')
+    // A sandboxed turn starts fresh, so there is no context to fill.
+    this.ring.el.toggle(!s.sandboxed)
+
+    const empty = this.transcript.childElementCount <= 1
+    this.continueBtn.toggle(Boolean(s.lastSession && this.plugin.claudeBin && !s.sandboxed) && empty && !this.backends.claude)
+    if (s.lastPrompt) this.continueBtn.title = `Continuing: ${s.lastPrompt}`
+    this.hint.setText(
+      this.plugin.claudeBin || s.sandboxed
+        ? 'Ask about the wiki, or tell the agent what to do. Type / for a skill.'
+        : 'Chat needs claude: set its path in the plugin settings, or turn on the sandbox under the box.',
+    )
+    this.hint.toggle(empty)
+  }
+
+  private modelName(value: string): string {
+    if (!value) return 'Default model'
+    return [...this.plugin.models, ...ALIASES].find((m) => m.value === value)?.name ?? value
+  }
+
+  /** Everything that decides what the agent may do, in one panel. */
+  private openPermissions(): void {
+    const s = this.settings
+    openPopover(this.permBtn, (el, close) => {
+      for (const mode of Object.keys(PERMISSION_NAMES) as PermissionMode[]) {
+        const noAuto = mode === 'auto' && this.currentModel()?.auto === false
+        choiceRow(el, {
+          title: PERMISSION_NAMES[mode],
+          desc: noAuto ? 'This model has no Auto mode.' : PERMISSION_DESC[mode],
+          icon: PERMISSION_ICON[mode],
+          checked: !s.sandboxed && s.permissionMode === mode,
+          disabled: s.sandboxed || noAuto,
+          pick: () => {
+            s.permissionMode = mode
+            this.save()
+          },
+        }, close)
+      }
+      el.createDiv({ cls: 'llm-wiki-popover-rule' })
+      switchRow(el, 'Read-only', s.sandboxed ? 'The sandbox decides whether it writes.' : 'Wiki commands refuse writes, and the agent cannot edit files. A shell command still can, unless Ask first stops it.', s.readOnly && !s.sandboxed, s.sandboxed, (on) => {
+        s.readOnly = on
+        this.save()
+      })
+      const box = switchRow(el, 'Sandbox', 'Each turn runs jailed and never asks. It starts fresh: the agent does not see the chat before it.', s.sandboxed, false, (on) => {
+        s.sandboxed = on
+        this.save()
+        close()
+        this.openPermissions()
+      })
+      if (s.sandboxed) {
+        const field = el.createDiv({ cls: 'llm-wiki-popover-field' })
+        field.createSpan({ cls: 'llm-wiki-choice-desc', text: 'Name' })
+        const input = field.createEl('input', { type: 'text', value: s.sandbox, attr: { 'aria-label': 'The enabled sandbox each turn runs in' } })
+        input.addEventListener('change', () => {
+          s.sandbox = input.value.trim() || 'read-search'
+          input.value = s.sandbox
+          this.save()
+        })
+        box.after(field)
+      }
+    }, 'llm-wiki-permissions')
+  }
+
+  private currentModel(): ModelChoice | undefined {
+    return this.plugin.models.find((m) => m.value === this.settings.model)
+  }
+
+  private openModels(): void {
+    const s = this.settings
+    const list = this.plugin.models.length ? this.plugin.models : ALIASES
+    const choices: ModelChoice[] = [{ value: '', name: 'Default model' }, ...list.filter((m) => m.value !== 'default')]
+    if (s.model && !choices.some((m) => m.value === s.model)) choices.push({ value: s.model, name: s.model })
+    openPopover(this.modelBtn, (el, close) => {
+      for (const m of choices)
+        choiceRow(el, {
+          title: m.name,
+          desc: m.value === '' ? 'Claude Code’s own default' : undefined,
+          checked: s.model === m.value,
+          pick: () => {
+            s.model = m.value
+            // A level the new model lacks would be refused; fall back to its default.
+            const efforts = this.currentModel()?.efforts
+            if (s.effort && efforts && !efforts.includes(s.effort)) s.effort = ''
+            this.save()
+          },
+        }, close)
+      if (!this.plugin.models.length) el.createDiv({ cls: 'llm-wiki-choice-desc llm-wiki-popover-foot', text: 'The full list shows after the first reply.' })
+    })
+  }
+
+  private openEfforts(): void {
+    const s = this.settings
+    const supported = this.currentModel()?.efforts
+    openPopover(this.effortBtn, (el, close) => {
+      for (const e of Object.keys(EFFORT_NAMES) as Effort[]) {
+        const unsupported = e !== '' && supported !== undefined && !supported.includes(e)
+        choiceRow(el, {
+          title: EFFORT_NAMES[e],
+          desc: e === '' ? 'The model’s own default' : unsupported ? 'Not offered by this model' : undefined,
+          checked: s.effort === e,
+          disabled: unsupported,
+          pick: () => {
+            s.effort = e
+            this.save()
+          },
+        }, close)
+      }
+    })
+  }
+
+  /** Send, or Stop while a turn runs: one button, which spins while the agent works. */
+  private showSend(): void {
+    const on = this.running !== null
+    this.sendBtn.empty()
+    this.sendBtn.toggleClass('mod-cta', !on)
+    this.sendBtn.toggleClass('is-running', on)
+    setIcon(this.sendBtn.createSpan({ cls: on ? 'llm-wiki-spin' : '' }), on ? 'loader-circle' : 'arrow-up')
+    this.sendBtn.createSpan({ text: on ? 'Stop' : 'Send' })
+    this.sendBtn.setAttribute('aria-label', on ? 'Stop the agent (Esc)' : 'Send (Enter)')
+  }
+
+  /** Picks the last Claude session back up, so closing the pane did not lose the thread. */
   private continueLast(): void {
-    const id = this.plugin.settings.lastSession
+    const id = this.settings.lastSession
     if (!id) return
-    void this.plugin.backend('agent', id).then((b) => {
-      this.backends.agent = b
-      this.mode = 'agent'
-      this.modeSelect.value = 'agent'
-      const last = this.plugin.settings.lastPrompt
+    void this.plugin.backend('claude', id).then((b) => {
+      this.backends.claude = b
+      const last = this.settings.lastPrompt
       this.note(last ? `Continuing: ${last.length > 120 ? `${last.slice(0, 119)}…` : last}` : 'continuing the last chat')
-      this.showCapability()
+      this.showControls()
     }).catch((e: unknown) => this.note(e instanceof Error ? e.message : String(e)))
   }
 
-  /** Three starting points above an empty transcript, by what the person is looking at. */
+  /** Starting points above an empty transcript, by what the person is looking at. */
   private showChips(): void {
     this.chips.empty()
     if (this.transcript.childElementCount > 1) return
@@ -146,7 +299,7 @@ export class ChatPane extends Component {
     for (const p of prompts) {
       const chip = this.chips.createEl('button', { cls: 'llm-wiki-chip', text: p })
       // Chips are rebuilt on every leaf change; the DOM owns the listener with the node.
-      chip.addEventListener('click', () => this.prefill(p, this.mode))
+      chip.addEventListener('click', () => this.prefill(p))
     }
     if (!file) {
       const add = this.chips.createEl('button', { cls: 'llm-wiki-chip', text: 'Add a source…' })
@@ -156,17 +309,11 @@ export class ChatPane extends Component {
 
   onunload(): void {
     this.running?.abort()
+    this.slash.close()
   }
 
   /** Put text in the composer and focus it, for a button elsewhere that starts a conversation. */
-  prefill(text: string, mode: ChatMode = 'agent'): void {
-    // A hand-off wants the agent, but without claude it can only be asked.
-    if (mode === 'agent' && !this.plugin.claudeBin) mode = 'ask'
-    if (this.mode !== mode) {
-      this.mode = mode
-      this.modeSelect.value = mode
-      this.showCapability()
-    }
+  prefill(text: string): void {
     this.composer.value = text
     this.composer.focus()
     this.composer.setSelectionRange(text.length, text.length)
@@ -180,12 +327,16 @@ export class ChatPane extends Component {
     this.running?.abort()
     for (const b of Object.values(this.backends)) b.reset()
     this.backends = {}
+    this.lastKind = null
     this.transcript.empty()
     this.transcript.appendChild(this.hint)
     for (const b of this.bubbles) b.dispose()
     this.bubbles = []
+    this.ring.clear()
+    this.startWithSkill()
     this.showChips()
-    this.showCapability()
+    this.showControls()
+    this.composer.focus()
   }
 
   /** Said in the pane rather than the console, for a hand-off that failed to start. */
@@ -206,34 +357,49 @@ export class ChatPane extends Component {
       this.note(this.plugin.problem ?? 'not ready')
       return
     }
-    let backend = this.backends[this.mode]
+    const kind = this.kind
+    let backend = this.backends[kind]
     try {
-      backend ??= this.backends[this.mode] = await this.plugin.backend(this.mode)
+      backend ??= this.backends[kind] = await this.plugin.backend(kind)
     } catch (e) {
       this.note(e instanceof Error ? e.message : String(e))
       return
     }
+    // Switching mid-chat changes what the agent remembers; say so where it happens.
+    if (this.lastKind && this.lastKind !== kind)
+      this.note(kind === 'sandbox' ? `Sandboxed in ${this.settings.sandbox}: each turn from here starts fresh.` : 'Out of the sandbox: back in the chat from before it.')
+    this.lastKind = kind
+    this.slash.close()
     this.chips.empty()
     this.hint.hide()
-    this.capability.hide()
     this.continueBtn.hide()
     this.transcript.createDiv({ cls: 'llm-wiki-msg llm-wiki-user', text: prompt })
+    this.composer.value = ''
     let failed = false
     const assistant = new AssistantBubble(this.transcript, this.app, this)
     this.bubbles.push(assistant)
     const abort = new AbortController()
     this.running = abort
-    this.sendBtn.disabled = true
-    this.stopBtn.disabled = false
+    this.showSend()
+    const s = this.settings
     try {
       const events = backend.send(prompt, {
         wiki,
         signal: abort.signal,
         askPermission: (req) => assistant.ask(req),
         onStderr: (chunk) => log.debug('harness stderr', chunk),
+        onModels: (models) => {
+          this.plugin.models = models
+          this.showControls()
+        },
+        options: { permissionMode: s.permissionMode, readOnly: s.readOnly, model: s.model || undefined, effort: s.effort || undefined },
       })
       for await (const e of events) {
         log.debug('chat', e.type, e.type === 'tool' ? e.name : e.type === 'error' ? e.message : '')
+        if (e.type === 'context') {
+          this.ring.set(e.used, e.window)
+          continue
+        }
         assistant.take(e)
         this.scroll()
         if (e.type === 'error') failed = true
@@ -242,9 +408,9 @@ export class ChatPane extends Component {
         if (e.type === 'tool-done' && WRITE_TOOLS.has(this.lastTool)) void this.plugin.refreshSnapshot(true)
       }
       if (abort.signal.aborted) assistant.take({ type: 'status', text: 'stopped' })
-      if (backend.sessionId && this.mode === 'agent') {
-        this.plugin.settings.lastSession = backend.sessionId
-        this.plugin.settings.lastPrompt = prompt
+      if (backend.sessionId && kind === 'claude') {
+        s.lastSession = backend.sessionId
+        s.lastPrompt = prompt
         void this.plugin.saveSettings()
       }
     } catch (e) {
@@ -253,10 +419,9 @@ export class ChatPane extends Component {
     } finally {
       assistant.finish()
       this.running = null
-      this.sendBtn.disabled = false
-      this.stopBtn.disabled = true
-      // A failed turn keeps the prompt, so the retry is one click.
-      if (!failed) this.composer.value = ''
+      this.showSend()
+      // A failed turn puts the prompt back, so the retry is one keystroke, unless something new was typed meanwhile.
+      if (failed && !this.composer.value.trim()) this.composer.value = prompt
       this.scroll()
       void this.plugin.refreshSnapshot()
     }

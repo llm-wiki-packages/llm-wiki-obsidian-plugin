@@ -123,19 +123,39 @@ stay in the dialog; the Notice names the end state and never the value. The
 write runs as an attended session because a person clicked.
 
 ### Chat (tab)
-Mode select Agent / Ask (Agent is disabled, and Ask selected, when `claude`
-is not found; one hint line says so). **Continue last chat** picks the last
-Agent session back up when the pane was closed. A permission card offers
-Allow, **Allow for this turn**, Deny. A failed turn keeps the prompt in the
-composer. Session, model and cost lines are gone; the duration sits on the
-bubble's hover. Agent = a Claude Code session at the wiki root,
-unjailed, with the wiki's hooks, permission cards in the pane ("Run this?",
-Allow / Deny), `credentials get` denied. Ask = one jailed `harness run` per
-turn, read-only. New chat, **Skills…** (a fuzzy list of the `/llm-wiki:` slash
-skills read from the installed Claude Code plugin; asks for arguments;
-starts the turn). Chips: three prompts by the active note. Composer with Send / Stop.
-A wikilink or URL in a reply opens on click (Cmd-click in a new tab); a
-finished reply shows a Copy button on hover.
+**New chat** at the top left (a list of past chats joins it later);
+**Continue last chat** beside it on an empty pane picks the last session back
+up. One kind of chat: Claude at the wiki root, unjailed, with the wiki's
+hooks, `credentials get` denied in every mode. A permission card offers
+Allow, **Allow for this turn**, Deny. A failed turn puts the prompt back in
+the box. The duration sits on the bubble's hover.
+
+The box, then one row under it: **Skills…** at the left (a fuzzy list of the
+`/llm-wiki:` slash skills; asks for arguments; starts the turn), the
+permission button, Model, Effort, then the context ring and **Send** at the
+right. The ring and Send stay together when the row wraps.
+
+- Permission button: the mode's name ("Ask first", "Full access ·
+  read-only", "Sandbox: read-search"). Its panel lists Ask first,
+  Auto-accept edits, Auto (disabled for a model without it), Full access,
+  then a Read-only switch and a Sandbox switch with the sandbox's name.
+  Sandbox on greys the modes and Read-only: a jailed turn never asks, and its
+  profile decides writes. Switching in or out mid-chat leaves a note in the
+  transcript, since the sandboxed turns do not see the chat.
+- Model: Default, then the aliases (Opus, Sonnet, Haiku) until the first
+  reply brings the harness's own list; a typed model in settings is kept.
+  Effort: Default, Low to Max, levels the model lacks greyed.
+- Ring: the context in use over the window, warning-colored from 80%; hover
+  shows "Context window · 33% · 331k/1m" and a bar. Hidden when sandboxed.
+- Send: one button. While a turn runs it is red, spins, and says Stop.
+- `/` at the start of a line opens a list of skills above the box (name,
+  arguments, first sentence); arrows move, Enter or Tab takes, Escape shuts.
+  A setting turns it off.
+
+Every control writes the settings, so the next chat starts the same way. The
+**Default skill** setting types `/<skill> ` into each new chat's box.
+Chips: three prompts by the active note. A wikilink or URL in a reply opens on
+click (Cmd-click in a new tab); a finished reply shows a Copy button on hover.
 Every dashboard hand-off lands here prefilled, not sent. A tool row for an
 llm-wiki command reads in words ("Running inbox-joe", "Reading the job
 list"), the command itself on hover; the permission card keeps the raw
@@ -182,7 +202,7 @@ override, default chat mode, model, Ask sandbox and skill, search k, debug.
    ok, pages written → Pages shows them for curation.
 5. **Audit access**: Skills → Credentials: what exists, who uses it, what is
    stale or failed; Replace or Remove.
-6. **Ask something**: chat, Ask mode for a read-only answer, Agent to act.
+6. **Ask something**: chat; Read-only or the Sandbox switch for an answer that changes nothing.
 
 ## How to look at it without Obsidian
 
@@ -193,7 +213,7 @@ It renders the real views over fixture data with a stand-in for Obsidian's API.
 
 ## Known gaps
 
-- **Ask mode has no memory and pays the start-up cost every turn** (owner, 2026-10-23, on main). Each turn is one jailed `harness run`: a fresh model session that re-reads the skill before answering, so a follow-up question does not know the previous one and every reply waits on the whole start-up. Candidates: resume the jailed session across turns (its state directory is under the harness home), keep one jailed session alive for the pane and feed it turns, or carry the pane's transcript into each run. Agent mode already resumes by session id.
+- **A sandboxed chat has no memory and pays the start-up cost every turn** (owner, 2026-10-23). Each sandboxed turn is one jailed `harness run`: a fresh model session, so a follow-up does not know the previous turn and every reply waits on the whole start-up. Candidates: resume the jailed session across turns (its state directory is under the harness home), keep one jailed session alive for the pane and feed it turns, or carry the pane's transcript into each run. The unsandboxed chat resumes by session id.
 
 ## Review log
 
@@ -273,4 +293,8 @@ section numbers; Refresh is an icon; narrow widths stack row actions under
 their text; "jail", "ticket", "sandbox", "skill stage" no longer reach the
 screen. Left for later: a "Move to the sidebar" item, drafts grouped by job
 name with a "pages written" row that lands on them.
-
+- **Cycle 7 (2026-10-23)**: Ask mode is gone (owner): one chat, with a
+  default skill typed into each new chat's box and the sandbox and read-only
+  as switches in a permission panel under the box. That row also holds
+  Skills…, Model, Effort, a context ring, and one Send / Stop button; New
+  chat moved to the top left; `/` lists the skills.

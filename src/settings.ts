@@ -1,7 +1,9 @@
 import { PluginSettingTab, Setting, type App } from 'obsidian'
 import type LlmWikiPlugin from './main'
 
-export type ChatMode = 'agent' | 'ask'
+/** The Agent SDK's permission modes a person picks between; `plan` and `dontAsk` are not offered. */
+export type PermissionMode = 'default' | 'acceptEdits' | 'auto' | 'bypassPermissions'
+export type Effort = '' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'
 
 export interface LlmWikiSettings {
   /** Absolute path of `llm-wiki-cli`; empty means search the login shell's PATH. */
@@ -16,13 +18,20 @@ export interface LlmWikiSettings {
   lastDetect: string
   /** A registered wiki key, when the vault's path does not match the registry (a symlink, a subfolder). */
   wikiKey: string
-  defaultChatMode: ChatMode
-  /** Agent mode: a model name passed to the harness, or empty for its own default. */
+  /** How the unsandboxed chat asks before a tool. */
+  permissionMode: PermissionMode
+  /** The wiki's CLI refuses writes, and the agent gets no file-editing tools. */
+  readOnly: boolean
+  /** Each turn runs jailed through `harness run`, in `sandbox`. */
+  sandboxed: boolean
+  sandbox: string
+  /** A model name handed to the harness, or empty for its own default. */
   model: string
-  /** Ask mode: the enabled sandbox the jailed session composes. */
-  askSandbox: string
-  /** Ask mode: the skill the jailed session runs. */
-  askSkill: string
+  effort: Effort
+  /** A skill a new chat's composer starts with, as `name` of `/name`; empty starts blank. */
+  defaultSkill: string
+  /** Typing `/` lists the skills. */
+  slashComplete: boolean
   searchK: number
   debug: boolean
 }
@@ -34,13 +43,26 @@ export const DEFAULT_SETTINGS: LlmWikiSettings = {
   lastPrompt: '',
   lastDetect: '',
   wikiKey: '',
-  defaultChatMode: 'agent',
+  permissionMode: 'default',
+  readOnly: false,
+  sandboxed: false,
+  sandbox: 'read-search',
   model: '',
-  askSandbox: 'read-search',
-  askSkill: 'llm-wiki:search',
+  effort: '',
+  defaultSkill: '',
+  slashComplete: true,
   searchK: 20,
   debug: false,
 }
+
+export const PERMISSION_NAMES: Record<PermissionMode, string> = {
+  default: 'Ask first',
+  acceptEdits: 'Auto-accept edits',
+  auto: 'Auto',
+  bypassPermissions: 'Full access',
+}
+
+export const EFFORT_NAMES: Record<Effort, string> = { '': 'Default', low: 'Low', medium: 'Medium', high: 'High', xhigh: 'Extra high', max: 'Max' }
 
 export class LlmWikiSettingTab extends PluginSettingTab {
   constructor(
@@ -73,25 +95,39 @@ export class LlmWikiSettingTab extends PluginSettingTab {
       .addText((t) => t.setPlaceholder('Auto').setValue(s.cliPath).onChange((v) => { s.cliPath = v.trim(); save() }))
     new Setting(containerEl)
       .setName('Path to claude')
-      .setDesc('Empty searches the login shell PATH. ' + (this.plugin.claudeBin ? `Found: ${this.plugin.claudeBin}` : 'Not found: Agent chat needs it; Ask mode and the dashboard work without it.'))
+      .setDesc('Empty searches the login shell PATH. ' + (this.plugin.claudeBin ? `Found: ${this.plugin.claudeBin}` : 'Not found: chat needs it unless it runs in the sandbox; the dashboard works without it.'))
       .addText((t) => t.setPlaceholder('Auto').setValue(s.claudePath).onChange((v) => { s.claudePath = v.trim(); save() }))
 
     new Setting(containerEl).setName('Chat').setHeading()
+    containerEl.createEl('p', { cls: 'setting-item-description', text: 'The defaults a chat starts with. The controls under the chat box change the same settings.' })
     new Setting(containerEl)
-      .setName('Default mode')
-      .setDesc('Agent runs at the wiki root with its hooks, can run jobs and edit pages, and asks before each tool it would prompt for. Ask runs one jailed, read-only question per turn.')
-      .addDropdown((d) => d.addOptions({ agent: 'Agent', ask: 'Ask' }).setValue(s.defaultChatMode).onChange((v) => { s.defaultChatMode = v as ChatMode; save() }))
+      .setName('Permissions')
+      .setDesc('When the agent asks before a tool. Ask first asks before each command and edit; Auto lets a classifier approve routine ones; Full access never asks.')
+      .addDropdown((d) => d.addOptions(PERMISSION_NAMES).setValue(s.permissionMode).onChange((v) => { s.permissionMode = v as PermissionMode; save() }))
+    new Setting(containerEl)
+      .setName('Read-only')
+      .setDesc('The wiki’s commands refuse every write, and the agent gets no file-editing tools. A shell command can still write a file, so pair it with Ask first.')
+      .addToggle((t) => t.setValue(s.readOnly).onChange((v) => { s.readOnly = v; save() }))
+    new Setting(containerEl)
+      .setName('Sandbox')
+      .setDesc('Each turn runs jailed in the named sandbox, which must be enabled in the wiki. A sandboxed turn never asks and starts fresh: it does not see the chat before it. The sandbox decides whether it may write.')
+      .addToggle((t) => t.setValue(s.sandboxed).onChange((v) => { s.sandboxed = v; save() }))
+      .addText((t) => t.setPlaceholder(DEFAULT_SETTINGS.sandbox).setValue(s.sandbox).onChange((v) => { s.sandbox = v.trim() || DEFAULT_SETTINGS.sandbox; save() }))
     new Setting(containerEl)
       .setName('Model')
-      .setDesc('Passed to both chat modes; empty uses each harness’s default.')
+      .setDesc('A model name or alias (opus, sonnet); empty uses Claude Code’s default.')
       .addText((t) => t.setPlaceholder('Default').setValue(s.model).onChange((v) => { s.model = v.trim(); save() }))
     new Setting(containerEl)
-      .setName('Ask mode sandbox')
-      .setDesc('An enabled sandbox of the wiki; seed and enable read-search if the wiki lacks one.')
-      .addText((t) => t.setValue(s.askSandbox).onChange((v) => { s.askSandbox = v.trim() || DEFAULT_SETTINGS.askSandbox; save() }))
+      .setName('Effort')
+      .addDropdown((d) => d.addOptions(EFFORT_NAMES).setValue(s.effort).onChange((v) => { s.effort = v as Effort; save() }))
     new Setting(containerEl)
-      .setName('Ask mode skill')
-      .addText((t) => t.setValue(s.askSkill).onChange((v) => { s.askSkill = v.trim() || DEFAULT_SETTINGS.askSkill; save() }))
+      .setName('Default skill')
+      .setDesc('A new chat’s box starts with this skill typed in, e.g. llm-wiki:search, so you see what runs and can delete it. Empty starts blank.')
+      .addText((t) => t.setPlaceholder('None').setValue(s.defaultSkill).onChange((v) => { s.defaultSkill = v.trim().replace(/^\//, ''); save() }))
+    new Setting(containerEl)
+      .setName('Skill completion')
+      .setDesc('Typing / at the start of a line lists the skills.')
+      .addToggle((t) => t.setValue(s.slashComplete).onChange((v) => { s.slashComplete = v; save() }))
 
     new Setting(containerEl).setName('Search').setHeading()
     new Setting(containerEl)

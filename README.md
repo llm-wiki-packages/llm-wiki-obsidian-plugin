@@ -65,20 +65,37 @@ bar reads `llm-wiki · ok`, `2 need you`, `1 stopped`, or `running <job>`, with
 `· no runner` when none is installed; clicking it opens the dashboard. A job
 that stops between two polls raises a Notice.
 
-**Chat** (a tab of the view), two modes:
+**Chat** (a tab of the view): a Claude Code session at the wiki root, with the
+wiki's own committed `.claude/settings.json` in force (write guard,
+`op record`, the llm-wiki skills). It can run jobs and edit pages; a job it
+runs for you is composed into its own jail by the CLI, credentials included.
+The chat never sees a credential, and the verbs that would print one are
+denied in every permission mode. Multi-turn until **New chat** (top left);
+**Continue last chat** picks the last session back up. Tool rows read in words
+("Running inbox-joe"); the command is on hover and in the permission card.
+Suggested prompts sit above an empty transcript, tuned to the note you have
+open.
 
-- **Agent**: a Claude Code session at the wiki root, with the wiki's own
-  committed `.claude/settings.json` in force (write guard, `op record`, the
-  llm-wiki skills). It can run jobs and edit pages, and asks you in the pane
-  before any tool it would prompt for. A job it runs for you is composed into
-  its own jail by the CLI, credentials included; the chat never sees a
-  credential, and the verbs that would print one are denied. Multi-turn until
-  **New chat**. Tool rows read in words ("Running inbox-joe"); the command is
-  on hover and in the permission card. Suggested prompts sit above an empty
-  transcript, tuned to the note you have open.
-- **Ask**: one jailed, read-only `harness run` question per turn, the same thing
-  the reference dashboard's Ask runs. It cannot change anything, and it keeps
-  no context between turns yet (see `docs/ux.md`, Known gaps).
+The row under the box holds everything the next turn runs with, saved as the
+defaults (the Chat settings change the same values):
+
+- **Skills…** lists the `/llm-wiki:` slash skills; typing `/` at the start of
+  a line lists them too (a setting turns that off).
+- **Permissions**: Ask first, Auto-accept edits, Auto (a classifier approves
+  routine actions), or Full access. **Read-only** sets the CLI's read floor
+  (`LLM_WIKI_PERMISSIONS=read`, what `wiki --read-only` sets) and takes away
+  the file-editing tools; a shell command can still write unless Ask first
+  stops it. **Sandbox** runs each turn jailed through `harness run` in the
+  named sandbox, whose profile decides whether it writes; a sandboxed turn
+  never asks and starts fresh (see `docs/ux.md`, Known gaps).
+- **Model** and **Effort**: the aliases until the first reply, then the
+  models and effort levels the harness reports.
+- A ring shows how full the context window is, with the numbers on hover.
+- **Send** turns into a red **Stop** while the agent works (Esc stops too).
+
+A **Default skill** setting starts every new chat with that skill typed into
+the box, e.g. `/llm-wiki:search `, so what runs is on screen and one
+backspace away.
 
 Wikilinks and URLs in a reply open on click; a reply has a Copy button on
 hover; text is selectable everywhere.
@@ -87,7 +104,7 @@ hover; text is selectable everywhere.
 involved; results open as notes.
 
 **Chat skills**: *Run a skill…* (a command, and the **Skills…** button in chat)
-lists the `/llm-wiki:` slash skills, read from the llm-wiki plugin Claude Code
+lists the same `/llm-wiki:` slash skills, read from the llm-wiki plugin Claude Code
 has installed, with what each does and what it takes, and turns the pick into
 a chat turn such as `/llm-wiki:research <goal>`. The wiki's own skill units
 live on the dashboard's Skills tab.
@@ -105,11 +122,11 @@ and binaries. Every row takes focus and opens on Enter.
 - The vault is a registered wiki (`llm-wiki-cli machine wikis ls` lists it at
   the vault's path). If the path differs (a symlink), set the wiki key in the
   plugin settings.
-- Agent mode: the `claude` binary on the login shell's PATH, or its path set
+- Chat: the `claude` binary on the login shell's PATH, or its path set
   in the settings, logged in. The session runs as that binary does in a
   terminal: same settings, same login. Note Anthropic's Agent SDK terms on
   offering claude.ai login in third-party products.
-- Safe mode: the wiki has an enabled `read-search` sandbox
+- The chat's Sandbox switch: the wiki has an enabled `read-search` sandbox
   (`llm-wiki-ops sandboxes seed read-search`, then `sandboxes enable read-search`).
 
 ## Install on your machine (before a release exists)
@@ -151,8 +168,9 @@ LLM_WIKI_E2E_BIN=$(which llm-wiki-cli) LLM_WIKI_E2E_VAULT=/path/to/wiki npm test
 | `src/wiki/cli.ts` | the CLI seam. Every argv is spelled here, keyed by verb; every read verb carries the read floor |
 | `src/wiki/resolve.ts` | the login shell's PATH, binary lookup, and matching the vault to a registered wiki |
 | `src/chat/types.ts` | the chat contract: a backend turns a harness's protocol into `ChatEvent`s and asks permission through one callback |
-| `src/chat/claudeSdk.ts` | the Agent backend on `@anthropic-ai/claude-agent-sdk`, driving the user's own `claude` |
-| `src/chat/harnessRun.ts` | the Ask backend on `harness run --stream` |
+| `src/chat/claudeSdk.ts` | the chat backend on `@anthropic-ai/claude-agent-sdk`, driving the user's own `claude` |
+| `src/chat/harnessRun.ts` | the sandboxed chat backend on `harness run --stream` |
+| `src/views/composer.ts` | the row under the chat box: permission panel, model and effort lists, context ring, `/` list |
 | `src/chat/skills.ts` | the `/llm-wiki:` slash skills, read from the installed Claude Code plugin's `skills/*/SKILL.md` |
 | `src/wiki/model.ts` | what the dashboard shows: `Snapshot`, jobs with a plain-words `next`, attention items with one action |
 | `src/wiki/snapshot.ts` | CLI answers into a `Snapshot`; the one place that knows the answers' field names |
@@ -184,7 +202,7 @@ plus one case in `main.ts`'s `backend()`.
 
 ## Disclosures
 
-The plugin runs local processes: `llm-wiki-cli` and, in Agent mode, `claude`,
+The plugin runs local processes: `llm-wiki-cli` and, for the chat, `claude`,
 which talks to Anthropic's API with the user's own login or API key. It reads
 and writes files outside the vault only through those processes, as they do
 in a terminal. No telemetry.

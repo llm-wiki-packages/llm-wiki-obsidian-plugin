@@ -28,6 +28,10 @@ describe('the verb table', () => {
     const argv = VERBS['wiki.harness.run']({ wiki: 'kb', text: 'what is new?', sandbox: 'read-search', skill: 'llm-wiki:search', model: 'opus' })
     expect(argv).toEqual(['wiki', 'kb', 'harness', 'run', 'sandbox=read-search', 'skill=llm-wiki:search', 'model=opus', '--stream', '--', 'what is new?'])
   })
+  it('leaves skill= off harness run when the prompt carries it', () => {
+    const argv = VERBS['wiki.harness.run']({ wiki: 'kb', text: '/llm-wiki:search new?', sandbox: 'read-search', effort: 'high' })
+    expect(argv).toEqual(['wiki', 'kb', 'harness', 'run', 'sandbox=read-search', 'effort=high', '--stream', '--', '/llm-wiki:search new?'])
+  })
 
   it('spells the skills, packages and credentials verbs, with the secret nowhere in argv', () => {
     expect(VERBS['wiki.skills.show']({ wiki: 'kb', name: 'channel-gmail' })).toEqual(['wiki', '--read-only', 'kb', 'skills', 'ls', 'channel-gmail', '--json'])
