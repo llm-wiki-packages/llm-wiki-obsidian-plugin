@@ -127,9 +127,12 @@ export function openCredentialModal(app: App, snapshot: Snapshot, actions: Actio
         this.error.setText(out.message)
         return
       }
+      const bound = !binds.length || binds.some((x) => x.on)
       if (then === 'retry' && prompt.retry && job) {
         const r = await actions.retryAndRun(prompt.retry, job)
         out = { ok: r.ok, message: `${out.message}. ${r.message}` }
+      } else if (then === 'run' && job && !bound) {
+        out = { ok: true, message: `${out.message}; not bound anywhere, so ${job} was not run` }
       } else if (then === 'run' && job) {
         const r = await actions.runJob(job)
         out = { ok: r.ok, message: `${out.message}. ${r.message}` }

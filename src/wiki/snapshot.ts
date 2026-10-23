@@ -209,11 +209,15 @@ export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now(
   const jobs = jobRows.map((j) => jobView(j, ticketRows, now, skills))
   const attention = attentionItems({ doctor, due, jobsLs, jobs, skills, skillsDoctor, search, conflicts: conflicts?.pages ?? [], ticketRows })
   // The skills doctor was not re-read on a light pass; its findings stand until the next full one, so the count does not flicker.
-  if (previous) for (const a of previous.attention) if (a.id.startsWith('skill:') && !attention.some((x) => x.id === a.id)) attention.push(a)
+  if (previous) {
+    for (const a of previous.attention) if (a.id.startsWith('skill:') && !attention.some((x) => x.id === a.id)) attention.push(a)
+    const rank = { error: 0, warn: 1, info: 2 }
+    attention.sort((a, b) => rank[a.severity] - rank[b.severity])
+  }
   const runner = previous ? previous.runner : (runnerLs?.wikis ?? []).some((w) => w.wiki_key === wikiKey && w.installed !== null)
   const pageRows = pages?.pages ?? []
-  // An older CLI lists no change state; then the queue is unknowable rather than empty.
-  const tellsChange = pageRows.some((p) => 'change' in p)
+  // An older CLI lists no change state; then the queue is unknowable rather than empty. No pages at all is simply empty.
+  const tellsChange = pages !== null && (pageRows.length === 0 || pageRows.some((p) => 'change' in p))
   const errors_ = attention.filter((a) => a.severity === 'error').length
   const count = errors_ + attention.filter((a) => a.severity === 'warn').length
   // The reads a light pass skipped keep their last verdict, so a known hole does not look healed.
@@ -269,7 +273,9 @@ export function jobView(j: JobRow, tickets: TicketRow[], now: number, skills: Sk
   const mine = tickets.filter((t) => t.slug === j.slug)
   const failing = (j.stages ?? []).some((s) => !s.skipped && (s.failing?.length ?? 0) > 0)
   const lastOk = v?.last_ok ?? (j.stages ?? []).map((s) => s.ok_started).filter((x): x is string => Boolean(x)).sort().at(-1) ?? null
-  const last: JobView['last'] = lastOk ? { at: lastOk, outcome: failing ? 'failed' : 'ok' } : failing ? { at: null, outcome: 'failed' } : { at: null, outcome: null }
+  // A failing stage dates the failure, never the last success.
+  const lastFailed = mine.filter((t) => t.state === 'failed').map(ticketView).sort((a, b) => (b.at ?? '').localeCompare(a.at ?? ''))[0]
+  const last: JobView['last'] = failing ? { at: lastFailed?.at ?? null, outcome: 'failed' } : lastOk ? { at: lastOk, outcome: 'ok' } : { at: null, outcome: null }
 
   let next: JobView['next']
   const pending = mine.find((t) => t.state === 'pending')
@@ -344,10 +350,7 @@ function skillViews(
       const problem = b && b.state !== 'bound' ? b.state : failed ? 'failed' : undefined
       return { name, required: declared[name] === 'required', credential: b?.credential ?? null, ...(problem ? { problem } : {}) }
     })
-    // Without the manifest, the CLI's own count still says whether something is missing.
-    const m = /^(\d+)\/(\d+)$/.exec(r.mapped ?? '')
-    if (!r.manifest && m && Number(m[1]) < Number(m[2]) && !slots.some((s) => s.required && !s.credential))
-      slots.push({ name: 'credential', required: true, credential: null })
+    // Without the manifest the slot's key is unknown, so no dialog is offered; the doctor's own bindings row still names the gap.
     const enabled = r.state === 'enabled' || r.state === 'drifted' || r.state === 'linked'
     const inputs = Object.entries(r.manifest?.watch?.inputs ?? {}).map(([name, i]) => ({ name, prompt: i.prompt ?? name, required: i.required ?? false }))
     const rel = r.path ?? `.llm-wiki/skills/${r.name}`
@@ -431,11 +434,14 @@ function attentionItems(input: {
     })
   }
   const parked = input.due?.parked ?? input.ticketRows.filter((t) => t.state === 'failed').map((t) => ({ id: t.id, job: t.slug ?? '', stage: t.stage, reason: t.reason }))
+  const credentialRows = new Set<string>()
   for (const t of parked) {
     const job = input.jobs.find((j) => j.slug === t.job)
     const name = job?.name ?? t.job
-    // A stopped job whose credential is the problem: fixing the credential is the button, and the retry rides along.
+    // A stopped job whose credential is the problem: fixing the credential is the button, and the retry rides along. One row per job.
     if (job?.credential && job.skill) {
+      if (credentialRows.has(job.slug)) continue
+      credentialRows.add(job.slug)
       const c = job.credential
       out.push({ id: `parked:${t.id}`, severity: 'warn', title: `${name} stopped: ${c.name ? `${c.name} is ${c.problem}` : `${job.skill} needs ${slotWords(c.slot).what}`}`, detail: t.reason ?? undefined, action: { kind: 'credential', skill: job.skill, slot: c.slot, ...(c.name ? { name: c.name } : {}), retry: t.id, job: t.job } })
       continue

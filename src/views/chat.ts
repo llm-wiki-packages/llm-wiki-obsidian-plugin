@@ -165,6 +165,8 @@ export class ChatView extends ItemView {
 
   /** Put text in the composer and focus it, for a button elsewhere that starts a conversation. */
   prefill(text: string, mode: ChatMode = 'agent'): void {
+    // A hand-off wants the agent, but without claude it can only be asked.
+    if (mode === 'agent' && !this.plugin.claudeBin) mode = 'ask'
     if (this.mode !== mode) {
       this.mode = mode
       this.modeSelect.value = mode
@@ -239,8 +241,8 @@ export class ChatView extends ItemView {
         this.scroll()
         if (e.type === 'error') failed = true
         if (e.type === 'tool') this.lastTool = e.name
-        // A write just finished, so whatever it changed is on disk; the dashboard should not wait a minute to say so.
-        if (e.type === 'tool-done' && WRITE_TOOLS.has(this.lastTool)) void this.plugin.refreshSnapshot()
+        // A write just finished, so whatever it changed is on disk: a light read now, the full one when the turn ends.
+        if (e.type === 'tool-done' && WRITE_TOOLS.has(this.lastTool)) void this.plugin.refreshSnapshot(true)
       }
       if (abort.signal.aborted) assistant.take({ type: 'status', text: 'stopped' })
       if (backend.sessionId && this.mode === 'agent') {

@@ -306,7 +306,8 @@ export class Cli {
         detached: true,
       })
       this.live.add(child)
-      // Closed at once, empty or with the secret: no verb here waits on a terminal.
+      // Closed at once, empty or with the secret: no verb here waits on a terminal. A child that exits first makes EPIPE, not news.
+      child.stdin.on('error', () => undefined)
       child.stdin.end(opts.stdin ?? '')
       const onAbort = () => {
         killGroup(child)

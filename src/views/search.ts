@@ -51,6 +51,7 @@ export class SearchView extends ItemView {
       }
       if (e.key === 'Escape') {
         run.cancel()
+        this.seq++
         this.inFlight?.abort()
         this.input.value = ''
         this.results.empty()

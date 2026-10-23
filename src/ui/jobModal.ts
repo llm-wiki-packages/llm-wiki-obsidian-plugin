@@ -67,7 +67,8 @@ export function openJobModal(app: App, job: JobView, ctx: TabContext): void {
 
       const bar = c.createDiv({ cls: 'llm-wiki-composer-buttons' })
       const wrap = bar.createDiv({ cls: 'llm-wiki-row-actions' })
-      jobButtons(wrap, j, { ...ctx, write: async (run) => { this.close(); await ctx.write(run) }, act: async (a) => { this.close(); await ctx.act(a) } }, true)
+      // Run and Pause keep the dialog open: the snapshot redraws it, and this is the pane a person watches after pressing Run.
+      jobButtons(wrap, j, { ...ctx, act: async (a) => { this.close(); await ctx.act(a) } }, true)
       button(wrap, 'Ask the agent', () => { this.close(); return ctx.act({ kind: 'ask', prompt: askAbout(j) }) }, { icon: 'message-square' })
       button(wrap, 'Close', () => this.close())
     }

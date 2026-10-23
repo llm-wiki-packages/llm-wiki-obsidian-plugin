@@ -68,6 +68,7 @@ export function openSkillModal(app: App, s: SkillView, ctx: TabContext): void {
     private async show(file: string, all: HTMLButtonElement[], active: HTMLButtonElement): Promise<void> {
       for (const b of all) b.toggleClass('is-active', b === active)
       this.page.empty()
+      this.page.show()
       let md: string
       try {
         if (!s.dir) throw new Error('no directory')

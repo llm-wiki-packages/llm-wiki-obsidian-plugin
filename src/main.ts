@@ -33,6 +33,7 @@ export default class LlmWikiPlugin extends Plugin {
   private pollTimer: number | null = null
   private refreshing: Promise<void> | null = null
   private again = false
+  private againLight = true
   /** When the last full read happened; light polls lean on it for up to a minute. */
   private fullAt = 0
   /** What `machine wikis ls` returned, so a not-ready card can offer the registered keys. */
@@ -158,6 +159,7 @@ export default class LlmWikiPlugin extends Plugin {
     // A refresh asked for during a read runs once more after it, so a change made meanwhile is not missed.
     if (this.refreshing) {
       this.again = true
+      this.againLight = this.againLight && light
       return this.refreshing
     }
     const { cli, wiki } = this
@@ -167,6 +169,8 @@ export default class LlmWikiPlugin extends Plugin {
     const previous = light && this.snapshot && Date.now() - this.fullAt < 5 * 60_000 ? this.snapshot : undefined
     this.refreshing = takeSnapshot(cli, wiki.key, Date.now(), files, previous)
       .then((snap) => {
+        // A re-detect meanwhile moved the plugin to another wiki; this read is about the old one.
+        if (this.wiki !== wiki) return
         if (!previous) this.fullAt = snap.takenAt
         this.announceFailures(this.snapshot, snap)
         this.snapshot = snap
@@ -177,8 +181,10 @@ export default class LlmWikiPlugin extends Plugin {
       .finally(() => {
         this.refreshing = null
         if (this.again) {
+          const lightAgain = this.againLight
           this.again = false
-          void this.refreshSnapshot()
+          this.againLight = true
+          void this.refreshSnapshot(lightAgain)
         } else this.schedulePoll()
       })
     return this.refreshing

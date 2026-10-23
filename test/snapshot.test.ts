@@ -34,7 +34,8 @@ describe('jobView: the Next column in plain words', () => {
     expect(jobView(job({}), [{ id: 't3', stage: 'routine', state: 'pending', slug: 'ops-hourly' }], NOW).next.kind).toBe('queued')
   })
   it('marks a failing stage as the last outcome and survives an older CLI with no verdict', () => {
-    expect(jobView(job({ stages: [{ stage: 'routine', failing: ['devops1'], attempts: 2, ok_started: '2026-10-22T11:00:00Z' }] }), [], NOW).last).toEqual({ at: '2026-10-23T11:40:00Z', outcome: 'failed' })
+    expect(jobView(job({ stages: [{ stage: 'routine', failing: ['devops1'], attempts: 2, ok_started: '2026-10-22T11:00:00Z' }] }), [], NOW).last).toEqual({ at: null, outcome: 'failed' })
+    expect(jobView(job({ stages: [{ stage: 'routine', failing: ['devops1'] }] }), [{ id: 'f1', stage: 'routine', state: 'failed', slug: 'ops-hourly', queued_at: '2026-10-23T11:50:00Z' }], NOW).last).toEqual({ at: '2026-10-23T11:50:00Z', outcome: 'failed' })
     const old = jobView({ slug: 'x', every: '1d', state: 'active', due: true }, [], NOW)
     expect(old.next).toMatchObject({ kind: 'due' })
     expect(old.schedule).toBe('every 1d')
@@ -103,10 +104,11 @@ describe('takeSnapshot: skills and credentials', () => {
     expect(snap.skills[0]?.slots).toEqual([{ name: 'file', required: true, credential: 'gmail_token' }])
     expect(snap.credentials[1]?.uses).toEqual([{ skill: 'channel-gmail', slot: 'file' }])
   })
-  it('keeps the doctor’s own sentence when the manifest is unreadable but the count says a slot is empty', async () => {
+  it('keeps the doctor’s own sentence when the manifest is unreadable: no guessed slot, no dialog', async () => {
     const snap = await takeSnapshot(reader({ ...GMAIL, 'wiki.skills.show': undefined }), 'kb', NOW)
-    expect(snap.skills[0]?.slots).toEqual([{ name: 'credential', required: true, credential: null }])
-    expect(snap.jobs[0]?.next.kind).toBe('unbound')
+    expect(snap.skills[0]?.slots).toEqual([])
+    expect(snap.jobs[0]?.next.kind).toBe('due')
+    expect(snap.attention.map((a) => a.id)).toEqual(['doctor:jobs-skipped', 'doctor:bindings'])
   })
   it('a stopped job whose credential went stale gets Replace credential with the retry riding along, once', async () => {
     const snap = await takeSnapshot(reader({ ...GMAIL, 'wiki.doctor': { rows: [] },
