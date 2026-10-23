@@ -1,0 +1,50 @@
+// Agent SDK messages into chat events. Pure, so a test can feed it frames.
+import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk'
+import type { ChatEvent } from './types'
+import { summarizeTool } from './types'
+
+export interface MappedTurn {
+  sessionId?: string
+  events: ChatEvent[]
+}
+
+export function mapMessage(m: SDKMessage): MappedTurn {
+  const events: ChatEvent[] = []
+  let sessionId: string | undefined
+  switch (m.type) {
+    case 'system':
+      if (m.subtype === 'init') {
+        sessionId = m.session_id
+        events.push({ type: 'status', text: `claude ${m.claude_code_version} · ${m.model} · ${m.permissionMode}` })
+      }
+      break
+    case 'stream_event': {
+      // Text arrives here as it is generated; a subagent's text is its own.
+      if (m.parent_tool_use_id) break
+      const ev = m.event as { type: string; delta?: { type?: string; text?: string } }
+      if (ev.type === 'content_block_delta' && ev.delta?.type === 'text_delta' && typeof ev.delta.text === 'string')
+        events.push({ type: 'text', text: ev.delta.text })
+      break
+    }
+    case 'assistant': {
+      // The complete message: tool calls with their whole input.
+      if (m.parent_tool_use_id) break
+      for (const block of m.message.content) {
+        if (block.type === 'tool_use')
+          events.push({ type: 'tool', name: block.name, detail: summarizeTool(block.name, (block.input ?? {}) as Record<string, unknown>) })
+      }
+      if (m.error) events.push({ type: 'error', message: `assistant: ${m.error}` })
+      break
+    }
+    case 'result':
+      sessionId = m.session_id
+      if (m.subtype === 'success')
+        events.push({ type: 'result', ok: !m.is_error, detail: `${(m.duration_ms / 1000).toFixed(1)}s · $${m.total_cost_usd.toFixed(4)} · ${m.num_turns} turns` })
+      else
+        events.push({ type: 'result', ok: false, text: m.errors.join('\n') || m.subtype, detail: m.subtype })
+      break
+    default:
+      break
+  }
+  return { sessionId, events }
+}

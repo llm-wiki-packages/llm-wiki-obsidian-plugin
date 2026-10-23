@@ -1,0 +1,10 @@
+{
+  "id": "llm-wiki",
+  "name": "LLM Wiki",
+  "version": "0.1.0",
+  "minAppVersion": "1.7.2",
+  "description": "Chat with an agent, search, and operate an llm-wiki wiki from inside Obsidian.",
+  "author": "Joe Johnston",
+  "authorUrl": "https://github.com/simple10",
+  "isDesktopOnly": true
+}

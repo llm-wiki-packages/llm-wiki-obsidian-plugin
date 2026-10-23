@@ -1,0 +1,36 @@
+{
+  "name": "llm-wiki-obsidian-plugin",
+  "version": "0.1.0",
+  "description": "Chat with, search and operate an llm-wiki wiki from inside Obsidian.",
+  "main": "main.js",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+    "test": "vitest run",
+    "lint": "eslint src",
+    "check": "npm run build && npm run lint && npm run test",
+    "version": "node version-bump.mjs && git add manifest.json versions.json",
+    "install-to-vault": "node scripts/install-to-vault.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "builtin-modules": "^5.0.0",
+    "esbuild": "^0.25.5",
+    "eslint": "^9.0.0",
+    "eslint-plugin-obsidianmd": "^0.4.0",
+    "obsidian": "latest",
+    "tslib": "^2.8.0",
+    "typescript": "^5.8.0",
+    "typescript-eslint": "^8.0.0",
+    "vitest": "^3.0.0"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.309",
+    "@anthropic-ai/sdk": ">=0.93.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^4.0.0"
+  }
+}

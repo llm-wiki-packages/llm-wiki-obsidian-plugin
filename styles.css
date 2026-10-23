@@ -1,0 +1,37 @@
+/* Every rule is scoped under .llm-wiki and built on Obsidian's variables. */
+.llm-wiki { display: flex; flex-direction: column; height: 100%; gap: var(--size-4-2); }
+.llm-wiki-muted { color: var(--text-muted); font-size: var(--font-ui-smaller); }
+.llm-wiki-error { color: var(--text-error); }
+
+/* Search */
+.llm-wiki-search-input { width: 100%; }
+.llm-wiki-search-results { overflow-y: auto; flex: 1; }
+.llm-wiki-hit { padding: var(--size-4-2); border-bottom: 1px solid var(--background-modifier-border); cursor: pointer; }
+.llm-wiki-hit:hover { background: var(--background-modifier-hover); }
+.llm-wiki-hit-title { font-weight: var(--font-semibold); }
+.llm-wiki-hit-snippet { font-size: var(--font-ui-small); margin-top: var(--size-2-1); }
+
+/* Chat */
+.llm-wiki-chat-bar { display: flex; align-items: center; gap: var(--size-4-2); }
+.llm-wiki-chat-status { margin-left: auto; }
+.llm-wiki-transcript { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: var(--size-4-2); padding-right: var(--size-2-1); }
+.llm-wiki-msg { padding: var(--size-4-2) var(--size-4-3); border-radius: var(--radius-m); }
+.llm-wiki-user { background: var(--background-secondary); align-self: flex-end; max-width: 90%; white-space: pre-wrap; }
+.llm-wiki-assistant { background: var(--background-primary-alt); }
+.llm-wiki-assistant-body > :first-child { margin-top: 0; }
+.llm-wiki-assistant-body > :last-child { margin-bottom: 0; }
+.llm-wiki-note { text-align: center; }
+.llm-wiki-line { margin: var(--size-2-1) 0; white-space: pre-wrap; }
+.llm-wiki-tool { display: flex; align-items: baseline; gap: var(--size-2-2); font-size: var(--font-ui-small); margin: var(--size-2-1) 0; }
+.llm-wiki-tool-icon svg { width: 0.9em; height: 0.9em; }
+.llm-wiki-tool-name { font-weight: var(--font-semibold); }
+.llm-wiki-tool-detail { font-family: var(--font-monospace); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.llm-wiki-permission { border: 1px solid var(--interactive-accent); border-radius: var(--radius-m); padding: var(--size-4-2); margin: var(--size-4-2) 0; }
+.llm-wiki-permission.is-allowed { border-color: var(--color-green); }
+.llm-wiki-permission.is-denied { border-color: var(--color-red); opacity: 0.7; }
+.llm-wiki-permission-title { font-weight: var(--font-semibold); margin-bottom: var(--size-2-2); }
+.llm-wiki-permission-summary { white-space: pre-wrap; word-break: break-all; font-size: var(--font-ui-small); margin: 0 0 var(--size-2-2); }
+.llm-wiki-permission-buttons { display: flex; gap: var(--size-4-2); }
+.llm-wiki-composer { display: flex; flex-direction: column; gap: var(--size-2-2); }
+.llm-wiki-composer-input { width: 100%; resize: vertical; }
+.llm-wiki-composer-buttons { display: flex; gap: var(--size-4-2); justify-content: flex-end; }

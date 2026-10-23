@@ -1,0 +1,37 @@
+// Against a real llm-wiki-cli and a scratch wiki: set LLM_WIKI_E2E_BIN and LLM_WIKI_E2E_VAULT, else skipped.
+import { describe, expect, it } from 'vitest'
+import { Cli, type SearchAnswer, type WikiRow } from '../src/wiki/cli'
+import { findBinary, matchWiki } from '../src/wiki/resolve'
+
+const bin = process.env.LLM_WIKI_E2E_BIN
+const vault = process.env.LLM_WIKI_E2E_VAULT
+
+describe.skipIf(!bin || !vault)('the seam against a real CLI', () => {
+  const cli = () => new Cli({ bin: bin!, env: { ...process.env }, timeoutMs: 30_000 })
+
+  it('finds the binary by its override', async () => {
+    expect(await findBinary('llm-wiki-cli', bin)).toBe(bin)
+  })
+
+  it('matches the vault to its registered wiki', async () => {
+    const rows = await cli().run<{ wikis: WikiRow[] }>('machine.wikis.ls')
+    const row = matchWiki(rows.wikis, vault!)
+    expect(row?.key).toBe('scratch')
+  })
+
+  it('searches under the read floor and gets vault-relative paths back', async () => {
+    const ans = await cli().run<SearchAnswer>('wiki.search.query', { wiki: 'scratch', text: 'money model', k: 5 })
+    expect(ans.hits?.[0]?.source_path).toBe('wiki/money-models.md')
+  })
+
+  it('refuses a harness run on a wiki with no enabled sandbox, through the stream', async () => {
+    const types: string[] = []
+    let exit: { rc: number | null; stderr: string } | undefined
+    for await (const l of cli().stream('wiki.harness.run', { wiki: 'scratch', text: 'hi', sandbox: 'read-search', skill: 'llm-wiki:search' })) {
+      types.push(l.type)
+      if (l.type === '_exit') exit = l as { rc: number | null; stderr: string }
+    }
+    expect(types.at(-1)).toBe('_exit')
+    expect(exit?.rc).not.toBe(0)
+  })
+})
