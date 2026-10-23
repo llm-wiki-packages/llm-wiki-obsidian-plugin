@@ -5,6 +5,7 @@
 // the CLI, credentials and all. Nothing here handles a credential.
 import { query } from '@anthropic-ai/claude-agent-sdk'
 import { mapMessage } from './claudeMap'
+import { tolerateRendererSignals } from './rendererGuard'
 import type { ChatBackend, ChatEvent, TurnContext } from './types'
 import { summarizeTool } from './types'
 
@@ -37,6 +38,7 @@ export class ClaudeSdkBackend implements ChatBackend {
 
   constructor(private readonly config: ClaudeSdkConfig, resume?: string) {
     this.sessionId = resume
+    tolerateRendererSignals()
   }
 
   reset(): void {
