@@ -15,8 +15,10 @@ the pulling, which Obsidian hides under `.llm-wiki/skills` and
 ## Surfaces
 
 ### Status bar (bottom of Obsidian)
-`llm-wiki · ok` / `llm-wiki · 2 need you` / `llm-wiki · running Joe's mailbox` /
-`llm-wiki · not ready`. Click opens the dashboard.
+`llm-wiki · ok` / `llm-wiki · 2 need you` / `llm-wiki · 1 stopped` (when every
+item is a stopped job) / `llm-wiki · running Joe's mailbox` / `llm-wiki · not
+ready`, with `· no runner` appended when none is installed. Click opens the
+dashboard. A job that stops between two polls raises an Obsidian Notice.
 
 ### Dashboard (main area tab; ribbon icon, command "Open dashboard")
 Header: title, one health pill (`ok` or `N need you`), refreshed time, Refresh,
@@ -26,40 +28,61 @@ Chat. Four tabs, remembered per tab leaf.
 - One sentence: "2 things need you. Running Curate…. 1 job is due now."
 - *Needs you* (count = the pill): one row per item, one button each.
   Sources: a job whose skill has an empty credential slot here (**Set
-  credential**), a parked ticket (**Retry**), a ticket in review (**Ask the
+  credential**), a stopped job whose credential is stale or failed (**Replace
+  credential**, which also retries the stopped ticket, with **Retry** beside
+  it), any other parked ticket (**Retry**), a ticket in review (**Ask the
   agent**), a blocked job (**Ask the agent**), a doctor warn/fail row (**Fix
   with the agent**), a drifted skill (**Inspect**), an unreadable job, a handoff
   problem, a git conflict (**Open**), search engine not ready (**Reindex**).
   Info rows (an update available, an enabled skill with an empty optional slot)
-  follow, dimmer, uncounted.
-- *Running and due*: cards for running and due jobs with Run/Pause. A notice
-  when no runner is installed on this machine ("Jobs run when you press Run").
+  follow under a small "Also" label, uncounted. With no runner installed, one
+  notice here with **Install the runner** (a chat hand-off).
+- *Running and due*: up to four cards, then "and N more"; a click opens the
+  job's detail dialog.
+- A wiki with no jobs shows one card instead: "Nothing is pulling into this
+  wiki yet", what a job and a skill are, **Add a job…** and **Browse skills**.
 - *Waiting for curation*: count, first five paths, how many new files under
   sources/ are not yet in the wiki; Review goes to Pages.
-- *Recent*: the last day's runs with outcome.
+- *Last day*: "3 runs, 1 failed. 2 pages are waiting for review." then the
+  runs in words (Scheduled pass, Harvest yt-subs · failed, with the summary).
 
-**Jobs** — a table: Job (name, slug · kind), Every, Last (relative time +
-ok/failed pill), Next (Due now / Queued / Running 3m / Paused / Held until /
-in 9h / Blocked / **Needs a credential**), buttons. Run (primary when due),
-Pause, Resume; **Set credential** (primary) when the skill's slot is empty
-here. "Add a job…" asks one line in plain words and hands it to chat as
-`/llm-wiki:add <text>`. Nothing on screen says running or due that the ticket
-store does not.
+**Jobs** — a table grouped by state (Needs you, Running, Due, Scheduled,
+Manual, Paused), soonest first inside a group; a filter field above 10 rows.
+Columns: Job (name, slug · kind), Every, Last (relative time; a failure shows
+its reason in red), Next (Due now / Queued / Running 3m · ticket / Paused /
+Held until / in 9h / Blocked: why / **Needs a credential** / **Credential
+stale**; "When you press Run" when no runner is installed). One primary
+button per row: Set or Replace credential, Run when due (or always, without a
+runner), Resume when paused; a "…" menu holds Run now, Pause, Details, Ask the
+agent. Clicking a row opens the job's detail dialog. "Add a job…" asks one
+line in plain words and hands it to chat as `/llm-wiki:add <text>`. Nothing
+on screen says running or due that the ticket store does not.
+
+### Job detail dialog
+Name; slug · kind · schedule · skill. The Next state in words with the
+verdict's reasons. *What it needs on this machine*: each credential slot with
+Set / Replace credential. *Last runs*: the job's tickets newest first (stage,
+ok / stopped / dropped, reason, when, runtime, Retry on a stopped one).
+Footer: Run / Pause / Replace credential, Ask the agent, Close.
 
 **Skills** — three groups then credentials.
 - *Enabled on this machine*: name · venue, one pill at most (`credential
-  missing` › `differs from the wiki` › `update available`), the jobs using it.
-  Buttons: **Set credential** when a required slot is empty; else **Run job**
-  (one job) / **Jobs** (several) / **Run** (a skill with a typable usage line);
-  always **Inspect**.
-- *In the wiki, not enabled here*: **Enable** → chat `/llm-wiki:enable <name>`;
-  **Inspect**.
-- *Available from the package*: chips; a click → chat `/llm-wiki:enable <name>`.
-- *Credentials*: name · kind (secret / folder / login), state pill (verified
-  2d ago / failed / empty), "Used by …" with a binding problem in brackets.
-  **Replace…** (same dialog, name fixed), **Remove** (confirm names who loses
-  it), **Log in** for a harness login that is failed/unverified. "Add a
-  credential…" opens the dialog with nothing prefilled.
+  missing` / `credential stale` › `differs from the wiki` › `update
+  available`), the jobs using it. One button: **Set credential** or **Replace
+  credential** when a slot is empty or broken; else **Run job** (one job) /
+  **Jobs** (several) / **Run** (a skill with a typable usage line). Clicking
+  the row opens the inspector.
+- *In the wiki, not enabled here*: the unit's description; **Enable** → chat
+  `/llm-wiki:enable <name>`.
+- *Available from the package*: rows with the unit's description (read from
+  the package cache's SKILL.md); **Add** → chat `/llm-wiki:enable <name>`.
+- *Credentials*: name · kind (secret / folder / login), a state pill always
+  (verified 2d ago / failed / stale / empty / not verified yet), "Used by …";
+  a harness login says it is used by chat and every model session.
+  **Replace…** (same dialog, name fixed; primary when failed or stale),
+  **Remove** (confirm names who loses it), **Log in** for a harness login
+  that is failed or empty. "Add a credential…" opens the dialog with nothing
+  prefilled.
 
 **Pages** — *Awaiting curation* rows (title from frontmatter, path, folder):
 click opens the note; Accept, Reject… (one-line reason); "Ask the agent to
@@ -67,7 +90,7 @@ curate". *Not yet in the wiki*: files under sources/ the wiki has not adopted:
 Adopt / Adopt all. An older CLI says it cannot tell.
 
 ### Inspect (skill dialog)
-Header: state · version · package. *What it needs on this machine*: each slot
+Header: state · version · package, then the unit's description sentence. *What it needs on this machine*: each slot
 (required/optional, bound credential or "not set") with **Set credential**.
 Facts: jobs using it, what a new job asks for, the CLI's warnings. Tabs Skill /
 Enabling / Usage render SKILL.md and the unit's reference notes (the files
@@ -75,11 +98,14 @@ Obsidian hides). Footer: Run / Enable / Install and enable, Close.
 
 ### Credential dialog
 Title "Credential for channel-gmail" (or "Add a credential", "Replace x").
-Name (prefilled `<skill>-<slot>`), Kind (Secret value / Folder on this
-machine), the secret (password field, piped to the CLI's stdin, never argv) or
-a folder path, *Bind to*: the skill (checked; covers every job of it) and each
-job (unchecked; overrides for that job only). Save and bind. Errors stay in the
-dialog; the Notice never carries the value. The write runs as an attended
+One sentence in words: "channel-gmail needs a token or key on this machine."
+Name (prefilled `<skill>-token` or `-profile`), Kind only when the slot does
+not already say (Secret value / Folder on this machine), the secret (password
+field, piped to the CLI's stdin, never argv) or a folder path. *Bind to*
+appears only when the skill has several jobs: the skill (checked; covers every
+job) and each job (overrides for that job only). The button reads Save, Save
+and bind, or Save and retry when it came from a stopped job. Errors stay in
+the dialog; the Notice never carries the value. The write runs as an attended
 session because a person clicked.
 
 ### Chat (right sidebar)
@@ -89,7 +115,11 @@ Allow / Deny), `credentials get` denied. Ask = one jailed `harness run` per
 turn, read-only. New chat, **Skills…** (a fuzzy list of the llm-wiki slash
 skills read from the installed Claude Code plugin; asks for arguments; starts
 the turn). Chips: three prompts by the active note. Composer with Send / Stop.
-Every dashboard hand-off lands here prefilled, not sent.
+Every dashboard hand-off lands here prefilled, not sent. A tool row for an
+llm-wiki command reads in words ("Running inbox-joe", "Reading the job
+list"), the command itself on hover; the permission card keeps the raw
+command. Chips on an empty chat: "What needs attention in this wiki?", "What
+did the wiki learn since yesterday?", "Add a source…".
 
 ### Search (right sidebar)
 One field, results from `search query` with path and snippet; click opens the
@@ -133,3 +163,12 @@ It renders the real views over fixture data with a stand-in for Obsidian's API.
   credential dialog, the skill inspector, the unbound job state, the dynamic
   chat skill list. Fable design memo adopted: credentials live under Skills,
   one pill per row, silence means fine.
+- **Cycle 2 (2026-10-23)**: fable review 1 folded. A stopped job whose
+  credential is stale or failed routes to Replace credential (retry rides
+  along) instead of a bare Retry; credential problems show on the job row,
+  the skill row, the credential row and in both dialogs; a job detail dialog
+  with its last runs; the first-morning card; "when you press Run" and an
+  Install-the-runner hand-off without a runner; jobs grouped by state with
+  one primary button and a menu, a filter above 10 rows; available skills as
+  rows with their description; chat tool rows in words; the quieten list
+  (health sentence, Also label, credentials wording, read-failure sentence).

@@ -28,15 +28,15 @@ export interface ButtonOpts {
   title?: string
 }
 
-export function button(parent: HTMLElement, label: string, onClick: () => void | Promise<void>, opts: ButtonOpts = {}): HTMLButtonElement {
+export function button(parent: HTMLElement, label: string, onClick: (e: MouseEvent) => void | Promise<void>, opts: ButtonOpts = {}): HTMLButtonElement {
   const btn = parent.createEl('button', { cls: opts.cta ? 'llm-wiki-button mod-cta' : 'llm-wiki-button' })
   if (opts.icon) icon(btn, opts.icon)
-  btn.createSpan({ text: label })
+  if (label) btn.createSpan({ text: label })
   if (opts.title) btn.title = opts.title
   // Rows are rebuilt on every render; the DOM owns the listener with the node.
   btn.addEventListener('click', (e) => {
     e.stopPropagation()
-    const r = onClick()
+    const r = onClick(e)
     if (r instanceof Promise) {
       btn.disabled = true
       void r.finally(() => (btn.disabled = false))

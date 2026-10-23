@@ -105,11 +105,15 @@ export class ChatView extends ItemView {
     const file = this.app.workspace.getActiveFile()
     const prompts = file
       ? [`Summarize [[${file.path}]]`, `Verify [[${file.path}]] against its sources`, `What links to [[${file.path}]]?`]
-      : ['What needs attention in this wiki?', 'Run a job for me', '/llm-wiki:add ']
+      : ['What needs attention in this wiki?', 'What did the wiki learn since yesterday?']
     for (const p of prompts) {
       const chip = this.chips.createEl('button', { cls: 'llm-wiki-chip', text: p })
       // Chips are rebuilt on every leaf change; the DOM owns the listener with the node.
       chip.addEventListener('click', () => this.prefill(p, this.mode))
+    }
+    if (!file) {
+      const add = this.chips.createEl('button', { cls: 'llm-wiki-chip', text: 'Add a source…' })
+      add.addEventListener('click', () => void this.plugin.addJob())
     }
   }
 
@@ -200,6 +204,24 @@ export class ChatView extends ItemView {
   }
 }
 
+/** An llm-wiki command in the agent's own words: "Running inbox-joe", "Reading the job list". Null for anything else. */
+export function toolSentence(tool: string, detail?: string): string | null {
+  if (tool !== 'Bash' || !detail) return null
+  const m = /^(?:LLM_WIKI_[A-Z_]+=\S+\s+)*(?:llm-wiki-ops|llm-wiki-cli wiki(?: --read-only)? \S+)\s+(.*)$/.exec(detail.trim())
+  if (!m) return null
+  const words = (m[1] ?? '').replace(/\s--json\b/, '').split(/\s+/)
+  const [a, b, c] = words
+  const arg = c && !c.includes('=') && !c.startsWith('-') ? c : undefined
+  const table: Record<string, string> = {
+    'jobs request': `Running ${arg ?? 'a job'}`, 'jobs ls': 'Reading the job list', 'jobs due': 'Reading what is due', 'jobs show': `Reading job ${arg ?? ''}`, 'jobs add': 'Declaring a job', 'jobs run': 'Running the pass',
+    'tickets ls': 'Reading the ticket list', 'tickets retry': `Retrying ticket ${arg ?? ''}`, 'page ls': 'Reading the page list', 'page curate': 'Curating pages', 'page adopt': 'Adopting pages',
+    'search query': 'Searching the wiki', 'search index': 'Refreshing the search index', 'doctor': 'Running the doctor', 'status': 'Reading the status', 'skills ls': 'Reading the skills', 'skills install': `Installing ${arg ?? 'a skill'}`,
+    'skills enable': `Enabling ${arg ?? 'a skill'}`, 'skills bind': 'Binding a skill stage to its sandbox', 'sandboxes enable': `Enabling the ${arg ?? ''} sandbox`, 'credentials ls': 'Reading the credential list', 'credentials bind': 'Binding a credential',
+    'op since': 'Reading recent runs', 'op record': 'Recording the run', 'git commit': 'Committing', 'git sync': 'Syncing',
+  }
+  return table[`${a} ${b}`] ?? table[a ?? ''] ?? null
+}
+
 /** `Run <command>?`, `Edit <path>?`: what the agent wants, not which tool. */
 function permissionTitle(req: PermissionRequest): string {
   const verb: Record<string, string> = { Bash: 'Run', Edit: 'Edit', Write: 'Write', MultiEdit: 'Edit', NotebookEdit: 'Edit', Read: 'Read', WebFetch: 'Fetch', WebSearch: 'Search the web for' }
@@ -242,8 +264,10 @@ class AssistantBubble {
         this.flushText()
         const row = this.el.createDiv({ cls: 'llm-wiki-tool' })
         setIcon(row.createSpan({ cls: 'llm-wiki-tool-icon' }), 'wrench')
-        row.createSpan({ cls: 'llm-wiki-tool-name', text: e.name })
-        if (e.detail) row.createSpan({ cls: 'llm-wiki-tool-detail llm-wiki-muted', text: e.detail })
+        const said = toolSentence(e.name, e.detail)
+        row.createSpan({ cls: 'llm-wiki-tool-name', text: said ?? e.name })
+        if (e.detail && !said) row.createSpan({ cls: 'llm-wiki-tool-detail llm-wiki-muted', text: e.detail })
+        if (e.detail) row.title = e.detail
         break
       }
       case 'result':

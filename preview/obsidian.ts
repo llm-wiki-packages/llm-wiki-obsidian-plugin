@@ -220,3 +220,23 @@ export const MarkdownRenderer = {
     el.innerHTML = out.join('')
   },
 }
+
+export class MenuItem {
+  el: HTMLElement
+  constructor(parent: HTMLElement) { this.el = parent.createDiv({ cls: 'menu-item' }) }
+  setTitle(t: string) { this.el.createSpan({ text: t }); return this }
+  setIcon(_: string) { return this }
+  onClick(fn: () => unknown) { this.el.addEventListener('click', () => fn()); return this }
+}
+export class Menu extends Component {
+  private el = apply(document.createElement('div'), 'menu')
+  addItem(cb: (i: MenuItem) => unknown) { cb(new MenuItem(this.el)); return this }
+  showAtMouseEvent(e: MouseEvent) {
+    this.el.style.left = `${e.clientX}px`
+    this.el.style.top = `${e.clientY}px`
+    document.body.appendChild(this.el)
+    const close = () => { this.el.remove(); document.removeEventListener('click', close) }
+    setTimeout(() => document.addEventListener('click', close), 0)
+    return this
+  }
+}

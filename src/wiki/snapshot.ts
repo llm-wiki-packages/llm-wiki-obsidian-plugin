@@ -2,11 +2,19 @@
 // answers' field names (docs/cli-shapes.md). Every read is soft, so one
 // failing verb leaves a hole and a note, never an empty dashboard.
 import type { Args, Verb } from './cli'
-import type { AttentionItem, CredentialView, CurationItem, JobView, RecentRun, SkillView, SlotView, Snapshot } from './model'
+import { parseSkill } from '../chat/skills'
+import type { AttentionItem, CredentialView, CurationItem, JobView, RecentRun, SkillView, SlotView, Snapshot, TicketView } from './model'
 
 /** What the builder needs of a Cli, so a test can hand it fixtures. */
 export interface Reader {
   run<T = unknown>(verb: Verb, args?: Args): Promise<T>
+}
+
+/** Where the files are and how to read one: the wiki root for held units, the home for the package cache. Optional; without it no note is read. */
+export interface Files {
+  root: string
+  home: string
+  read(path: string): Promise<string>
 }
 
 // The slices of each answer the dashboard reads. Optional where an older CLI omits them.
@@ -50,6 +58,9 @@ export interface TicketRow {
   slug: string | null
   not_before?: string | null
   reason?: string | null
+  queued_at?: string | null
+  claimed_at?: string | null
+  runtime_s?: number | null
 }
 export interface PageRow {
   path: string
@@ -98,9 +109,11 @@ export interface SkillsDoctorAnswer {
 }
 export interface PackagesLsAnswer {
   this_wiki?: { package: string; current?: string | null }[]
+  installed?: { package: string; cache?: string | null }[]
 }
 export interface PackagesShowAnswer {
   shown?: string | null
+  shown_ref?: string | null
   manifest?: { artifacts?: { type: string; name: string }[] }
 }
 export interface CredentialRow {
@@ -121,7 +134,7 @@ export interface BindingsAnswer {
   jobs?: BindingRow[]
 }
 
-export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now()): Promise<Snapshot> {
+export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now(), files?: Files): Promise<Snapshot> {
   const errors: Record<string, string> = {}
   const soft = async <T>(verb: Verb, args: Args = {}): Promise<T | null> => {
     try {
@@ -157,8 +170,18 @@ export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now(
   const ticketRows = tickets?.tickets ?? []
   const jobRows = (jobsLs?.jobs ?? []).filter((j) => j.state !== 'archived')
   const bindingRows = [...(bindings?.skills ?? []), ...(bindings?.jobs ?? [])]
-  const skills = skillViews(shown, packages, jobRows, bindingRows)
   const credentials = credentialViews(Array.isArray(credentialsLs) ? credentialsLs : (credentialsLs?.rows ?? []), bindingRows)
+  const caches = Object.fromEntries((packagesLs?.installed ?? []).map((p) => [p.package, p.cache ?? null]))
+  const skills = skillViews(shown, packages, jobRows, bindingRows, credentials, files ? { root: files.root, home: files.home, caches } : undefined)
+  if (files)
+    await Promise.all(skills.map(async (sk) => {
+      if (!sk.dir) return
+      try {
+        sk.description = parseSkill(sk.name, await files.read(`${sk.dir}/SKILL.md`)).description
+      } catch {
+        // a unit without a readable SKILL.md keeps an empty description
+      }
+    }))
   const jobs = jobRows.map((j) => jobView(j, ticketRows, now, skills))
   const attention = attentionItems({ doctor, due, jobsLs, jobs, skills, skillsDoctor, search, conflicts: conflicts?.pages ?? [], ticketRows })
   const runner = (runnerLs?.wikis ?? []).some((w) => w.wiki_key === wikiKey && w.installed !== null)
@@ -185,9 +208,9 @@ export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now(
 
 const STAGE_DONE: Record<string, string> = { harvest: 'harvesting', transcribe: 'transcribing', enrich: 'enriching', process: 'processing', routine: 'running' }
 
-/** The required slot a job's unit leaves empty on this machine, if any: the job is due by the clock and cannot run here. */
+/** The slot that keeps a unit from running here: a bound credential gone stale, missing or failed, else a required slot left empty. */
 export function unboundSlot(skill: SkillView | undefined): SlotView | undefined {
-  return skill?.slots.find((s) => s.required && (s.credential === null || s.problem))
+  return skill?.slots.find((s) => s.credential !== null && s.problem) ?? skill?.slots.find((s) => s.required && s.credential === null)
 }
 
 export function jobView(j: JobRow, tickets: TicketRow[], now: number, skills: SkillView[] = []): JobView {
@@ -209,7 +232,7 @@ export function jobView(j: JobRow, tickets: TicketRow[], now: number, skills: Sk
   else if (paused) next = { kind: 'paused' }
   else if (held) next = { kind: 'held', at: held, detail: pending?.reason ?? detail }
   else if (pending) next = { kind: 'queued', detail }
-  else if (unbound && unit) next = { kind: 'unbound', detail: `${unit.name} needs a credential for ${unbound.name}` }
+  else if (unbound && unit) next = { kind: 'unbound', detail: unbound.credential ? `${unbound.credential} is ${unbound.problem ?? 'broken'}` : `${unit.name} needs a credential` }
   else if (j.blocked) next = { kind: 'blocked', detail: j.blocked }
   else if (v?.due ?? j.due) next = { kind: 'due', detail }
   else if (!v) next = { kind: 'unknown' }
@@ -244,18 +267,35 @@ export function jobView(j: JobRow, tickets: TicketRow[], now: number, skills: Sk
     last,
     next,
     running: active ? { ticket: active.id, stage: active.step?.name ?? STAGE_DONE[active.stage] ?? active.stage, since: active.since } : null,
+    credential: unbound ? { slot: unbound.name, name: unbound.credential, problem: unbound.credential ? (unbound.problem ?? 'broken') : 'missing' } : null,
+    reasons: v?.reasons ?? [],
+    tickets: mine.map(ticketView).sort((a, b) => (b.at ?? '').localeCompare(a.at ?? '')),
   }
 }
 
+function ticketView(t: TicketRow): TicketView {
+  return { id: t.id, stage: t.stage, state: t.state, at: t.claimed_at ?? t.queued_at ?? null, reason: t.reason ?? null, runtimeS: t.runtime_s ?? null }
+}
+
 /** One view per unit the wiki holds or this machine loads, then the package's units not yet installed. */
-function skillViews(rows: SkillRow[], packages: { name: string; answer: PackagesShowAnswer | null }[], jobs: JobRow[], bindings: BindingRow[]): SkillView[] {
+function skillViews(
+  rows: SkillRow[],
+  packages: { name: string; answer: PackagesShowAnswer | null }[],
+  jobs: JobRow[],
+  bindings: BindingRow[],
+  credentials: CredentialView[],
+  where?: { root: string; home: string; caches: Record<string, string | null> },
+): SkillView[] {
   const held = rows.map((r): SkillView => {
     const declared = r.manifest?.requires?.credentials ?? {}
     const bound = bindings.filter((b) => b.skill === r.name)
     const names = [...new Set([...Object.keys(declared), ...bound.map((b) => b.name)])]
     const slots = names.map((name): SlotView => {
       const b = bound.find((x) => x.name === name)
-      return { name, required: declared[name] === 'required', credential: b?.credential ?? null, ...(b && b.state !== 'bound' ? { problem: b.state } : {}) }
+      // A binding the CLI calls bound can still point at a credential whose own check failed.
+      const failed = b && credentials.find((c) => c.name === b.credential)?.state === 'failed'
+      const problem = b && b.state !== 'bound' ? b.state : failed ? 'failed' : undefined
+      return { name, required: declared[name] === 'required', credential: b?.credential ?? null, ...(problem ? { problem } : {}) }
     })
     // Without the manifest, the CLI's own count still says whether something is missing.
     const m = /^(\d+)\/(\d+)$/.exec(r.mapped ?? '')
@@ -263,10 +303,12 @@ function skillViews(rows: SkillRow[], packages: { name: string; answer: Packages
       slots.push({ name: 'credential', required: true, credential: null })
     const enabled = r.state === 'enabled' || r.state === 'drifted' || r.state === 'linked'
     const inputs = Object.entries(r.manifest?.watch?.inputs ?? {}).map(([name, i]) => ({ name, prompt: i.prompt ?? name, required: i.required ?? false }))
-    const dir = r.path ?? `.llm-wiki/skills/${r.name}`
+    const rel = r.path ?? `.llm-wiki/skills/${r.name}`
+    const dir = where ? `${where.root}/${rel}` : rel
     return {
       name: r.name,
       state: enabled ? 'enabled' : 'installed',
+      description: '',
       venue: r.venue ?? null,
       version: r.version ?? null,
       from: r.from ?? null,
@@ -287,9 +329,11 @@ function skillViews(rows: SkillRow[], packages: { name: string; answer: Packages
     for (const a of p.answer?.manifest?.artifacts ?? [])
       if (a.type === 'skill' && !known.has(a.name)) {
         known.add(a.name)
+        const cache = where?.caches[p.name]?.replace(/^~/, where.home)
+        const dir = cache && p.answer?.shown_ref ? `${cache}/@${p.answer.shown_ref}/skills/${a.name}` : null
         available.push({
-          name: a.name, state: 'available', venue: null, version: null, from: p.answer?.shown ? `${p.name}@${p.answer.shown}` : p.name,
-          usage: null, drifted: false, outdated: false, warnings: [], slots: [], jobs: [], inputs: [], notes: { skill: 'SKILL.md' }, dir: null,
+          name: a.name, state: 'available', description: '', venue: null, version: null, from: p.answer?.shown ? `${p.name}@${p.answer.shown}` : p.name,
+          usage: null, drifted: false, outdated: false, warnings: [], slots: [], jobs: [], inputs: [], notes: { skill: 'SKILL.md' }, dir,
         })
       }
   const rank = { enabled: 0, installed: 1, available: 2 }
@@ -320,11 +364,11 @@ function attentionItems(input: {
   const out: AttentionItem[] = []
   // A job whose unit has an empty slot here: one row with the fix as a button, in place of the doctor's two sentences about it.
   const unbound = input.jobs.filter((j) => j.next.kind === 'unbound')
+  const unboundRows: AttentionItem[] = []
   for (const j of unbound) {
-    const unit = input.skills.find((s) => s.name === j.skill)
-    const slot = unboundSlot(unit)
-    if (!unit || !slot) continue
-    out.push({ id: `unbound:${j.slug}`, severity: 'warn', title: `${j.name} cannot run on this machine`, detail: j.next.detail, action: { kind: 'credential', skill: unit.name, slot: slot.name } })
+    const c = j.credential
+    if (!c || !j.skill) continue
+    unboundRows.push({ id: `unbound:${j.slug}`, severity: 'warn', title: `${j.name} cannot run on this machine`, detail: j.next.detail, action: { kind: 'credential', skill: j.skill, slot: c.slot, ...(c.name ? { name: c.name } : {}) } })
   }
   const covered = new Set(unbound.length ? ['bindings', 'jobs-skipped'] : [])
   for (const r of input.doctor?.rows ?? []) {
@@ -340,8 +384,19 @@ function attentionItems(input: {
     })
   }
   const parked = input.due?.parked ?? input.ticketRows.filter((t) => t.state === 'failed').map((t) => ({ id: t.id, job: t.slug ?? '', stage: t.stage, reason: t.reason }))
-  for (const t of parked)
-    out.push({ id: `parked:${t.id}`, severity: 'warn', title: `${t.job} ${t.stage} stopped${t.reason ? `: ${t.reason}` : ''}`, detail: `ticket ${t.id}`, action: { kind: 'retry', ticket: t.id } })
+  for (const t of parked) {
+    const job = input.jobs.find((j) => j.slug === t.job)
+    const name = job?.name ?? t.job
+    // A stopped job whose credential is the problem: fixing the credential is the button, and the retry rides along.
+    if (job?.credential && job.skill) {
+      const c = job.credential
+      out.push({ id: `parked:${t.id}`, severity: 'warn', title: `${name} stopped: ${c.name ? `${c.name} is ${c.problem}` : `${job.skill} needs a credential`}`, detail: t.reason ?? undefined, action: { kind: 'credential', skill: job.skill, slot: c.slot, ...(c.name ? { name: c.name } : {}), retry: t.id } })
+      continue
+    }
+    out.push({ id: `parked:${t.id}`, severity: 'warn', title: `${name} ${t.stage} stopped${t.reason ? `: ${t.reason}` : ''}`, detail: `ticket ${t.id}`, action: { kind: 'retry', ticket: t.id } })
+  }
+  const stopped = new Set(parked.map((t) => t.job))
+  for (const r of unboundRows) if (!stopped.has(r.id.slice('unbound:'.length))) out.push(r)
   for (const t of input.due?.review ?? [])
     out.push({ id: `review:${t.id}`, severity: 'info', title: `${t.job} ${t.stage} asks for review${t.reason ? `: ${t.reason}` : ''}`, detail: `ticket ${t.id}`, action: { kind: 'ask', prompt: `Ticket ${t.id} of job ${t.job} is in review${t.reason ? ` (${t.reason})` : ''}. Show me what it needs and help me judge it.` } })
   for (const j of input.jobs)

@@ -15,6 +15,8 @@ import { Actions } from './wiki/actions'
 import { Cli, type WikiRow } from './wiki/cli'
 import type { JobView, Snapshot } from './wiki/model'
 import { takeSnapshot } from './wiki/snapshot'
+import { readFile } from 'node:fs/promises'
+import { homedir } from 'node:os'
 import { effectivePath, findBinary, matchWiki } from './wiki/resolve'
 
 export default class LlmWikiPlugin extends Plugin {
@@ -119,8 +121,9 @@ export default class LlmWikiPlugin extends Plugin {
     if (this.refreshing) return this.refreshing
     const { cli, wiki } = this
     if (!cli || !wiki || this.unloaded) return Promise.resolve()
-    this.refreshing = takeSnapshot(cli, wiki.key)
+    this.refreshing = takeSnapshot(cli, wiki.key, Date.now(), { root: wiki.root, home: homedir(), read: (p) => readFile(p, 'utf8') })
       .then((snap) => {
+        this.announceFailures(this.snapshot, snap)
         this.snapshot = snap
         this.showStatus()
         this.app.workspace.trigger('llm-wiki:snapshot')
@@ -131,6 +134,14 @@ export default class LlmWikiPlugin extends Plugin {
         this.schedulePoll()
       })
     return this.refreshing
+  }
+
+  /** A job that stopped since the last read gets a Notice, since the status bar alone is easy to miss. */
+  private announceFailures(before: Snapshot | null, after: Snapshot): void {
+    if (!before) return
+    const seen = new Set(before.attention.map((a) => a.id))
+    for (const a of after.attention)
+      if (a.id.startsWith('parked:') && !seen.has(a.id)) new Notice(`${a.title}. Open the LLM wiki dashboard to fix it.`, 10_000)
   }
 
   /** Tight while a ticket is running, since someone just pressed Run and is watching; relaxed otherwise. */
@@ -151,8 +162,9 @@ export default class LlmWikiPlugin extends Plugin {
     }
     const s = this.snapshot
     const running = s?.jobs.find((j) => j.running)
-    const text = !s ? this.wiki.key : running ? `running ${running.name}` : s.health.count ? `${s.health.count} need you` : 'ok'
-    this.statusBar.setText(`llm-wiki · ${text}`)
+    const stopped = s?.attention.filter((a) => a.id.startsWith('parked:')).length ?? 0
+    const text = !s ? this.wiki.key : running ? `running ${running.name}` : stopped && stopped === s.health.count ? `${stopped} stopped` : s.health.count ? `${s.health.count} need you` : 'ok'
+    this.statusBar.setText(`llm-wiki · ${text}${s && !s.runner ? ' · no runner' : ''}`)
   }
 
   async openDashboard(): Promise<void> {

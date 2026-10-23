@@ -9,8 +9,8 @@ export type Action =
   | { kind: 'open'; path: string }
   | { kind: 'retry'; ticket: string }
   | { kind: 'reindex' }
-  /** Open the credential modal for one empty slot; the skill and its jobs are bound on save. */
-  | { kind: 'credential'; skill: string; slot: string }
+  /** Open the credential dialog: for an empty slot (bind on save), or to replace `name`; `retry` is a parked ticket to retry after. */
+  | { kind: 'credential'; skill: string; slot: string; name?: string; retry?: string }
   | { kind: 'inspect'; skill: string }
 
 export interface AttentionItem {
@@ -45,6 +45,21 @@ export interface JobView {
     detail?: string
   }
   running: { ticket: string; stage: string; since: string | null } | null
+  /** The credential problem keeping it from running here: an empty slot, or a bound credential that is stale, missing or failed. */
+  credential: { slot: string; name: string | null; problem: string } | null
+  /** The verdict's own reasons, for the detail view. */
+  reasons: string[]
+  /** Its tickets, newest first: what ran, what failed and why. */
+  tickets: TicketView[]
+}
+
+export interface TicketView {
+  id: string
+  stage: string
+  state: 'pending' | 'active' | 'done' | 'failed' | 'orphan'
+  at: string | null
+  reason: string | null
+  runtimeS: number | null
 }
 
 /** One credential slot a skill declares (`file`, `dir`) or its sandbox routes, and what fills it on this machine. */
@@ -63,6 +78,8 @@ export type SkillState = 'enabled' | 'installed' | 'available'
 export interface SkillView {
   name: string
   state: SkillState
+  /** The first sentence of its SKILL.md description, when readable. */
+  description: string
   venue: string | null
   version: string | null
   /** The package and version it came from. */
@@ -81,7 +98,7 @@ export interface SkillView {
   inputs: { name: string; prompt: string; required: boolean }[]
   /** Reference notes the unit ships, by role, as paths under its directory. */
   notes: { skill: string; enable?: string; usage?: string }
-  /** Where the unit's files are, relative to the wiki root; null for an available unit. */
+  /** Where the unit's files are: under the wiki for a held unit, in the package cache for an available one; null when unknown. */
   dir: string | null
 }
 

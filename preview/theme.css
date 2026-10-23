@@ -59,3 +59,6 @@ a.internal-link { color: var(--text-accent); }
 .notice-container { position: fixed; top: 16px; right: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 20; }
 .notice { background: var(--background-secondary-alt); padding: 10px 14px; border-radius: var(--radius-m); box-shadow: 0 2px 12px rgba(0,0,0,0.2); }
 i[data-lucide], .llm-wiki-icon svg { width: 1em; height: 1em; display: inline-block; vertical-align: -0.15em; }
+.menu { position: fixed; background: var(--background-primary); border: 1px solid var(--background-modifier-border); border-radius: var(--radius-m); padding: 4px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); z-index: 30; min-width: 180px; }
+.menu-item { padding: 6px 10px; cursor: pointer; border-radius: 4px; }
+.menu-item:hover { background: var(--background-modifier-hover); }

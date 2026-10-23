@@ -86,7 +86,8 @@ describe('takeSnapshot: skills and credentials', () => {
   it('derives the job that cannot run here from the empty slot, in place of the doctor rows about it', async () => {
     const snap = await takeSnapshot(reader(GMAIL), 'kb', NOW)
     expect(snap.errors).toEqual({})
-    expect(snap.jobs[0]?.next).toEqual({ kind: 'unbound', detail: 'channel-gmail needs a credential for file' })
+    expect(snap.jobs[0]?.next).toEqual({ kind: 'unbound', detail: 'channel-gmail needs a credential' })
+    expect(snap.jobs[0]?.credential).toEqual({ slot: 'file', name: null, problem: 'missing' })
     expect(snap.attention.map((a) => a.id)).toEqual(['unbound:inbox-joe'])
     expect(snap.attention[0]?.action).toEqual({ kind: 'credential', skill: 'channel-gmail', slot: 'file' })
     expect(snap.health).toEqual({ tone: 'warn', count: 1 })
@@ -106,6 +107,39 @@ describe('takeSnapshot: skills and credentials', () => {
     const snap = await takeSnapshot(reader({ ...GMAIL, 'wiki.skills.show': undefined }), 'kb', NOW)
     expect(snap.skills[0]?.slots).toEqual([{ name: 'credential', required: true, credential: null }])
     expect(snap.jobs[0]?.next.kind).toBe('unbound')
+  })
+  it('a stopped job whose credential went stale gets Replace credential with the retry riding along, once', async () => {
+    const snap = await takeSnapshot(reader({ ...GMAIL, 'wiki.doctor': { rows: [] },
+      'wiki.jobs.due': { parked: [{ id: 'p1', job: 'inbox-joe', stage: 'harvest', reason: 'login expired' }], review: [], handoffs: { problems: [] } },
+      'wiki.tickets.ls': { tickets: [{ id: 'p1', stage: 'harvest', state: 'failed', slug: 'inbox-joe', reason: 'login expired', queued_at: '2026-10-23T09:00:00Z', runtime_s: 12 }] },
+      'wiki.credentials.bindings': { skills: [{ skill: 'channel-gmail', name: 'file', credential: 'gmail_token', state: 'stale' }], jobs: [] } }), 'kb', NOW)
+    expect(snap.jobs[0]?.next).toEqual({ kind: 'unbound', detail: 'gmail_token is stale' })
+    expect(snap.jobs[0]?.tickets).toEqual([{ id: 'p1', stage: 'harvest', state: 'failed', at: '2026-10-23T09:00:00Z', reason: 'login expired', runtimeS: 12 }])
+    expect(snap.attention.map((a) => a.id)).toEqual(['parked:p1'])
+    expect(snap.attention[0]).toMatchObject({ title: 'inbox-joe stopped: gmail_token is stale', action: { kind: 'credential', skill: 'channel-gmail', slot: 'file', name: 'gmail_token', retry: 'p1' } })
+  })
+  it('a credential whose own check failed breaks the slot it fills', async () => {
+    const snap = await takeSnapshot(reader({ ...GMAIL, 'wiki.doctor': { rows: [] },
+      'wiki.credentials.ls': { rows: [{ name: 'gmail_token', kind: 'value', state: 'failed' }] },
+      'wiki.credentials.bindings': { skills: [{ skill: 'channel-gmail', name: 'file', credential: 'gmail_token', state: 'bound' }], jobs: [] } }), 'kb', NOW)
+    expect(snap.skills[0]?.slots).toEqual([{ name: 'file', required: true, credential: 'gmail_token', problem: 'failed' }])
+    expect(snap.jobs[0]?.next.kind).toBe('unbound')
+  })
+  it('reads each unit’s description from its SKILL.md, held units under the wiki and available ones from the package cache', async () => {
+    const read = async (p: string) => {
+      if (p === '/w/.llm-wiki/skills/channel-gmail/SKILL.md') return '---\nname: channel-gmail\ndescription: Gmail capture. More.\n---\n'
+      if (p === '/h/.local/share/llm-wiki/packages/cache/llm-wiki-packages/llm-wiki-skills/@abc/skills/channel-youtube/SKILL.md') return '---\ndescription: YouTube capture.\n---\n'
+      throw new Error('no such file')
+    }
+    const snap = await takeSnapshot(reader({ ...GMAIL,
+      'wiki.packages.ls': { this_wiki: [{ package: 'llm-wiki-packages/llm-wiki-skills' }], installed: [{ package: 'llm-wiki-packages/llm-wiki-skills', cache: '~/.local/share/llm-wiki/packages/cache/llm-wiki-packages/llm-wiki-skills' }] },
+      'wiki.packages.show': { shown: '0.5.0', shown_ref: 'abc', manifest: { artifacts: [{ type: 'skill', name: 'channel-youtube' }, { type: 'skill', name: 'web-page' }] } },
+    }), 'kb', NOW, { root: '/w', home: '/h', read })
+    expect(snap.skills.map((s) => [s.name, s.description, s.dir])).toEqual([
+      ['channel-gmail', 'Gmail capture.', '/w/.llm-wiki/skills/channel-gmail'],
+      ['channel-youtube', 'YouTube capture.', '/h/.local/share/llm-wiki/packages/cache/llm-wiki-packages/llm-wiki-skills/@abc/skills/channel-youtube'],
+      ['web-page', '', '/h/.local/share/llm-wiki/packages/cache/llm-wiki-packages/llm-wiki-skills/@abc/skills/web-page'],
+    ])
   })
   it('a stale binding counts as empty, and drift and updates become attention', async () => {
     const snap = await takeSnapshot(reader({ ...GMAIL, 'wiki.doctor': { rows: [] },

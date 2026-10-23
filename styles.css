@@ -85,7 +85,7 @@
 .llm-wiki-table td { padding: var(--size-4-2); border-bottom: 1px solid var(--background-modifier-border); vertical-align: middle; }
 .llm-wiki-table tr.is-running td { background: var(--background-secondary); }
 .llm-wiki-table tr.is-paused td { color: var(--text-muted); }
-.llm-wiki-next.is-due { font-weight: var(--font-semibold); }
+.llm-wiki-next.is-due { font-weight: var(--font-medium); }
 .llm-wiki-next.is-blocked { color: var(--color-orange); }
 .llm-wiki-next.is-running { color: var(--text-accent); }
 .llm-wiki-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--size-4-2); }
@@ -108,3 +108,24 @@
 .llm-wiki-note-page { max-height: 45vh; overflow: auto; padding: var(--size-4-3); border: 1px solid var(--background-modifier-border); border-radius: var(--radius-m); margin: var(--size-4-2) 0; font-size: var(--font-ui-small); }
 .llm-wiki-note-page > :first-child { margin-top: 0; }
 .llm-wiki-row:has(> .llm-wiki-dot.is-info) .llm-wiki-row-title { color: var(--text-muted); font-weight: var(--font-normal); }
+
+/* Cycle 2 */
+.llm-wiki-group { color: var(--text-faint); font-size: var(--font-ui-smaller); text-transform: uppercase; letter-spacing: 0.04em; padding: var(--size-4-3) var(--size-4-2) var(--size-4-1) !important; border-bottom: none !important; }
+.llm-wiki-table tr.is-link { cursor: pointer; }
+.llm-wiki-table tr.is-link:hover td { background: var(--background-modifier-hover); }
+.llm-wiki-card.is-link { cursor: pointer; }
+.llm-wiki-card.is-link:hover { border-color: var(--interactive-accent); }
+.llm-wiki-failed { color: var(--color-red); font-size: var(--font-ui-small); }
+.llm-wiki-more { padding: 4px 6px; }
+.llm-wiki-filter { width: 100%; margin-bottom: var(--size-4-2); }
+.llm-wiki-notice-row { display: flex; align-items: center; gap: var(--size-4-3); margin-top: var(--size-4-2); }
+.llm-wiki-notice-row > span { flex: 1; }
+.llm-wiki-more-link { cursor: pointer; margin-top: var(--size-2-2); }
+.llm-wiki-more-link:hover { color: var(--text-normal); }
+.llm-wiki-first { border: 1px solid var(--background-modifier-border); border-radius: var(--radius-l); padding: var(--size-4-6); max-width: 560px; }
+.llm-wiki-first h3 { margin: 0 0 var(--size-4-2); }
+.llm-wiki-first p { margin: 0 0 var(--size-4-4); }
+.llm-wiki-facts-block { margin: var(--size-4-3) 0; }
+.llm-wiki-note-page > h1:first-child { display: none; }
+.llm-wiki-row-title .llm-wiki-pill.is-warn { color: var(--color-orange); background: color-mix(in srgb, var(--color-orange) 12%, transparent); }
+.llm-wiki-row-title .llm-wiki-pill.is-error { background: color-mix(in srgb, var(--color-red) 12%, transparent); }

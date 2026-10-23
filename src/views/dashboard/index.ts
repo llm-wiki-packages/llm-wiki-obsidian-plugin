@@ -29,6 +29,13 @@ export interface TabContext {
   goTo(tab: Tab): void
 }
 
+/** What a failed read is called on screen. */
+const READ_NAMES: Record<string, string> = {
+  'wiki.doctor': 'the doctor report', 'wiki.jobs.ls': 'the job list', 'wiki.jobs.due': 'what is due', 'wiki.tickets.ls': 'the ticket list', 'wiki.page.ls': 'the page list',
+  'wiki.op.since': 'recent runs', 'wiki.search.status': 'the search status', 'wiki.git.conflicts': 'conflicts', 'machine.runner.ls': 'the runner', 'wiki.skills.ls': 'the skills',
+  'wiki.skills.doctor': 'the skills doctor', 'wiki.packages.ls': 'the packages', 'wiki.credentials.ls': 'the credentials', 'wiki.credentials.bindings': 'the credential bindings',
+}
+
 export class DashboardView extends ItemView {
   private tab: Tab = 'overview'
   private panel!: HTMLElement
@@ -115,15 +122,14 @@ export class DashboardView extends ItemView {
     this.healthPill.setText(snapshot.health.count ? `${snapshot.health.count} need you` : 'ok')
     this.healthPill.className = `llm-wiki-pill is-${snapshot.health.tone}`
     this.refreshedEl.setText(`refreshed ${new Date(snapshot.takenAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`)
-    const ctx: TabContext = {
-      snapshot,
-      plugin: this.plugin,
-      act: (a) => this.act(a),
-      write: (run) => this.write(run),
-      goTo: (t) => this.goTo(t),
-    }
+    const ctx = this.context(snapshot)
     const errors = Object.entries(snapshot.errors)
-    if (errors.length) this.panel.createDiv({ cls: 'llm-wiki-notice', text: `Some reads failed: ${errors.map(([v, m]) => `${v} (${m})`).join('; ')}` })
+    if (errors.length) {
+      const notice = this.panel.createDiv({ cls: 'llm-wiki-notice llm-wiki-notice-row' })
+      notice.createSpan({ text: `Could not read ${errors.map(([v]) => READ_NAMES[v] ?? v).join(', ')}; this view may be incomplete.` })
+      notice.title = errors.map(([v, m]) => `${v}: ${m}`).join('\n')
+      button(notice, 'Ask the agent', () => this.act({ kind: 'ask', prompt: `The Obsidian plugin could not read these from the wiki: ${errors.map(([v, m]) => `${v} (${m})`).join('; ')}. What is wrong?` }), { icon: 'message-square' })
+    }
     switch (this.tab) {
       case 'overview':
         renderOverview(this.panel, ctx)
@@ -137,6 +143,16 @@ export class DashboardView extends ItemView {
       case 'pages':
         renderPages(this.panel, ctx)
         break
+    }
+  }
+
+  private context(snapshot: Snapshot): TabContext {
+    return {
+      snapshot,
+      plugin: this.plugin,
+      act: (a) => this.act(a),
+      write: (run) => this.write(run),
+      goTo: (t) => this.goTo(t),
     }
   }
 
@@ -162,11 +178,11 @@ export class DashboardView extends ItemView {
         if (actions) await this.write(() => actions.reindex())
         return
       case 'credential':
-        this.plugin.credentialModal({ skill: action.skill, slot: action.slot })
+        this.plugin.credentialModal({ skill: action.skill, slot: action.slot, name: action.name, retry: action.retry })
         return
       case 'inspect': {
         const s = this.plugin.snapshot?.skills.find((x) => x.name === action.skill)
-        if (s && this.plugin.wiki) openSkillModal(this.app, this.plugin.wiki.root, s, (a) => this.act(a))
+        if (s && this.plugin.snapshot) openSkillModal(this.app, s, this.context(this.plugin.snapshot))
         return
       }
     }
