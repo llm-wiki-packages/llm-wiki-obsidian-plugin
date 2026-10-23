@@ -46,11 +46,15 @@ export class SearchView extends ItemView {
     this.registerDomEvent(this.input, 'keydown', (e) => {
       if (e.key === 'Enter') {
         e.preventDefault()
+        run.cancel()
         void this.search()
       }
       if (e.key === 'Escape') {
+        run.cancel()
+        this.inFlight?.abort()
         this.input.value = ''
         this.results.empty()
+        this.status.setText('')
       }
     })
     this.registerEvent(this.app.workspace.on('llm-wiki:detected' as 'layout-change', () => this.showReadiness()))
@@ -90,15 +94,16 @@ export class SearchView extends ItemView {
     this.status.setText(notes.join(' · '))
     this.results.empty()
     const q = this.input.value.trim()
+    // Rows are rebuilt per search; the DOM owns their listeners with the node.
     const ask = this.results.createEl('button', { cls: 'llm-wiki-chip', text: 'Ask the agent about this' })
-    this.registerDomEvent(ask, 'click', () => void this.plugin.openChat(`About "${q}" in this wiki: `))
+    ask.addEventListener('click', () => void this.plugin.openChat(`About "${q}" in this wiki: `))
     for (const h of hits) {
       const path = h.source_path ?? h.locator ?? ''
       const row = this.results.createDiv({ cls: 'llm-wiki-hit' })
       row.createDiv({ cls: 'llm-wiki-hit-title', text: h.title || path })
       row.createDiv({ cls: 'llm-wiki-hit-path llm-wiki-muted', text: path })
       if (h.snippet) row.createDiv({ cls: 'llm-wiki-hit-snippet', text: h.snippet.replace(/\s+/g, ' ').trim() })
-      this.registerDomEvent(row, 'click', (ev) => {
+      row.addEventListener('click', (ev) => {
         void this.app.workspace.openLinkText(path, '', ev.metaKey || ev.ctrlKey)
       })
     }

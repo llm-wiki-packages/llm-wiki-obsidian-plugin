@@ -20,6 +20,7 @@ interface RequestAnswer {
   minted?: boolean
   ticket?: string | null
   written?: string[]
+  error?: string | null
 }
 
 export class Actions {
@@ -36,6 +37,10 @@ export class Actions {
       if (a.outcome === 'ok') return { ok: true, message: `${slug} ran${a.written?.length ? `: ${a.written.length} page${a.written.length === 1 ? '' : 's'} written` : ''}`, written: a.written ?? [] }
       return { ok: true, message: `${slug} started` }
     } catch (e) {
+      // A non-zero exit with an answer is a run that ran: it stopped, or it is still going. Only a refusal "did not start".
+      const body = e instanceof CliError ? (e.body as RequestAnswer | undefined) : undefined
+      if (body?.outcome === 'failed') return { ok: false, message: `${slug} ran and stopped${body.error ? `: ${body.error}` : ''}` }
+      if (body?.outcome === 'running') return { ok: true, message: `${slug} started; still running` }
       return failed(`${slug} did not start`, e)
     }
   }
@@ -43,7 +48,7 @@ export class Actions {
   /** Put a stopped ticket back and run the pass now, since without a runner nothing else would pick it up. */
   async retryAndRun(ticket: string, slug: string): Promise<Outcome> {
     const back = await this.retryTicket(ticket)
-    if (!back.ok) return back
+    if (!back.ok || back.landed) return back
     return this.runJob(slug)
   }
 
@@ -65,9 +70,11 @@ export class Actions {
     }
   }
 
-  async retryTicket(id: string): Promise<Outcome> {
+  /** Back to pending, or the truth that it had already landed and there is nothing to retry. */
+  async retryTicket(id: string): Promise<Outcome & { landed?: boolean }> {
     try {
-      await this.cli.run('wiki.tickets.retry', { wiki: this.wiki, id })
+      const a = await this.cli.run<{ already_landed?: boolean }>('wiki.tickets.retry', { wiki: this.wiki, id })
+      if (a.already_landed) return { ok: true, message: `ticket ${id} had already landed; nothing to retry`, landed: true }
       return { ok: true, message: `ticket ${id} back to pending` }
     } catch (e) {
       return failed(`could not retry ${id}`, e)

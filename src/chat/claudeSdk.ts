@@ -24,6 +24,8 @@ const APPEND = [
 ].join(' ')
 
 /** Verbs that would print a secret into a transcript. */
+const CREDENTIAL_RULE = ' When a job or skill needs a credential, say which one and stop; never ask the person to paste a secret into this chat. The plugin\'s Set credential button stores it without the value ever reaching a transcript.'
+
 const DENIED = [
   'Bash(llm-wiki-ops credentials get*)',
   'Bash(llm-wiki-cli wiki * credentials get*)',
@@ -66,7 +68,7 @@ export class ClaudeSdkBackend implements ChatBackend {
           abortController: abort,
           includePartialMessages: true,
           settingSources: ['user', 'project', 'local'],
-          systemPrompt: { type: 'preset', preset: 'claude_code', append: APPEND },
+          systemPrompt: { type: 'preset', preset: 'claude_code', append: APPEND + CREDENTIAL_RULE },
           permissionMode: 'default',
           disallowedTools: DENIED,
           ...(this.sessionId ? { resume: this.sessionId } : {}),

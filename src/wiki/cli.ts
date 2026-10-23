@@ -53,6 +53,8 @@ export class CliError extends Error {
     public readonly kind: 'args' | 'spawn' | 'timeout' | 'exit' | 'parse',
     public readonly rc?: number,
     public readonly stderr?: string,
+    /** The parsed answer when the CLI printed one beside a non-zero exit: a run that failed is still a run. */
+    public readonly body?: unknown,
   ) {
     super(message)
   }
@@ -339,7 +341,7 @@ export class Cli {
         const errorKey = (parsed as { error?: string } | undefined)?.error
         if (rc !== 0 || errorKey) {
           const detail = (parsed as { message?: string } | undefined)?.message
-          reject(new CliError(`${verb}: ${errorKey ?? `rc ${rc}`}${detail ? ` — ${detail}` : ''}`, 'exit', rc ?? undefined, tail(err)))
+          reject(new CliError(`${verb}: ${errorKey ?? `rc ${rc}`}${detail ? ` — ${detail}` : ''}`, 'exit', rc ?? undefined, tail(err), parsed))
           return
         }
         resolve(parsed as T)

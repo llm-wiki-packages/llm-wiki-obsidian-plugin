@@ -130,10 +130,12 @@ export class DashboardView extends ItemView {
       this.healthPill.setText(this.plugin.problem ? 'not ready' : 'loading')
       this.healthPill.className = `llm-wiki-pill is-${this.plugin.problem ? 'error' : 'muted'}`
       this.refreshedEl.setText('')
+      this.tabBar.toggle(!this.plugin.problem)
       if (this.plugin.problem) this.notReady(this.plugin.problem)
       else this.panel.createDiv({ cls: 'llm-wiki-notice', text: 'Reading the wiki…' })
       return
     }
+    this.tabBar.show()
     this.healthPill.setText(snapshot.health.count ? `${snapshot.health.count} need you` : 'ok')
     this.healthPill.className = `llm-wiki-pill is-${snapshot.health.tone}`
     const errors = Object.entries(snapshot.errors)
@@ -241,7 +243,7 @@ export class DashboardView extends ItemView {
         if (actions) await this.write(() => actions.reindex())
         return
       case 'credential':
-        this.plugin.credentialModal({ skill: action.skill, slot: action.slot, name: action.name, retry: action.retry })
+        this.plugin.credentialModal({ skill: action.skill, slot: action.slot, name: action.name, retry: action.retry, job: action.job })
         return
       case 'inspect': {
         const s = this.plugin.snapshot?.skills.find((x) => x.name === action.skill)

@@ -128,7 +128,7 @@ function lastCell(td: HTMLElement, j: JobView): void {
   if (j.last.at) td.createSpan({ text: relativeTime(j.last.at) })
   if (j.last.outcome === 'failed') {
     const why = j.tickets.find((t) => t.state === 'failed')?.reason
-    td.createDiv({ cls: 'llm-wiki-failed', text: why ? `failed: ${why}` : 'failed' })
+    td.createDiv({ cls: 'llm-wiki-failed', text: why ? `stopped: ${why}` : 'stopped' })
   } else if (j.last.outcome && j.last.outcome !== 'ok') {
     td.createSpan({ text: ' · ' })
     pill(td, j.last.outcome)
@@ -199,10 +199,12 @@ export function jobButtons(parent: HTMLElement, j: JobView, ctx: TabContext, ful
   more.addClass('llm-wiki-more')
 }
 
-/** The credential action for a job: set or replace, and retry its stopped ticket on the way. */
+/** The credential action for a job: set or replace, and retry the stopped ticket the credential explains, on the way. */
 export function credentialAction(j: JobView): Action {
   const c = j.credential!
-  const failed = j.tickets.find((t) => t.state === 'failed')
+  const parked = j.tickets.filter((t) => t.state === 'failed')
+  // The ticket whose reason names the credential, else the newest stopped harvest; an old unrelated failure does not ride along.
+  const failed = parked.find((t) => c.name && t.reason?.includes(c.name)) ?? parked.find((t) => t.stage === 'harvest')
   return { kind: 'credential', skill: j.skill!, slot: c.slot, ...(c.name ? { name: c.name } : {}), ...(failed ? { retry: failed.id } : {}), job: j.slug }
 }
 

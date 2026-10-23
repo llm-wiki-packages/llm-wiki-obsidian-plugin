@@ -26,7 +26,7 @@ export function renderOverview(root: HTMLElement, ctx: TabContext): void {
     const row = needs.createDiv({ cls: 'llm-wiki-also' })
     if (n === 0) row.createSpan({ cls: 'llm-wiki-also-label', text: 'Also' })
     row.createSpan({ cls: 'llm-wiki-muted', text: item.title })
-    if (item.action) button(row, item.action.kind === 'ask' ? (item.action.label ?? 'Ask the agent') : LABEL[item.action.kind], () => ctx.act(item.action!), {})
+    if (item.action) button(row, item.action.kind === 'ask' ? (item.action.label ?? 'Ask the agent') : LABEL[item.action.kind], () => ctx.act(item.action!), {}).addClass('llm-wiki-small')
   }
   if (!snapshot.runner) {
     const notice = needs.createDiv({ cls: 'llm-wiki-notice llm-wiki-notice-row' })
@@ -126,5 +126,5 @@ function attentionRow(parent: HTMLElement, item: AttentionItem, ctx: TabContext)
   const label = a.kind === 'ask' ? (a.label ?? 'Ask the agent') : a.kind === 'credential' && a.name ? 'Replace credential' : LABEL[a.kind]
   button(actions, label, () => ctx.act(a), { icon: ICON[a.kind], cta: a.kind === 'credential' })
   // A stopped job can also simply be retried; the credential button is the fix, this is the escape hatch.
-  if (a.kind === 'credential' && a.retry) button(actions, 'Retry', () => ctx.act({ kind: 'retry', ticket: a.retry! }), { icon: 'rotate-ccw' })
+  if (a.kind === 'credential' && a.retry) button(actions, 'Retry', () => ctx.act({ kind: 'retry', ticket: a.retry!, slug: a.job }), { icon: 'rotate-ccw' })
 }

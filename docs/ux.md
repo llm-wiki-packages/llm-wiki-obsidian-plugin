@@ -41,7 +41,7 @@ Chat. Four tabs, remembered per tab leaf.
 - *Running and due*: up to four cards, then "and N more"; a click opens the
   job's detail dialog.
 - A wiki with no jobs shows one card instead: "Nothing is pulling into this
-  wiki yet", what a job and a skill are, **Add a job…** and **Browse skills**.
+  wiki yet", what a job and a skill are, **Add a source…** and **Browse skills**.
 - *Waiting for curation*: count, first five paths, how many new files under
   sources/ are not yet in the wiki; Review goes to Pages.
 - *Last day*: "3 runs, 1 failed. 2 pages are waiting for review." then the
@@ -55,7 +55,7 @@ Held until / in 9h / Blocked: why / **Needs a credential** / **Credential
 stale**; "When you press Run" when no runner is installed). One primary
 button per row: Set or Replace credential, Run when due (or always, without a
 runner), Resume when paused; a "…" menu holds Run now, Pause, Details, Ask the
-agent. Clicking a row opens the job's detail dialog. "Add a job…" asks one
+agent. Clicking a row opens the job's detail dialog. "Add a source…" asks one
 line in plain words and hands it to chat as `/llm-wiki:add <text>`. Nothing
 on screen says running or due that the ticket store does not.
 
@@ -126,9 +126,9 @@ composer. Session, model and cost lines are gone; the duration sits on the
 bubble's hover. Agent = a Claude Code session at the wiki root,
 unjailed, with the wiki's hooks, permission cards in the pane ("Run this?",
 Allow / Deny), `credentials get` denied. Ask = one jailed `harness run` per
-turn, read-only. New chat, **Skills…** (a fuzzy list of the llm-wiki slash
-skills read from the installed Claude Code plugin; asks for arguments; starts
-the turn). Chips: three prompts by the active note. Composer with Send / Stop.
+turn, read-only. New chat, **Commands…** (a fuzzy list of the `/llm-wiki:` slash
+commands read from the installed Claude Code plugin; asks for arguments;
+starts the turn). Chips: three prompts by the active note. Composer with Send / Stop.
 Every dashboard hand-off lands here prefilled, not sent. A tool row for an
 llm-wiki command reads in words ("Running inbox-joe", "Reading the job
 list"), the command itself on hover; the permission card keeps the raw
@@ -227,3 +227,16 @@ It renders the real views over fixture data with a stand-in for Obsidian's API.
   "wiki notes" label, "Details" menu item gone, slot rows say the name
   once); registered wikis as choices on the not-ready card; Update in the
   inspector; Change schedule and Remove hand-offs in the job menu.
+- **Cycle 5 (2026-10-23)**: fable review 4 ("would I ship it") folded. A run
+  that ran and stopped says so, never "did not start"; a retried ticket that
+  had already landed says so and is not run; light polls keep the skills
+  doctor findings so the health count does not flicker; the retry path
+  carries the job from all three entry points, and only the ticket the
+  credential explains rides along; at most four CLI processes at once, and
+  a full read (credentials included) every five minutes rather than every
+  minute; Continue last chat only when claude is there, with the last
+  prompt as its note; refresh after a write tool, not after every Read; the
+  job dialog follows the snapshot while open; the agent is told never to
+  ask for a secret in chat; search cancels its pending debounce on Enter
+  and clears on Escape; "stopped" for tickets everywhere; the chat button
+  is Commands…; the not-ready card hides the tabs; one accent per dialog.

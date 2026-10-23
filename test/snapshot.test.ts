@@ -131,6 +131,14 @@ describe('takeSnapshot: skills and credentials', () => {
     expect(light.jobs[0]?.next.kind).toBe('paused')
     expect(light.skills[0]?.jobs).toEqual(['inbox-joe'])
   })
+  it('a light read keeps the skills doctor findings it did not re-read, so the count does not flicker', async () => {
+    const withFinding = { ...GMAIL, 'wiki.doctor': { rows: [] }, 'wiki.skills.doctor': { findings: [{ name: 'channel-gmail', level: 'warn', what: 'the enabled copy drifted', fix: null }] } }
+    const full = await takeSnapshot(reader(withFinding), 'kb', NOW)
+    expect(full.attention.map((a) => a.id)).toContain('skill:channel-gmail')
+    const light = await takeSnapshot(reader(withFinding), 'kb', NOW + 10_000, undefined, full)
+    expect(light.attention.filter((a) => a.id === 'skill:channel-gmail')).toHaveLength(1)
+    expect(light.health.count).toBe(full.health.count)
+  })
   it('a credential whose own check failed breaks the slot it fills', async () => {
     const snap = await takeSnapshot(reader({ ...GMAIL, 'wiki.doctor': { rows: [] },
       'wiki.credentials.ls': { rows: [{ name: 'gmail_token', kind: 'value', state: 'failed' }] },

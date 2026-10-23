@@ -6,10 +6,26 @@ import type { JobView } from '../wiki/model'
 import { button, clockTime, relativeTime } from './dom'
 
 /** One job in full: what it is, what it is waiting on and why, what it needs here, and its last runs. */
-export function openJobModal(app: App, j: JobView, ctx: TabContext): void {
+export function openJobModal(app: App, job: JobView, ctx: TabContext): void {
+  let j = job
   const modal = new (class extends Modal {
+    private ref: ReturnType<App['workspace']['on']> | null = null
+
     onOpen(): void {
       this.modalEl.addClass('llm-wiki-wide')
+      // The pane a person watches after pressing Run: it follows the snapshot instead of freezing at open.
+      this.ref = app.workspace.on('llm-wiki:snapshot' as 'layout-change', () => {
+        const fresh = ctx.plugin.snapshot?.jobs.find((x) => x.slug === j.slug)
+        if (!fresh) return
+        j = fresh
+        ctx = { ...ctx, snapshot: ctx.plugin.snapshot! }
+        this.contentEl.empty()
+        this.draw()
+      })
+      this.draw()
+    }
+
+    private draw(): void {
       this.setTitle(j.name)
       const c = this.contentEl
       c.createDiv({ cls: 'llm-wiki-muted', text: [j.slug, j.kind, j.schedule, j.skill ? `skill ${j.skill}` : null].filter(Boolean).join(' · ') })
@@ -30,7 +46,7 @@ export function openJobModal(app: App, j: JobView, ctx: TabContext): void {
           main.createDiv({ cls: 'llm-wiki-row-title', text: slot.credential ? slotWords(slot.name).label : `${slotWords(slot.name).label} · ${slot.required ? 'required' : 'optional'}` })
           main.createDiv({ cls: 'llm-wiki-row-detail', text: slot.credential ?? 'not set' })
           if (!slot.credential || slot.problem)
-            button(row.createDiv({ cls: 'llm-wiki-row-actions' }), slot.credential ? 'Replace credential' : 'Set credential', () => { this.close(); return ctx.act(j.credential?.slot === slot.name ? credentialAction(j) : { kind: 'credential', skill: unit.name, slot: slot.name, ...(slot.credential ? { name: slot.credential } : {}), job: j.slug }) }, { icon: 'key-round', cta: slot.required || Boolean(slot.problem) })
+            button(row.createDiv({ cls: 'llm-wiki-row-actions' }), slot.credential ? 'Replace credential' : 'Set credential', () => { this.close(); return ctx.act(j.credential?.slot === slot.name ? credentialAction(j) : { kind: 'credential', skill: unit.name, slot: slot.name, ...(slot.credential ? { name: slot.credential } : {}), job: j.slug }) }, { icon: 'key-round' })
         }
       }
 
@@ -57,6 +73,7 @@ export function openJobModal(app: App, j: JobView, ctx: TabContext): void {
     }
 
     onClose(): void {
+      if (this.ref) app.workspace.offref(this.ref)
       this.contentEl.empty()
     }
   })(app)

@@ -119,6 +119,15 @@ describe('Actions.runJob says what the request answered', () => {
   it('started when the worker is still going', async () => {
     expect(await new Actions(standIn('{"slug":"gmail","minted":true,"outcome":"running","ticket":"abc"}'), 'kb').runJob('gmail')).toEqual({ ok: true, message: 'gmail started' })
   })
+  it('ran and stopped when the pass failed, started when it is still going, and only a refusal did not start', async () => {
+    expect(await new Actions(standIn('{"slug":"yt","minted":true,"outcome":"failed","error":"cookies expired","written":[]}', 1), 'kb').runJob('yt')).toEqual({ ok: false, message: 'yt ran and stopped: cookies expired' })
+    expect(await new Actions(standIn('{"slug":"yt","minted":true,"outcome":"running","ticket":"t","written":[]}', 1), 'kb').runJob('yt')).toEqual({ ok: true, message: 'yt started; still running' })
+  })
+  it('says when a retried ticket had already landed, and does not run the pass for it', async () => {
+    const a = new Actions(standIn('{"item":"t1","queue":"harvest","already_landed":true}'), 'kb')
+    expect(await a.retryTicket('t1')).toMatchObject({ ok: true, landed: true })
+    expect((await a.retryAndRun('t1', 'yt')).message).toMatch(/already landed/)
+  })
   it('did not start, with the CLI sentence, on a refusal', async () => {
     expect(await new Actions(standIn('{"error":"gmail: paused — `jobs resume gmail` first"}', 2), 'kb').runJob('gmail')).toEqual({ ok: false, message: 'gmail did not start: gmail: paused — `jobs resume gmail` first' })
   })

@@ -150,3 +150,8 @@ tr:focus-visible, .llm-wiki-row:focus-visible { outline: 2px solid var(--interac
 .llm-wiki-also-label { color: var(--text-faint); font-size: var(--font-ui-smaller); text-transform: uppercase; letter-spacing: 0.04em; margin-right: var(--size-4-2); }
 .llm-wiki-hint { padding: var(--size-4-3) 0; }
 .llm-wiki-search-results .llm-wiki-chip { margin: var(--size-4-2) 0; }
+
+/* Cycle 5 */
+.llm-wiki-also { padding-left: calc(0.6em + var(--size-4-3) + var(--size-4-3)); }
+.llm-wiki-button.llm-wiki-small { height: 24px; padding: 0 var(--size-4-2); font-size: var(--font-ui-smaller); }
+.llm-wiki-next.is-unbound { font-weight: var(--font-normal); }

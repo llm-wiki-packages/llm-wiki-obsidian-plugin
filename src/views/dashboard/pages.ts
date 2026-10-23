@@ -34,7 +34,7 @@ export function renderPages(root: HTMLElement, ctx: TabContext): void {
         button(bar, 'Adopt all', () => ctx.write(() => actions.adopt(unadopted.map((c) => c.path)), true), { icon: 'check-check' })
     },
   })
-  if (snapshot.unadopted === null) empty(fresh, 'This CLI cannot tell which files are new.', 'Update the llm-wiki plugins; a current `page ls` reports each page’s change state.')
+  if (snapshot.unadopted === null) empty(fresh, 'This CLI cannot tell which files are new.', 'Update the llm-wiki plugins; a current page listing reports each page’s change state.')
   else if (!unadopted.length) empty(fresh, 'Everything under sources/ is known to the wiki.', 'A file dropped into sources/ shows here until it is adopted.')
   for (const c of unadopted) pageRow(fresh, c, ctx, false)
 }

@@ -57,6 +57,7 @@ export class App {
       getLeavesOfType: () => [],
       getActiveFile: () => null,
       trigger: () => {},
+      offref: () => {},
     }
     this.vault = { adapter: {} }
     this.metadataCache = { getCache: () => null }

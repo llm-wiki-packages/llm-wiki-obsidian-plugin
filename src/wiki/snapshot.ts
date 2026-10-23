@@ -141,12 +141,17 @@ export interface BindingsAnswer {
  */
 export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now(), files?: Files, previous?: Snapshot): Promise<Snapshot> {
   const errors: Record<string, string> = {}
+  // At most four CLI processes at once: a wiki is one git checkout, and a burst beside the person's own click trips locks.
+  const gate = semaphore(4)
   const soft = async <T>(verb: Verb, args: Args = {}): Promise<T | null> => {
+    const release = await gate()
     try {
       return await cli.run<T>(verb, { wiki: wikiKey, ...args })
     } catch (e) {
       errors[verb] = (e instanceof Error ? e.message : String(e)).replace(/^wiki\.[a-z.]+: /, '')
       return null
+    } finally {
+      release()
     }
   }
   const light = previous !== undefined
@@ -203,6 +208,8 @@ export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now(
     }))
   const jobs = jobRows.map((j) => jobView(j, ticketRows, now, skills))
   const attention = attentionItems({ doctor, due, jobsLs, jobs, skills, skillsDoctor, search, conflicts: conflicts?.pages ?? [], ticketRows })
+  // The skills doctor was not re-read on a light pass; its findings stand until the next full one, so the count does not flicker.
+  if (previous) for (const a of previous.attention) if (a.id.startsWith('skill:') && !attention.some((x) => x.id === a.id)) attention.push(a)
   const runner = previous ? previous.runner : (runnerLs?.wikis ?? []).some((w) => w.wiki_key === wikiKey && w.installed !== null)
   const pageRows = pages?.pages ?? []
   // An older CLI lists no change state; then the queue is unknowable rather than empty.
@@ -225,6 +232,25 @@ export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now(
     recent: (ops?.runs ?? []).map((r) => recentRun(r, jobRows)),
     errors,
   }
+}
+
+/** A tiny gate: `await gate()` returns the release. */
+function semaphore(n: number): () => Promise<() => void> {
+  let active = 0
+  const waiting: (() => void)[] = []
+  const release = () => {
+    active--
+    waiting.shift()?.()
+  }
+  return () =>
+    new Promise<() => void>((resolve) => {
+      const go = () => {
+        active++
+        resolve(release)
+      }
+      if (active < n) go()
+      else waiting.push(go)
+    })
 }
 
 const STAGE_DONE: Record<string, string> = { harvest: 'harvesting', transcribe: 'transcribing', enrich: 'enriching', process: 'processing', routine: 'running' }

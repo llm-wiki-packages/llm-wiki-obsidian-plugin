@@ -6,6 +6,9 @@ import type { ChatMode } from '../settings'
 
 export const VIEW_CHAT = 'llm-wiki-chat'
 
+/** Tools after which the wiki may have changed. */
+const WRITE_TOOLS = new Set(['Bash', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
+
 const CAPABILITY: Record<ChatMode, string> = {
   agent: 'Agent: runs jobs and edits pages directly; asks you before each tool it would prompt for.',
   ask: 'Ask: read-only, jailed; each question starts fresh.',
@@ -21,6 +24,9 @@ export class ChatView extends ItemView {
   private chips!: HTMLElement
   private capability!: HTMLElement
   private continueBtn!: HTMLButtonElement
+  private newBtn!: HTMLButtonElement
+  /** The last tool the agent called, so a refresh follows a write and not every Read. */
+  private lastTool = ''
   private hint!: HTMLElement
   /** One backend per mode, so switching modes and back keeps the Agent session. */
   private backends: Partial<Record<ChatMode, ChatBackend>> = {}
@@ -69,7 +75,8 @@ export class ChatView extends ItemView {
     this.registerDomEvent(newBtn, 'click', () => this.newChat())
     this.continueBtn = bar.createEl('button', { text: 'Continue last chat' })
     this.registerDomEvent(this.continueBtn, 'click', () => this.continueLast())
-    const skillsBtn = bar.createEl('button', { text: 'Skills…' })
+    this.newBtn = newBtn
+    const skillsBtn = bar.createEl('button', { text: 'Commands…', attr: { title: 'The /llm-wiki: commands the installed plugin ships' } })
     this.registerDomEvent(skillsBtn, 'click', () => this.plugin.pickSkill())
     this.status = bar.createDiv({ cls: 'llm-wiki-muted llm-wiki-chat-status' })
 
@@ -109,7 +116,11 @@ export class ChatView extends ItemView {
       agentOption.disabled = !this.plugin.claudeBin
       agentOption.title = this.plugin.claudeBin ? '' : 'claude was not found; set its path in the plugin settings'
     }
-    this.continueBtn.toggle(Boolean(this.plugin.settings.lastSession) && this.transcript.childElementCount <= 1 && !this.backends.agent)
+    // One of the two shows: an empty pane with a session to pick up offers Continue; otherwise New chat.
+    const offerContinue = Boolean(this.plugin.settings.lastSession && this.plugin.claudeBin) && this.transcript.childElementCount <= 1 && !this.backends.agent
+    this.continueBtn.toggle(offerContinue)
+    this.newBtn.toggle(!offerContinue)
+    if (offerContinue && this.plugin.settings.lastPrompt) this.continueBtn.title = `Continuing: ${this.plugin.settings.lastPrompt}`
     this.hint.setText(this.plugin.claudeBin || this.mode === 'ask' ? 'Ask about the wiki, or tell the agent what to do.' : 'Agent mode needs claude; set its path in the plugin settings. Ask mode works without it.')
     this.hint.toggle(this.transcript.childElementCount <= 1)
   }
@@ -122,9 +133,10 @@ export class ChatView extends ItemView {
       this.backends.agent = b
       this.mode = 'agent'
       this.modeSelect.value = 'agent'
-      this.note('continuing the last chat')
+      const last = this.plugin.settings.lastPrompt
+      this.note(last ? `Continuing: ${last.length > 120 ? `${last.slice(0, 119)}…` : last}` : 'continuing the last chat')
       this.showCapability()
-    })
+    }).catch((e: unknown) => this.note(e instanceof Error ? e.message : String(e)))
   }
 
   /** Three starting points above an empty transcript, by what the person is looking at. */
@@ -226,12 +238,14 @@ export class ChatView extends ItemView {
         assistant.take(e)
         this.scroll()
         if (e.type === 'error') failed = true
-        // A tool just finished, so whatever it changed is on disk; the dashboard should not wait a minute to say so.
-        if (e.type === 'tool-done') void this.plugin.refreshSnapshot()
+        if (e.type === 'tool') this.lastTool = e.name
+        // A write just finished, so whatever it changed is on disk; the dashboard should not wait a minute to say so.
+        if (e.type === 'tool-done' && WRITE_TOOLS.has(this.lastTool)) void this.plugin.refreshSnapshot()
       }
       if (abort.signal.aborted) assistant.take({ type: 'status', text: 'stopped' })
       if (backend.sessionId && this.mode === 'agent') {
         this.plugin.settings.lastSession = backend.sessionId
+        this.plugin.settings.lastPrompt = prompt
         void this.plugin.saveSettings()
       }
     } catch (e) {
@@ -334,7 +348,7 @@ class AssistantBubble {
     this.flushText()
     const card = this.el.createDiv({ cls: 'llm-wiki-permission' })
     card.createDiv({ cls: 'llm-wiki-permission-title', text: permissionTitle(req) })
-    card.createEl('pre', { cls: 'llm-wiki-permission-summary', text: req.summary })
+    card.createEl('pre', { cls: 'llm-wiki-permission-summary', text: req.summary.replace(/\s--json\b/, '') })
     const buttons = card.createDiv({ cls: 'llm-wiki-permission-buttons' })
     const allow = buttons.createEl('button', { text: 'Allow', cls: 'mod-cta' })
     const allowTurn = buttons.createEl('button', { text: 'Allow for this turn', attr: { title: 'Every tool this turn still wants runs without asking' } })

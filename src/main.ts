@@ -163,7 +163,8 @@ export default class LlmWikiPlugin extends Plugin {
     const { cli, wiki } = this
     if (!cli || !wiki || this.unloaded) return Promise.resolve()
     const files = { root: wiki.root, home: homedir(), read: (p: string) => readFile(p, 'utf8') }
-    const previous = light && this.snapshot && Date.now() - this.fullAt < 60_000 ? this.snapshot : undefined
+    // A poll is light for five minutes after a full read; a full read is what a person, a tool, or the cadence asks for.
+    const previous = light && this.snapshot && Date.now() - this.fullAt < 5 * 60_000 ? this.snapshot : undefined
     this.refreshing = takeSnapshot(cli, wiki.key, Date.now(), files, previous)
       .then((snap) => {
         if (!previous) this.fullAt = snap.takenAt
@@ -198,7 +199,7 @@ export default class LlmWikiPlugin extends Plugin {
     const busy = this.snapshot?.jobs.some((j) => j.running) ?? false
     const open = this.app.workspace.getLeavesOfType(VIEW_DASHBOARD).length > 0
     const ms = busy ? 10_000 : open ? 60_000 : 5 * 60_000
-    this.pollTimer = window.setTimeout(() => void this.refreshSnapshot(busy), ms)
+    this.pollTimer = window.setTimeout(() => void this.refreshSnapshot(true), ms)
   }
 
   private showStatus(): void {
