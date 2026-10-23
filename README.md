@@ -40,7 +40,7 @@ designed and not built. Desktop only, since the plugin spawns local processes.
 ## Install on your machine (before a release exists)
 
 ```sh
-git clone <this repo> && cd llm-wiki-obsidian-plugin
+git clone https://github.com/llm-wiki-packages/llm-wiki-obsidian-plugin.git && cd llm-wiki-obsidian-plugin
 npm install
 npm run build
 npm run install-to-vault -- /path/to/your/vault
