@@ -3,6 +3,13 @@ import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk'
 import type { ChatEvent } from './types'
 import { summarizeTool } from './types'
 
+interface Usage {
+  input_tokens?: number
+  cache_creation_input_tokens?: number | null
+  cache_read_input_tokens?: number | null
+  output_tokens?: number
+}
+
 export interface MappedTurn {
   sessionId?: string
   events: ChatEvent[]
@@ -13,10 +20,8 @@ export function mapMessage(m: SDKMessage): MappedTurn {
   let sessionId: string | undefined
   switch (m.type) {
     case 'system':
-      if (m.subtype === 'init') {
-        sessionId = m.session_id
-        events.push({ type: 'status', text: `claude ${m.claude_code_version} · ${m.model} · ${m.permissionMode}` })
-      }
+      // The session's model and mode are not news; the first answer is.
+      if (m.subtype === 'init') sessionId = m.session_id
       break
     case 'stream_event': {
       // Text arrives here as it is generated; a subagent's text is its own.
@@ -34,12 +39,27 @@ export function mapMessage(m: SDKMessage): MappedTurn {
           events.push({ type: 'tool', name: block.name, detail: summarizeTool(block.name, (block.input ?? {}) as Record<string, unknown>) })
       }
       if (m.error) events.push({ type: 'error', message: `assistant: ${m.error}` })
+      // The whole conversation is resent each request, so the last request's input is what the context holds.
+      const u = (m.message as { usage?: Usage }).usage
+      if (u) events.push({ type: 'context', used: (u.input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0) + (u.output_tokens ?? 0) })
+      break
+    }
+    case 'user': {
+      // The harness echoes a tool's result as a user message: the change, if any, has happened by now.
+      if (m.parent_tool_use_id) break
+      const content = (m.message as { content?: unknown }).content
+      if (Array.isArray(content) && content.some((b: { type?: string }) => b?.type === 'tool_result')) events.push({ type: 'tool-done' })
       break
     }
     case 'result':
       sessionId = m.session_id
+      {
+        // A helper model (a smaller one titling or classifying) rides in modelUsage too; the main one has the larger window.
+        const windows = Object.values(m.modelUsage ?? {}).map((x) => x.contextWindow).filter((n) => n > 0)
+        if (windows.length) events.push({ type: 'context', window: Math.max(...windows) })
+      }
       if (m.subtype === 'success')
-        events.push({ type: 'result', ok: !m.is_error, detail: `${(m.duration_ms / 1000).toFixed(1)}s · $${m.total_cost_usd.toFixed(4)} · ${m.num_turns} turns` })
+        events.push({ type: 'result', ok: !m.is_error, detail: `${(m.duration_ms / 1000).toFixed(1)}s` })
       else
         events.push({ type: 'result', ok: false, text: m.errors.join('\n') || m.subtype, detail: m.subtype })
       break

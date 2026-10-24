@@ -1,6 +1,7 @@
 // The chat contract. The view speaks only this; a backend is one file that
 // turns a harness's own protocol into these events. Adding a harness is
 // adding a backend, not touching the view.
+import type { Effort, PermissionMode } from '../settings'
 
 export interface WikiTarget {
   key: string
@@ -13,9 +14,13 @@ export type ChatEvent =
   | { type: 'start'; detail?: string }
   | { type: 'text'; text: string }
   | { type: 'tool'; name: string; detail?: string }
+  /** A tool finished; the wiki may have changed. */
+  | { type: 'tool-done'; name?: string }
   | { type: 'status'; text: string }
   | { type: 'result'; ok: boolean; text?: string; detail?: string }
   | { type: 'error'; message: string }
+  /** Tokens the conversation holds now, and the model's window, as each becomes known. */
+  | { type: 'context'; used?: number; window?: number }
 
 export interface PermissionRequest {
   tool: string
@@ -24,7 +29,7 @@ export interface PermissionRequest {
   summary: string
 }
 
-export type PermissionDecision = { allow: true } | { allow: false; reason?: string }
+export type PermissionDecision = { allow: true; forTurn?: boolean } | { allow: false; reason?: string }
 
 export interface TurnContext {
   wiki: WikiTarget
@@ -32,13 +37,33 @@ export interface TurnContext {
   /** Asked only when the harness would prompt; resolves when the person clicks. */
   askPermission(req: PermissionRequest): Promise<PermissionDecision>
   onStderr?(chunk: string): void
+  /** The models the harness offers, once it says; a backend that cannot say never calls it. */
+  onModels?(models: ModelChoice[]): void
+  /** Read at each turn, so a change under the chat box applies to the next message. */
+  options: TurnOptions
 }
 
+export interface ModelChoice {
+  /** What the harness is handed: an alias or an id. */
+  value: string
+  name: string
+  efforts?: Exclude<Effort, ''>[]
+  auto?: boolean
+}
+
+export interface TurnOptions {
+  permissionMode: PermissionMode
+  readOnly: boolean
+  model?: string
+  effort?: Exclude<Effort, ''>
+}
+
+/** Claude at the wiki root, or a jailed `harness run` per turn. */
+export type BackendKind = 'claude' | 'sandbox'
+
 export interface ChatBackend {
-  readonly id: string
-  readonly label: string
-  /** Whether a second turn continues the first. */
-  readonly multiTurn: boolean
+  /** The session a backend can pick up again later, when it has one. */
+  sessionId?: string
   /** One turn: the events as they land, ending in a `result` or an `error`. */
   send(prompt: string, ctx: TurnContext): AsyncIterable<ChatEvent>
   /** Forget the conversation. */

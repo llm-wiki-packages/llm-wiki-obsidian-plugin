@@ -5,6 +5,7 @@
 // the CLI, credentials and all. Nothing here handles a credential.
 import { query } from '@anthropic-ai/claude-agent-sdk'
 import { mapMessage } from './claudeMap'
+import { tolerateRendererSignals } from './rendererGuard'
 import type { ChatBackend, ChatEvent, TurnContext } from './types'
 import { summarizeTool } from './types'
 
@@ -13,7 +14,6 @@ export interface ClaudeSdkConfig {
   claudePath: string
   /** The PATH the session runs with, which must reach `llm-wiki-ops`. */
   path: string
-  model?: string
 }
 
 const APPEND = [
@@ -24,30 +24,40 @@ const APPEND = [
 ].join(' ')
 
 /** Verbs that would print a secret into a transcript. */
+const CREDENTIAL_RULE = ' When a job or skill needs a credential, say which one and stop; never ask the person to paste a secret into this chat. The plugin\'s Set credential button stores it without the value ever reaching a transcript.'
+
 const DENIED = [
   'Bash(llm-wiki-ops credentials get*)',
   'Bash(llm-wiki-cli wiki * credentials get*)',
   'Bash(* credentials get *)',
 ]
 
-export class ClaudeSdkBackend implements ChatBackend {
-  readonly id = 'claude'
-  readonly label = 'Agent'
-  readonly multiTurn = true
-  private sessionId: string | undefined
+/** The tools that write a file; a read-only chat has none of them. */
+const EDIT_TOOLS = ['Edit', 'Write', 'MultiEdit', 'NotebookEdit']
 
-  constructor(private readonly config: ClaudeSdkConfig) {}
+export class ClaudeSdkBackend implements ChatBackend {
+  /** The catalog is the harness's, not the session's: asked once per Obsidian run. */
+  private static catalogAsked = false
+  sessionId: string | undefined
+
+  constructor(private readonly config: ClaudeSdkConfig, resume?: string) {
+    this.sessionId = resume
+    tolerateRendererSignals()
+  }
 
   reset(): void {
     this.sessionId = undefined
   }
 
   async *send(prompt: string, ctx: TurnContext): AsyncIterable<ChatEvent> {
+    const opts = ctx.options
     const abort = new AbortController()
     const onAbort = () => abort.abort()
     if (ctx.signal.aborted) onAbort()
     ctx.signal.addEventListener('abort', onAbort, { once: true })
-    yield { type: 'start', detail: this.sessionId ? 'continuing' : 'new session' }
+    yield { type: 'start' }
+    // "Allow for this turn" answers every later ask in the same turn.
+    let allowTurn = false
     try {
       const q = query({
         prompt,
@@ -61,17 +71,24 @@ export class ClaudeSdkBackend implements ChatBackend {
             PATH: this.config.path,
             LLM_WIKI_SESSION_ATTENDED: '1',
             CLAUDE_AGENT_SDK_CLIENT_APP: 'llm-wiki-obsidian',
+            // The CLI's own read floor, the one `wiki --read-only` sets: every write verb refuses.
+            ...(opts.readOnly ? { LLM_WIKI_PERMISSIONS: 'read' } : {}),
           },
           abortController: abort,
           includePartialMessages: true,
           settingSources: ['user', 'project', 'local'],
-          systemPrompt: { type: 'preset', preset: 'claude_code', append: APPEND },
-          permissionMode: 'default',
-          disallowedTools: DENIED,
+          systemPrompt: { type: 'preset', preset: 'claude_code', append: APPEND + CREDENTIAL_RULE },
+          permissionMode: opts.permissionMode,
+          ...(opts.permissionMode === 'bypassPermissions' ? { allowDangerouslySkipPermissions: true } : {}),
+          // Deny rules hold in every mode, Full access included.
+          disallowedTools: opts.readOnly ? [...DENIED, ...EDIT_TOOLS] : DENIED,
           ...(this.sessionId ? { resume: this.sessionId } : {}),
-          ...(this.config.model ? { model: this.config.model } : {}),
+          ...(opts.model ? { model: opts.model } : {}),
+          ...(opts.effort ? { effort: opts.effort } : {}),
           canUseTool: async (toolName, input) => {
+            if (allowTurn) return { behavior: 'allow', updatedInput: input }
             const decision = await ctx.askPermission({ tool: toolName, input, summary: summarizeTool(toolName, input) })
+            if (decision.allow && decision.forTurn) allowTurn = true
             return decision.allow
               ? { behavior: 'allow', updatedInput: input }
               : { behavior: 'deny', message: decision.reason ?? 'Denied in Obsidian' }
@@ -79,6 +96,12 @@ export class ClaudeSdkBackend implements ChatBackend {
           stderr: (chunk) => ctx.onStderr?.(chunk),
         },
       })
+      if (ctx.onModels && !ClaudeSdkBackend.catalogAsked) {
+        ClaudeSdkBackend.catalogAsked = true
+        q.supportedModels()
+          .then((models) => ctx.onModels?.(models.map((x) => ({ value: x.value, name: x.displayName, efforts: x.supportsEffort ? x.supportedEffortLevels : [], auto: x.supportsAutoMode }))))
+          .catch(() => { ClaudeSdkBackend.catalogAsked = false })
+      }
       for await (const m of q) {
         const { sessionId, events } = mapMessage(m)
         if (sessionId) this.sessionId = sessionId
