@@ -90,6 +90,36 @@ describe('the runner against a stand-in binary', () => {
     for await (const l of cli.stream('wiki.harness.run', { wiki: 'kb', text: 'q', sandbox: 's', skill: 'a:b' })) seen.push(l.type)
     expect(seen).toEqual(['start', 'text', '_exit'])
   })
+
+  it('spells --conversation right after --stream', () => {
+    const argv = VERBS['wiki.harness.run']({ wiki: 'kb', text: 'hi', sandbox: 'read-search', conversation: true })
+    expect(argv).toEqual(['wiki', 'kb', 'harness', 'run', 'sandbox=read-search', '--stream', '--conversation', '--', 'hi'])
+  })
+
+  it('keeps stdin open for lines until closed, then ends with _exit', async () => {
+    const echo = 'let b="";process.stdin.on("data",d=>{b+=d;for(let i=b.indexOf("\\n");i>=0;i=b.indexOf("\\n")){console.log(JSON.stringify({type:"echo",line:JSON.parse(b.slice(0,i))}));b=b.slice(i+1)}}).on("end",()=>process.exit(0))'
+    const cli = new Cli({ bin: node, prefix: ['-e', echo], env: { ...process.env }, timeoutMs: 5000 })
+    const conv = cli.conversation('wiki.harness.run', { wiki: 'kb', text: 'q', sandbox: 's', conversation: true })
+    const it = conv.lines[Symbol.asyncIterator]()
+    conv.write({ type: 'turn', text: 'one' })
+    expect((await it.next()).value).toEqual({ type: 'echo', line: { type: 'turn', text: 'one' } })
+    conv.write({ type: 'interrupt' })
+    expect((await it.next()).value).toEqual({ type: 'echo', line: { type: 'interrupt' } })
+    expect(conv.exited).toBe(false)
+    conv.close()
+    const last = (await it.next()).value as { type: string; rc: number }
+    expect(last).toMatchObject({ type: '_exit', rc: 0 })
+    expect(conv.exited).toBe(true)
+  })
+
+  it('kills a conversation child when its signal aborts', async () => {
+    const cli = new Cli({ bin: node, prefix: ['-e', 'setInterval(()=>{},1000)'], env: { ...process.env }, timeoutMs: 5000 })
+    const ac = new AbortController()
+    const conv = cli.conversation('wiki.harness.run', { wiki: 'kb', text: 'q', sandbox: 's' }, { signal: ac.signal })
+    const it = conv.lines[Symbol.asyncIterator]()
+    ac.abort()
+    expect((await it.next()).value).toMatchObject({ type: '_exit' })
+  })
 })
 
 /** A stand-in CLI that prints one object and exits as told. */

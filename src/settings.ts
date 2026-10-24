@@ -22,9 +22,11 @@ export interface LlmWikiSettings {
   permissionMode: PermissionMode
   /** The wiki's CLI refuses writes, and the agent gets no file-editing tools. */
   readOnly: boolean
-  /** Each turn runs jailed through `harness run`, in `sandbox`. */
+  /** The chat runs jailed through `harness run`, in `sandbox`. */
   sandboxed: boolean
   sandbox: string
+  /** The sandboxed chat closes its session after this many minutes with no turn running. */
+  sandboxIdleMinutes: number
   /** A model name handed to the harness, or empty for its own default. */
   model: string
   effort: Effort
@@ -47,6 +49,7 @@ export const DEFAULT_SETTINGS: LlmWikiSettings = {
   readOnly: false,
   sandboxed: false,
   sandbox: 'read-search',
+  sandboxIdleMinutes: 60,
   model: '',
   effort: '',
   defaultSkill: '',
@@ -110,9 +113,17 @@ export class LlmWikiSettingTab extends PluginSettingTab {
       .addToggle((t) => t.setValue(s.readOnly).onChange((v) => { s.readOnly = v; save() }))
     new Setting(containerEl)
       .setName('Sandbox')
-      .setDesc('Each turn runs jailed in the named sandbox, which must be enabled in the wiki. A sandboxed turn never asks and starts fresh: it does not see the chat before it. The sandbox decides whether it may write.')
+      .setDesc('The chat runs jailed in the named sandbox, which must be enabled in the wiki. It never asks, and it keeps the conversation until it closes. The sandbox decides whether it may write.')
       .addToggle((t) => t.setValue(s.sandboxed).onChange((v) => { s.sandboxed = v; save() }))
       .addText((t) => t.setPlaceholder(DEFAULT_SETTINGS.sandbox).setValue(s.sandbox).onChange((v) => { s.sandbox = v.trim() || DEFAULT_SETTINGS.sandbox; save() }))
+    new Setting(containerEl)
+      .setName('Sandboxed chat closes after')
+      .setDesc('Minutes with no turn running. A closed chat starts a new session on the next message and does not remember the earlier turns.')
+      .addText((t) => t.setPlaceholder(String(DEFAULT_SETTINGS.sandboxIdleMinutes)).setValue(String(s.sandboxIdleMinutes)).onChange((v) => {
+        const n = Math.trunc(Number(v))
+        s.sandboxIdleMinutes = Number.isFinite(n) && n > 0 ? n : DEFAULT_SETTINGS.sandboxIdleMinutes
+        save()
+      }))
     new Setting(containerEl)
       .setName('Model')
       .setDesc('A model name or alias (opus, sonnet); empty uses Claude Code’s default.')

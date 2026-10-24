@@ -20,6 +20,8 @@ import { effectivePath, findBinary, matchWiki } from './wiki/resolve'
 export default class LlmWikiPlugin extends Plugin {
   settings: LlmWikiSettings = DEFAULT_SETTINGS
   cli: Cli | null = null
+  /** Every sandboxed chat made, so quitting closes their sessions. */
+  private readonly sandboxChats = new Set<HarnessRunBackend>()
   cliBin: string | null = null
   claudeBin: string | null = null
   wiki: WikiTarget | null = null
@@ -86,6 +88,7 @@ export default class LlmWikiPlugin extends Plugin {
   onunload(): void {
     this.unloaded = true
     if (this.pollTimer !== null) window.clearTimeout(this.pollTimer)
+    for (const b of this.sandboxChats) b.close()
     this.cli?.killAll()
   }
 
@@ -354,7 +357,11 @@ export default class LlmWikiPlugin extends Plugin {
   /** A chat backend: the jailed `harness run` when sandboxed, else Claude at the wiki root; `resume` picks a Claude session back up. */
   async backend(kind: BackendKind, resume?: string): Promise<ChatBackend> {
     if (!this.cli) throw new Error(this.problem ?? 'not ready')
-    if (kind === 'sandbox') return new HarnessRunBackend(this.cli, { sandbox: this.settings.sandbox })
+    if (kind === 'sandbox') {
+      const b = new HarnessRunBackend(this.cli, { sandbox: this.settings.sandbox, idleMinutes: () => this.settings.sandboxIdleMinutes })
+      this.sandboxChats.add(b)
+      return b
+    }
     if (!this.claudeBin) throw new Error('claude not found on the login shell PATH; set its path in the plugin settings, or turn on the sandbox')
     return new ClaudeSdkBackend({ claudePath: this.claudeBin, path: await effectivePath() }, resume)
   }

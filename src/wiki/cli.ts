@@ -16,6 +16,8 @@ export interface Args {
   agent?: string
   model?: string
   effort?: string
+  /** `harness run`: keep the session alive for turns written to its stdin. */
+  conversation?: boolean
   /** A job slug, a ticket id, or a page path, by verb. */
   slug?: string
   id?: string
@@ -226,7 +228,8 @@ export const VERBS = {
   'wiki.search.query': (a: Args) => [
     'wiki', '--read-only', key(a.wiki), 'search', 'query', topK(a), '--json', '--', text(a.text),
   ],
-  // One question in a jailed harness session, streamed as JSON lines: the sandboxed chat.
+  // One question in a jailed harness session, streamed as JSON lines: the sandboxed chat. With
+  // `--conversation` the question is the first turn and later turns arrive as JSON lines on stdin.
   // The one verb without the read floor, since it spends model budget.
   'wiki.harness.run': (a: Args) => [
     'wiki', key(a.wiki), 'harness', 'run', `sandbox=${word(a.sandbox, 'sandbox')}`,
@@ -234,7 +237,7 @@ export const VERBS = {
     ...(a.agent ? [`agent=${word(a.agent, 'agent')}`] : []),
     ...(a.model ? [`model=${word(a.model, 'model')}`] : []),
     ...(a.effort ? [`effort=${word(a.effort, 'effort')}`] : []),
-    '--stream', '--', question(a.text),
+    '--stream', ...(a.conversation ? ['--conversation'] : []), '--', question(a.text),
   ],
 } as const
 
@@ -268,6 +271,18 @@ export interface RunOptions {
   signal?: AbortSignal
   /** Bytes for the child's stdin, closed after; a secret travels this way and never through argv. */
   stdin?: string
+}
+
+/** A running streaming child whose stdin stays open: write turns, read lines, close to end it. */
+export interface Conversation {
+  /** Every JSON line the child prints, then its own `_exit`. Leaving the loop early kills the child. */
+  lines: AsyncGenerator<StreamLine>
+  /** One JSON line to the child's stdin. */
+  write(obj: Record<string, unknown>): void
+  /** End of input: the child finishes the turn it is on and exits. */
+  close(): void
+  /** The child is gone, whether or not its `_exit` line has been read. */
+  readonly exited: boolean
 }
 
 function tail(s: string, n = 600): string {
@@ -355,16 +370,30 @@ export class Cli {
   }
 
   /** Runs a verb that prints JSON lines, yielding each as it lands. Leaving the loop early kills the child. */
-  async *stream(verb: Verb, args: Args = {}, opts: RunOptions = {}): AsyncGenerator<StreamLine> {
-    const timeoutMs = opts.timeoutMs ?? this.config.timeoutMs
+  stream(verb: Verb, args: Args = {}, opts: RunOptions = {}): AsyncGenerator<StreamLine> {
+    return this.open(verb, args, opts, false, opts.timeoutMs ?? this.config.timeoutMs).lines
+  }
+
+  /**
+   * A streaming verb whose stdin stays open for lines. No overall timeout: the CLI caps each turn itself,
+   * and the caller ends the session by closing stdin.
+   */
+  conversation(verb: Verb, args: Args = {}, opts: RunOptions = {}): Conversation {
+    return this.open(verb, args, opts, true, opts.timeoutMs)
+  }
+
+  private open(verb: Verb, args: Args, opts: RunOptions, keepStdin: boolean, timeoutMs: number | undefined): Conversation {
     const argv = [...(this.config.prefix ?? []), ...VERBS[verb](args)]
+    const started = Date.now()
     // Its own process group, so one signal reaches everything it started.
     const child = spawn(this.config.bin, argv, {
       env: childEnv(this.config.env, verb),
-      stdio: ['ignore', 'pipe', 'pipe'],
+      stdio: [keepStdin ? 'pipe' : 'ignore', 'pipe', 'pipe'],
       detached: true,
     })
     this.live.add(child)
+    // A child that exits first makes EPIPE on a late write, not news.
+    child.stdin?.on('error', () => undefined)
     const queue: StreamLine[] = []
     let wake: (() => void) | null = null
     const push = (l: StreamLine) => {
@@ -390,42 +419,62 @@ export class Cli {
       if (ended) return
       ended = true
       this.live.delete(child)
-      timers.clearTimeout(timer)
+      if (timer) timers.clearTimeout(timer)
       line(buf)
       buf = ''
+      log.debug('cli', verb, `rc ${String(rc)}`, `${Date.now() - started}ms`, err.trim() ? tail(err) : '')
       push({ type: '_exit', rc, stderr: tail(err), timedOut, ...(spawnError ? { spawnError } : {}) })
     }
-    child.stdout.on('data', (d: Buffer) => {
+    child.stdout?.on('data', (d: Buffer) => {
       buf += d.toString()
       for (let i = buf.indexOf('\n'); i >= 0; i = buf.indexOf('\n')) {
         line(buf.slice(0, i))
         buf = buf.slice(i + 1)
       }
     })
-    child.stderr.on('data', (d: Buffer) => (err = tail(err + d.toString(), 4000)))
+    child.stderr?.on('data', (d: Buffer) => (err = tail(err + d.toString(), 4000)))
     child.on('error', (e) => end(null, e.message))
     child.on('close', (rc) => end(rc))
-    const timer = timers.setTimeout(() => {
-      timedOut = true
-      killGroup(child)
-    }, timeoutMs)
+    const timer =
+      timeoutMs === undefined
+        ? undefined
+        : timers.setTimeout(() => {
+            timedOut = true
+            killGroup(child)
+          }, timeoutMs)
     const onAbort = () => killGroup(child)
     if (opts.signal?.aborted) onAbort()
     opts.signal?.addEventListener('abort', onAbort, { once: true })
-    try {
-      for (;;) {
-        const next = queue.shift()
-        if (next) {
-          yield next
-          if (next.type === '_exit') return
-          continue
+    const lines = (async function* (): AsyncGenerator<StreamLine> {
+      try {
+        for (;;) {
+          const next = queue.shift()
+          if (next) {
+            yield next
+            if (next.type === '_exit') return
+            continue
+          }
+          await new Promise<void>((r) => (wake = r))
         }
-        await new Promise<void>((r) => (wake = r))
+      } finally {
+        if (timer) timers.clearTimeout(timer)
+        opts.signal?.removeEventListener('abort', onAbort)
+        if (!ended) killGroup(child)
       }
-    } finally {
-      timers.clearTimeout(timer)
-      opts.signal?.removeEventListener('abort', onAbort)
-      if (!ended) killGroup(child)
+    })()
+    return {
+      lines,
+      write: (obj) => {
+        if (ended || !child.stdin || child.stdin.destroyed || !child.stdin.writable) return
+        log.debug('cli', verb, 'stdin', String(obj.type))
+        child.stdin.write(`${JSON.stringify(obj)}\n`)
+      },
+      close: () => {
+        if (child.stdin && !child.stdin.destroyed) child.stdin.end()
+      },
+      get exited() {
+        return ended
+      },
     }
   }
 }

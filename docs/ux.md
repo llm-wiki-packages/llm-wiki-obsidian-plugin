@@ -140,13 +140,17 @@ right. The ring and Send stay together when the row wraps.
   Auto-accept edits, Auto (disabled for a model without it), Full access,
   then a Read-only switch and a Sandbox switch with the sandbox's name.
   Sandbox on greys the modes and Read-only: a jailed turn never asks, and its
-  profile decides writes. Switching in or out mid-chat leaves a note in the
-  transcript, since the sandboxed turns do not see the chat.
+  profile decides writes. The sandboxed chat is one session that keeps the
+  conversation and closes after the idle minutes set in settings; Stop
+  interrupts the turn and keeps the session, and a session that ended is
+  replaced with a note that earlier turns are forgotten. Switching in or out
+  mid-chat leaves a note in the transcript, since each side does not see the
+  other's turns.
 - Model: Default, then the aliases (Opus, Sonnet, Haiku) until the first
   reply brings the harness's own list; a typed model in settings is kept.
   Effort: Default, Low to Max, levels the model lacks greyed.
 - Ring: the context in use over the window, warning-colored from 80%; hover
-  shows "Context window · 33% · 331k/1m" and a bar. Hidden when sandboxed.
+  shows "Context window · 33% · 331k/1m" and a bar. Sandboxed, it follows the jailed session.
 - Send: one button. While a turn runs it is red, spins, and says Stop.
 - `/` at the start of a line opens a list of skills above the box (name,
   arguments, first sentence); arrows move, Enter or Tab takes, Escape shuts.
@@ -213,7 +217,7 @@ It renders the real views over fixture data with a stand-in for Obsidian's API.
 
 ## Known gaps
 
-- **A sandboxed chat has no memory and pays the start-up cost every turn** (owner, 2026-10-23). Each sandboxed turn is one jailed `harness run`: a fresh model session, so a follow-up does not know the previous turn and every reply waits on the whole start-up. Candidates: resume the jailed session across turns (its state directory is under the harness home), keep one jailed session alive for the pane and feed it turns, or carry the pane's transcript into each run. The unsandboxed chat resumes by session id.
+- **A sandboxed chat has no memory** (owner, 2026-10-23): fixed by `harness run --conversation` (llm-wiki-plugins #3557). One jailed session now keeps the chat; this plugin needs the CLI that ships it.
 
 ## Review log
 
