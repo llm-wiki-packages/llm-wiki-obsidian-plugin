@@ -130,37 +130,8 @@ describe('the sandboxed chat holds one session', () => {
     expect(await run).toEqual([{ type: 'result', ok: true, detail: 'ok' }])
   })
 
-  it('sends the same turn again once after a pending_interrupt refusal', async () => {
-    vi.useFakeTimers()
-    const { backend, convs } = setup()
-    const first = collect(backend.send('one', ctx()))
-    at(convs, 0).push(end('ok'))
-    await first
-    const next = collect(backend.send('two', ctx()))
-    at(convs, 0).push({ type: 'input_refused', reason: 'pending_interrupt', message: 'settling' })
-    await vi.advanceTimersByTimeAsync(300)
-    expect(at(convs, 0).written).toEqual([{ type: 'turn', text: 'two' }, { type: 'turn', text: 'two' }])
-    at(convs, 0).push({ type: 'text', text: 'b' }, end('ok'))
-    expect(await next).toEqual([{ type: 'text', text: 'b' }, { type: 'result', ok: true, detail: 'ok' }])
-  })
-
-  it('surfaces a second pending_interrupt refusal as an error', async () => {
-    vi.useFakeTimers()
-    const { backend, convs } = setup()
-    const first = collect(backend.send('one', ctx()))
-    at(convs, 0).push(end('ok'))
-    await first
-    const next = collect(backend.send('two', ctx()))
-    const refuse = { type: 'input_refused', reason: 'pending_interrupt', message: 'settling' }
-    at(convs, 0).push(refuse)
-    await vi.advanceTimersByTimeAsync(300)
-    at(convs, 0).push(refuse)
-    expect(await next).toEqual([{ type: 'error', message: 'settling' }])
-    expect(at(convs, 0).written).toHaveLength(2)
-  })
-
-  it('surfaces busy and bad_prompt refusals with the CLI message', async () => {
-    for (const reason of ['busy', 'bad_prompt', 'bad_line']) {
+  it('surfaces every other refusal, known reason or not, with the CLI message', async () => {
+    for (const reason of ['busy', 'bad_prompt', 'bad_line', 'some_future_reason']) {
       const { backend, convs } = setup()
       const first = collect(backend.send('one', ctx()))
       at(convs, 0).push(end('ok'))

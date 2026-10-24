@@ -12,8 +12,6 @@ export interface HarnessRunConfig {
   idleMinutes: () => number
 }
 
-const RESEND_MS = 300
-
 export const RESTARTED = 'The sandboxed chat restarted; earlier turns are forgotten'
 
 // The renderer's own timers where there is a window (popout-safe); node's own in the tests, which have none.
@@ -134,7 +132,6 @@ export class HarnessRunBackend implements ChatBackend {
     let sawResult = false
     let turnEnded = false
     let answered = false
-    let resent = false
     try {
       while (!turnEnded) {
         const r = await it.next()
@@ -143,13 +140,6 @@ export class HarnessRunBackend implements ChatBackend {
         if (l.type === 'input_refused') {
           // Our Stop reached the CLI after the turn had already ended.
           if (l.reason === 'idle') continue
-          // The interrupt before this turn has not settled yet: the same turn goes again, once.
-          if (l.reason === 'pending_interrupt' && !resent && !first) {
-            resent = true
-            await new Promise<void>((r) => timers.setTimeout(r, RESEND_MS))
-            conv.write({ type: 'turn', text: prompt })
-            continue
-          }
           yield { type: 'error', message: str(l.message, 'the sandboxed chat refused the input') }
           return
         }
