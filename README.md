@@ -163,6 +163,8 @@ End-to-end, against a real CLI and a scratch wiki:
 LLM_WIKI_E2E_BIN=$(which llm-wiki-cli) LLM_WIKI_E2E_VAULT=/path/to/wiki npm test -- test/e2e.test.ts
 ```
 
+Add `LLM_WIKI_E2E_SANDBOX=<sandbox>` to also hold a real sandboxed chat: a few haiku turns, one stopped. The sandbox must be read-only and logged in, and on Linux the wiki must sit outside `/tmp`, which the jail refuses.
+
 ## Layout
 
 | path | what |
