@@ -85,9 +85,12 @@ defaults (the Chat settings change the same values):
   routine actions), or Full access. **Read-only** sets the CLI's read floor
   (`LLM_WIKI_PERMISSIONS=read`, what `wiki --read-only` sets) and takes away
   the file-editing tools; a shell command can still write unless Ask first
-  stops it. **Sandbox** runs each turn jailed through `harness run` in the
-  named sandbox, whose profile decides whether it writes; a sandboxed turn
-  never asks and starts fresh (see `docs/ux.md`, Known gaps).
+  stops it. **Sandbox** runs the chat jailed through
+  `harness run --conversation` in the named sandbox, whose profile decides
+  whether it writes. One session keeps the whole conversation, never asks,
+  and closes after the idle minutes set in Settings → Chat, on New chat, and
+  when Obsidian quits. Stop interrupts the turn and keeps the session.
+  Needs the CLI that ships `--conversation` (llm-wiki-plugins #3557).
 - **Model** and **Effort**: the aliases until the first reply, then the
   models and effort levels the harness reports.
 - A ring shows how full the context window is, with the numbers on hover.
@@ -169,7 +172,7 @@ LLM_WIKI_E2E_BIN=$(which llm-wiki-cli) LLM_WIKI_E2E_VAULT=/path/to/wiki npm test
 | `src/wiki/resolve.ts` | the login shell's PATH, binary lookup, and matching the vault to a registered wiki |
 | `src/chat/types.ts` | the chat contract: a backend turns a harness's protocol into `ChatEvent`s and asks permission through one callback |
 | `src/chat/claudeSdk.ts` | the chat backend on `@anthropic-ai/claude-agent-sdk`, driving the user's own `claude` |
-| `src/chat/harnessRun.ts` | the sandboxed chat backend on `harness run --stream` |
+| `src/chat/harnessRun.ts` | the sandboxed chat backend on `harness run --stream --conversation` |
 | `src/views/composer.ts` | the row under the chat box: permission panel, model and effort lists, context ring, `/` list |
 | `src/chat/skills.ts` | the `/llm-wiki:` slash skills, read from the installed Claude Code plugin's `skills/*/SKILL.md` |
 | `src/wiki/model.ts` | what the dashboard shows: `Snapshot`, jobs with a plain-words `next`, attention items with one action |

@@ -156,8 +156,6 @@ export class ChatPane extends Component {
     setIcon(this.effortBtn.createSpan(), 'gauge')
     this.effortBtn.createSpan({ text: s.effort ? EFFORT_NAMES[s.effort] : 'Effort' })
     setIcon(this.effortBtn.createSpan({ cls: 'llm-wiki-caret' }), 'chevron-down')
-    // A sandboxed turn starts fresh, so there is no context to fill.
-    this.ring.el.toggle(!s.sandboxed)
 
     const empty = this.transcript.childElementCount <= 1
     this.continueBtn.toggle(Boolean(s.lastSession && this.plugin.claudeBin && !s.sandboxed) && empty && !this.backends.claude)
@@ -198,7 +196,7 @@ export class ChatPane extends Component {
         s.readOnly = on
         this.save()
       })
-      const box = switchRow(el, 'Sandbox', 'Each turn runs jailed and never asks. It starts fresh: the agent does not see the chat before it.', s.sandboxed, false, (on) => {
+      const box = switchRow(el, 'Sandbox', `Runs jailed and never asks. It keeps the conversation, and closes after ${String(s.sandboxIdleMinutes)} minutes idle (set in settings).`, s.sandboxed, false, (on) => {
         s.sandboxed = on
         this.save()
         close()
@@ -367,7 +365,7 @@ export class ChatPane extends Component {
     }
     // Switching mid-chat changes what the agent remembers; say so where it happens.
     if (this.lastKind && this.lastKind !== kind)
-      this.note(kind === 'sandbox' ? `Sandboxed in ${this.settings.sandbox}: each turn from here starts fresh.` : 'Out of the sandbox: back in the chat from before it.')
+      this.note(kind === 'sandbox' ? `Sandboxed in ${this.settings.sandbox}: it does not see the chat before it.` : 'Out of the sandbox: back in the chat from before it.')
     this.lastKind = kind
     this.slash.close()
     this.chips.empty()
@@ -376,6 +374,7 @@ export class ChatPane extends Component {
     this.transcript.createDiv({ cls: 'llm-wiki-msg llm-wiki-user', text: prompt })
     this.composer.value = ''
     let failed = false
+    let stopped = false
     const assistant = new AssistantBubble(this.transcript, this.app, this)
     this.bubbles.push(assistant)
     const abort = new AbortController()
@@ -402,12 +401,13 @@ export class ChatPane extends Component {
         }
         assistant.take(e)
         this.scroll()
+        if (e.type === 'status' && e.text === 'stopped') stopped = true
         if (e.type === 'error') failed = true
         if (e.type === 'tool') this.lastTool = e.name
         // A write just finished, so whatever it changed is on disk: a light read now, the full one when the turn ends.
         if (e.type === 'tool-done' && WRITE_TOOLS.has(this.lastTool)) void this.plugin.refreshSnapshot(true)
       }
-      if (abort.signal.aborted) assistant.take({ type: 'status', text: 'stopped' })
+      if (abort.signal.aborted && !stopped) assistant.take({ type: 'status', text: 'stopped' })
       if (backend.sessionId && kind === 'claude') {
         s.lastSession = backend.sessionId
         s.lastPrompt = prompt
