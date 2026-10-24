@@ -120,17 +120,65 @@ describe('the sandboxed chat holds one session', () => {
     expect(convs).toHaveLength(1)
   })
 
-  it('swallows the refusal of an interrupt that arrived after its turn had ended', async () => {
+  it('swallows an idle refusal: the interrupt came after its turn had ended', async () => {
     const { backend, convs } = setup()
     const ac = new AbortController()
     const run = collect(backend.send('one', ctx(ac.signal)))
     await Promise.resolve()
     ac.abort()
+    at(convs, 0).push({ type: 'input_refused', reason: 'idle', message: 'nothing is running' }, end('ok'))
+    expect(await run).toEqual([{ type: 'result', ok: true, detail: 'ok' }])
+  })
+
+  it('sends the same turn again once after a pending_interrupt refusal', async () => {
+    vi.useFakeTimers()
+    const { backend, convs } = setup()
+    const first = collect(backend.send('one', ctx()))
     at(convs, 0).push(end('ok'))
-    await run
+    await first
     const next = collect(backend.send('two', ctx()))
-    at(convs, 0).push({ type: 'input_refused', message: 'no turn is running' }, { type: 'text', text: 'b' }, end('ok'))
+    at(convs, 0).push({ type: 'input_refused', reason: 'pending_interrupt', message: 'settling' })
+    await vi.advanceTimersByTimeAsync(300)
+    expect(at(convs, 0).written).toEqual([{ type: 'turn', text: 'two' }, { type: 'turn', text: 'two' }])
+    at(convs, 0).push({ type: 'text', text: 'b' }, end('ok'))
     expect(await next).toEqual([{ type: 'text', text: 'b' }, { type: 'result', ok: true, detail: 'ok' }])
+  })
+
+  it('surfaces a second pending_interrupt refusal as an error', async () => {
+    vi.useFakeTimers()
+    const { backend, convs } = setup()
+    const first = collect(backend.send('one', ctx()))
+    at(convs, 0).push(end('ok'))
+    await first
+    const next = collect(backend.send('two', ctx()))
+    const refuse = { type: 'input_refused', reason: 'pending_interrupt', message: 'settling' }
+    at(convs, 0).push(refuse)
+    await vi.advanceTimersByTimeAsync(300)
+    at(convs, 0).push(refuse)
+    expect(await next).toEqual([{ type: 'error', message: 'settling' }])
+    expect(at(convs, 0).written).toHaveLength(2)
+  })
+
+  it('surfaces busy and bad_prompt refusals with the CLI message', async () => {
+    for (const reason of ['busy', 'bad_prompt', 'bad_line']) {
+      const { backend, convs } = setup()
+      const first = collect(backend.send('one', ctx()))
+      at(convs, 0).push(end('ok'))
+      await first
+      const next = collect(backend.send('two', ctx()))
+      at(convs, 0).push({ type: 'input_refused', reason, message: `no: ${reason}` })
+      expect(await next).toEqual([{ type: 'error', message: `no: ${reason}` }])
+    }
+  })
+
+  it('a no_conversation refusal reads as a note and the next send does not claim a restart', async () => {
+    const { backend, convs } = setup()
+    const run = collect(backend.send('one', ctx()))
+    at(convs, 0).push({ type: 'error', error: 'no_conversation', message: 'sandbox writes in the wiki' })
+    expect(await run).toEqual([{ type: 'error', message: 'sandbox writes in the wiki' }])
+    const next = collect(backend.send('two', ctx()))
+    at(convs, 1).push({ type: 'error', error: 'no_conversation', message: 'sandbox writes in the wiki' })
+    expect(await next).toEqual([{ type: 'error', message: 'sandbox writes in the wiki' }])
   })
 
   it('a refused turn ends the send with the CLI message', async () => {

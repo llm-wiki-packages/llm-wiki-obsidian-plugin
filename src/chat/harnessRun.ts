@@ -12,6 +12,8 @@ export interface HarnessRunConfig {
   idleMinutes: () => number
 }
 
+const RESEND_MS = 300
+
 export const RESTARTED = 'The sandboxed chat restarted; earlier turns are forgotten'
 
 // The renderer's own timers where there is a window (popout-safe); node's own in the tests, which have none.
@@ -68,8 +70,6 @@ export class HarnessRunBackend implements ChatBackend {
   private conv: Conversation | null = null
   /** A session has run since the last reset, so a fresh one after it means turns were lost. */
   private hadSession = false
-  /** An interrupt sent as its turn ended is refused by the CLI as idle; that one refusal is not news. */
-  private strayRefusal = false
   private idle: ReturnType<typeof timers.setTimeout> | null = null
   private running = false
 
@@ -113,8 +113,8 @@ export class HarnessRunBackend implements ChatBackend {
     let conv = this.conv
     if (conv?.exited) conv = null
     const restarted = !conv && this.hadSession
+    const first = !conv
     if (!conv) {
-      this.strayRefusal = false
       conv = this.conv = this.cli.conversation(
         'wiki.harness.run',
         { wiki: ctx.wiki.key, text: prompt, sandbox: this.config.sandbox, model: ctx.options.model, effort: ctx.options.effort, conversation: true },
@@ -124,9 +124,7 @@ export class HarnessRunBackend implements ChatBackend {
       conv.write({ type: 'turn', text: prompt })
     }
     if (restarted) yield { type: 'status', text: RESTARTED }
-    let interrupted = false
     const interrupt = () => {
-      interrupted = true
       conv.write({ type: 'interrupt' })
     }
     if (ctx.signal.aborted) interrupt()
@@ -135,23 +133,29 @@ export class HarnessRunBackend implements ChatBackend {
     const it = conv.lines[Symbol.asyncIterator]()
     let sawResult = false
     let turnEnded = false
+    let answered = false
+    let resent = false
     try {
       while (!turnEnded) {
         const r = await it.next()
         if (r.done) break
         const l = r.value
         if (l.type === 'input_refused') {
-          if (this.strayRefusal) {
-            this.strayRefusal = false
+          // Our Stop reached the CLI after the turn had already ended.
+          if (l.reason === 'idle') continue
+          // The interrupt before this turn has not settled yet: the same turn goes again, once.
+          if (l.reason === 'pending_interrupt' && !resent && !first) {
+            resent = true
+            await new Promise<void>((r) => timers.setTimeout(r, RESEND_MS))
+            conv.write({ type: 'turn', text: prompt })
             continue
           }
           yield { type: 'error', message: str(l.message, 'the sandboxed chat refused the input') }
           return
         }
-        this.strayRefusal = false
         if (l.type === 'turn_end') {
           turnEnded = true
-          this.strayRefusal = interrupted && l.outcome !== 'interrupted'
+          answered = true
           yield* mapTurnEnd(l)
           continue
         }
@@ -160,6 +164,8 @@ export class HarnessRunBackend implements ChatBackend {
           for (const e of mapLine(l, sawResult)) yield e
           sawResult = true
           this.conv = null
+          // A session refused before any turn ended has nothing to forget.
+          if (!answered && first) this.hadSession = false
           return
         }
         yield* mapLine(l, sawResult)
