@@ -31,6 +31,12 @@ describe('the verb table', () => {
   it('passes a plugin-skill id the way the CLI prints it', () => {
     expect(VERBS['wiki.harness.run']({ wiki: 'kb', text: 'q', sandbox: 's', skill: 'PLUGIN:curate' })).toContain('skill=PLUGIN:curate')
   })
+  it('accepts bare, namespaced and PLUGIN skill ids', () => {
+    for (const id of ['curate', 'brain:search', 'PLUGIN:curate']) expect(VERBS['wiki.harness.run']({ wiki: 'kb', text: 'q', sandbox: 's', skill: id })).toContain(`skill=${id}`)
+  })
+  it('rejects skill ids with uppercase outside the PLUGIN prefix', () => {
+    for (const id of ['Curate', 'Foo:curate', 'PLUGIN:Curate', 'PLUGIN', 'pLuGiN:curate']) expect(() => VERBS['wiki.harness.run']({ wiki: 'kb', text: 'q', sandbox: 's', skill: id }), id).toThrow(CliError)
+  })
   it('leaves skill= off harness run when the prompt carries it', () => {
     const argv = VERBS['wiki.harness.run']({ wiki: 'kb', text: '/brain:search new?', sandbox: 'read-search', effort: 'high' })
     expect(argv).toEqual(['wiki', 'kb', 'harness', 'run', 'sandbox=read-search', 'effort=high', '--stream', '--', '/brain:search new?'])
