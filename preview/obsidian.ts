@@ -86,7 +86,7 @@ export class ItemView extends Component {
 export class Plugin { app = new App(); addCommand() {} }
 export class PluginSettingTab {}
 export class FileSystemAdapter {}
-export const debounce = (fn: any) => fn
+export const debounce = (fn: any) => Object.assign((...a: any[]) => fn(...a), { cancel() {} })
 
 export class Notice {
   constructor(text: string, ms = 4000) {

@@ -110,8 +110,8 @@ export function healthSentence(s: Snapshot): string {
   return parts.join(' ')
 }
 
-const LABEL: Record<Exclude<AttentionItem['action'], undefined>['kind'], string> = { ask: 'Ask the agent', open: 'Open', retry: 'Retry', reindex: 'Reindex', credential: 'Set credential', inspect: 'Inspect' }
-const ICON: Record<Exclude<AttentionItem['action'], undefined>['kind'], string | undefined> = { ask: 'message-square', open: undefined, retry: 'rotate-ccw', reindex: undefined, credential: 'key-round', inspect: 'file-text' }
+const LABEL: Record<Exclude<AttentionItem['action'], undefined>['kind'], string> = { ask: 'Ask the agent', open: 'Open', retry: 'Retry', reindex: 'Review index', credential: 'Set credential', inspect: 'Inspect' }
+const ICON: Record<Exclude<AttentionItem['action'], undefined>['kind'], string | undefined> = { ask: 'message-square', open: undefined, retry: 'rotate-ccw', reindex: 'refresh-cw', credential: 'key-round', inspect: 'file-text' }
 
 function attentionRow(parent: HTMLElement, item: AttentionItem, ctx: TabContext): void {
   const row = parent.createDiv({ cls: 'llm-wiki-row' })

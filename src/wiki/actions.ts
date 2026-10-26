@@ -162,12 +162,74 @@ export class Actions {
     }
   }
 
-  async reindex(): Promise<Outcome> {
+  /** The additive pass: offer what moved since the last one. A `partial` pass exits 1 with its answer. */
+  async index(): Promise<Outcome> {
     try {
-      await this.cli.run('wiki.search.index', { wiki: this.wiki }, { timeoutMs: 600_000 })
-      return { ok: true, message: 'search index refreshed' }
+      return indexed(await this.cli.run<IndexAnswer>('wiki.search.index', { wiki: this.wiki }, { timeoutMs: 600_000 }))
     } catch (e) {
-      return failed('reindex', e)
+      const body = e instanceof CliError ? (e.body as IndexAnswer | undefined) : undefined
+      return body?.status ? indexed(body) : failed('could not update the index', e)
     }
   }
+
+  /** The full pass: every file offered, then the engine drops what the corpus no longer holds. */
+  async reindex(): Promise<Outcome> {
+    try {
+      return reindexed(await this.cli.run<ReindexAnswer>('wiki.search.reindex', { wiki: this.wiki }, { timeoutMs: 3_600_000 }))
+    } catch (e) {
+      const body = e instanceof CliError ? (e.body as ReindexAnswer | undefined) : undefined
+      return body?.status ? reindexed(body) : failed('could not rebuild the index', e)
+    }
+  }
+}
+
+/** `search index`'s answer, `OPS/search/index.py`. */
+interface IndexAnswer {
+  status?: 'no_index' | 'synced' | 'partial' | 'unavailable' | 'deferred'
+  scanned?: number
+  indexed?: number | null
+  unchanged?: number
+  failed?: string[]
+  skipped?: string[]
+  conflicts?: string[]
+  note?: string | null
+}
+
+/** `search reindex`'s answer, `OPS/search/reconcile.py`: the counts sit in `report`. */
+interface ReindexAnswer {
+  status?: IndexAnswer['status']
+  report?: { indexed?: number; unchanged?: number; deleted?: string[]; failed?: string[]; refused?: string[]; conflicts?: string[] } | null
+  note?: string | null
+}
+
+const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`
+
+/** The sentence a pass earns: what it did, or why it did not. */
+function passOutcome(status: IndexAnswer['status'], did: string, refused: number, note: string | null | undefined): Outcome {
+  switch (status) {
+    case 'synced':
+      return { ok: true, message: did }
+    case 'no_index':
+      return { ok: true, message: note || 'this wiki answers from grep, which needs no index' }
+    case 'deferred':
+      return { ok: false, message: 'another index pass is running; try again when it finishes' }
+    case 'partial':
+      return { ok: false, message: `${did}, but ${plural(refused, 'file')} did not go in${note ? `: ${note}` : ''}` }
+    default:
+      return { ok: false, message: `the search engine is unavailable${note ? `: ${note}` : ''}` }
+  }
+}
+
+function indexed(a: IndexAnswer): Outcome {
+  const refused = (a.failed?.length ?? 0) + (a.skipped?.length ?? 0) + (a.conflicts?.length ?? 0)
+  const did = a.indexed ? `search index updated: ${plural(a.indexed, 'file')} indexed` : 'search index already up to date'
+  return passOutcome(a.status, did, refused, a.note)
+}
+
+function reindexed(a: ReindexAnswer): Outcome {
+  const r = a.report ?? {}
+  const refused = (r.failed?.length ?? 0) + (r.refused?.length ?? 0) + (r.conflicts?.length ?? 0)
+  const removed = r.deleted?.length ?? 0
+  const did = `search index rebuilt: ${plural((r.indexed ?? 0) + (r.unchanged ?? 0), 'file')}${removed ? `, ${plural(removed, 'missing page')} removed` : ''}`
+  return passOutcome(a.status, did, refused, a.note)
 }

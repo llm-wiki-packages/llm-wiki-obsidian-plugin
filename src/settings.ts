@@ -1,6 +1,7 @@
 import { PluginSettingTab, Setting, type App } from 'obsidian'
 import type LlmWikiPlugin from './main'
 import { PLUGIN_NAMESPACE } from './chat/skills'
+import type { SearchFilter } from './wiki/cli'
 
 /** The Agent SDK's permission modes a person picks between; `plan` and `dontAsk` are not offered. */
 export type PermissionMode = 'default' | 'acceptEdits' | 'auto' | 'bypassPermissions'
@@ -36,6 +37,8 @@ export interface LlmWikiSettings {
   /** Typing `/` lists the skills. */
   slashComplete: boolean
   searchK: number
+  /** The search pane's filters, kept across searches and restarts. */
+  searchFilters: SearchFilter[]
   debug: boolean
 }
 
@@ -56,6 +59,7 @@ export const DEFAULT_SETTINGS: LlmWikiSettings = {
   defaultSkill: '',
   slashComplete: true,
   searchK: 20,
+  searchFilters: [],
   debug: false,
 }
 

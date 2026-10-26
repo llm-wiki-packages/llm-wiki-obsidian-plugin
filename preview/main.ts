@@ -53,6 +53,7 @@ const snapshot: Snapshot = {
     { path: 'sources/youtube/yt-subs/2026-10-22-llm-eval-talk.md', title: '2026-10-22-llm-eval-talk', job: 'youtube/yt-subs' },
   ],
   unadopted: [{ path: 'sources/notes/meeting-2026-10-21.md', title: 'meeting-2026-10-21', job: 'notes' }],
+  search: { engine_configured: true, realm_ready: true, serving: 'search_server', corpus_files: 1284, dirty: 4, marker_known: true, reindex_required: false, index_as_of: { source_commit: '9f3c2a1e7b' }, paths: [{ pattern: 'wiki/' }, { pattern: 'sources/' }], _cmd_: { head: 'c41d07be22' } },
   recent: [
     { op: 'pass', outcome: 'ok', at: ago(20), summary: '' },
     { op: 'pass', job: 'yt-subs', outcome: 'failed', at: ago(400), summary: 'cookies expired' },
@@ -62,8 +63,28 @@ const snapshot: Snapshot = {
 }
 
 const app = new App()
+// Pages on disk for the search freshness check: one current, one edited since it was indexed; a third is gone.
+const pages: Record<string, string> = {
+  'wiki/concepts/value-equation.md': '# Value equation\n\nThe value equation says perceived value rises with the dream outcome and the likelihood of achieving it, and falls with time delay and effort.\n',
+  'sources/web/acme/pricing-tiers.md': '# Pricing tiers\n\nWe now price on seats only; the usage tier was retired in September.\n',
+}
+app.vault.adapter = { exists: async (p: string) => p in pages, read: async (p: string) => pages[p] ?? '' }
+const hits = [
+  { rank: 1, score: 0.98, title: 'Value equation', source_path: 'wiki/concepts/value-equation.md', snippet: 'The value equation says perceived value rises with the dream outcome and the likelihood of achieving it, and falls with time delay and effort.', passage_start: 0, passage_end: 138, passages_retained: 3 },
+  { rank: 2, score: 0.91, title: 'Pricing tiers', source_path: 'sources/web/acme/pricing-tiers.md', snippet: 'Three tiers: starter, growth and a usage-based tier that bills per API call, so pricing tracks the value a customer gets out of the product each month.' },
+  { rank: 3, score: 0.84, title: 'Old offer notes', source_path: 'wiki/notes/old-offer.md', snippet: 'An early draft of the grand slam offer: stack the bonuses until the price looks small against the value of the whole package.' },
+]
+const fakeCli = {
+  run: async (verb: string) => {
+    if (verb === 'wiki.search.query') return { backend: 'search_server', quality_mode: 'hybrid_rerank', count: hits.length, hits, backend_metadata: { index_as_of: { source_commit: '9f3c2a1e7b' } }, _cmd_: { head: 'c41d07be22' } }
+    if (verb === 'wiki.search.status') return snapshot.search
+    if (verb === 'wiki.git.changed') return { files: ['sources/web/acme/pricing-tiers.md', 'wiki/concepts/offers.md', 'wiki/notes/2026-10-25.md', 'wiki/index.md', 'research/r.md', 'sources/web/acme/on-call.md'] }
+    return {}
+  },
+}
 const plugin: any = {
   app,
+  cli: fakeCli,
   settings: { ...DEFAULT_SETTINGS, defaultSkill: new URLSearchParams(location.search).get('skill') ?? '', lastSession: new URLSearchParams(location.search).get('last') === '1' ? 'abc' : '' },
   wiki: { key: 'notes', name: 'Notes', root: '/tmp/obs-scratch/wiki' },
   snapshot,
@@ -91,6 +112,7 @@ const plugin: any = {
   claudeBin: new URLSearchParams(location.search).get('claude') === '0' ? null : '/usr/local/bin/claude',
 }
 if (plugin.problem) plugin.snapshot = null
+if (new URLSearchParams(location.search).get('filters') === '1') plugin.settings.searchFilters = [{ kind: 'under', value: 'wiki/' }, { kind: 'tag', value: 'pricing, offers' }]
 
 const main = document.getElementById('main')!
 const leaf = new WorkspaceLeaf(app)
@@ -137,7 +159,15 @@ if (q.get('busy') === '1') { (chat as any).running = new AbortController(); (cha
 if (q.get('ctx')) chat.ring.set(Number(q.get('ctx')), 1_000_000)
 if (q.get('sandbox') === '1') { plugin.settings.sandboxed = true; (chat as any).showControls() }
 if (q.get('ro') === '1') { plugin.settings.readOnly = true; (chat as any).showControls() }
+if (q.get('q')) {
+  dash.goTo('search')
+  const box = dash.contentEl.querySelector('.llm-wiki-search-input') as HTMLInputElement
+  box.value = q.get('q')!
+  box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
+}
+if (q.get('panel') === '1') (dash.contentEl.querySelector('.llm-wiki-search-tool') as HTMLElement).click()
 setTimeout(() => {
+  if (q.get('modal') === 'index') dash.search.openIndex()
   const pop = q.get('pop')
   if (pop === 'perm') (chat as any).openPermissions()
   if (pop === 'model') (chat as any).openModels()

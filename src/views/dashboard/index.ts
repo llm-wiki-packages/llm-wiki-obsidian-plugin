@@ -1,6 +1,6 @@
 import { ItemView, Notice, type WorkspaceLeaf } from 'obsidian'
 import type LlmWikiPlugin from '../../main'
-import { button } from '../../ui/dom'
+import { button, icon } from '../../ui/dom'
 import type { Action, Snapshot } from '../../wiki/model'
 import { renderCredentials } from './credentials'
 import { renderIngest } from './ingest'
@@ -17,15 +17,18 @@ import type { JobView } from '../../wiki/model'
 export const VIEW_DASHBOARD = 'llm-wiki-dashboard'
 
 export type Tab = 'overview' | 'jobs' | 'skills' | 'credentials' | 'ingest' | 'search' | 'chat'
-/** Managing the wiki on the left; talking to it on the right. */
-const TABS: { id: Tab; label: string; side?: true }[] = [
+/** What a person reaches for every day, in the first row. */
+const TABS: { id: Tab; label: string }[] = [
+  { id: 'chat', label: 'Chat' },
+  { id: 'search', label: 'Search' },
   { id: 'overview', label: 'Overview' },
+]
+/** Under More, on a second row: running the wiki, which is less often. */
+const MORE: { id: Tab; label: string }[] = [
   { id: 'jobs', label: 'Jobs' },
   { id: 'skills', label: 'Skills' },
   { id: 'ingest', label: 'Ingest' },
   { id: 'credentials', label: 'Credentials' },
-  { id: 'search', label: 'Search', side: true },
-  { id: 'chat', label: 'Chat', side: true },
 ]
 /** Panes that keep their own state and never redraw on a snapshot. */
 const PANES: Tab[] = ['search', 'chat']
@@ -54,6 +57,9 @@ export class DashboardView extends ItemView {
   private tab: Tab = 'overview'
   private panel!: HTMLElement
   private tabBar!: HTMLElement
+  private moreBar!: HTMLElement
+  /** The More tab reopens where it was left. */
+  private lastMore: Tab = 'jobs'
   private refreshedEl!: HTMLElement
   private healthPill!: HTMLButtonElement
   chat!: ChatPane
@@ -74,7 +80,7 @@ export class DashboardView extends ItemView {
   }
 
   getDisplayText(): string {
-    return this.plugin.wiki ? `${this.plugin.wiki.name} — LLM Wiki` : 'LLM Wiki'
+    return this.plugin.wiki ? `${this.plugin.wiki.name} — Brain` : 'Brain'
   }
 
   getIcon(): string {
@@ -89,7 +95,7 @@ export class DashboardView extends ItemView {
     const saved = (state as { tab?: string } | null)?.tab
     // 'pages' was the Ingest tab's name before cycle 6.
     const tab = saved === 'pages' ? 'ingest' : saved
-    if (tab && TABS.some((t) => t.id === tab)) this.tab = tab as Tab
+    if (tab && [...TABS, ...MORE].some((t) => t.id === tab)) this.tab = tab as Tab
     await super.setState(state, result)
     if (this.panel) this.render()
   }
@@ -99,21 +105,28 @@ export class DashboardView extends ItemView {
     root.empty()
     root.addClass('llm-wiki', 'llm-wiki-dashboard')
     const header = root.createDiv({ cls: 'llm-wiki-header' })
-    header.createEl('h2', { text: 'LLM Wiki' })
+    header.createEl('h2', { text: 'Brain' })
     // The pill is the way to the Overview from any tab; its tooltip says what the count is.
     this.healthPill = header.createEl('button', { cls: 'llm-wiki-pill llm-wiki-pill-button', text: '…' })
     this.registerDomEvent(this.healthPill, 'click', () => this.goTo('overview'))
     this.refreshedEl = header.createSpan({ cls: 'llm-wiki-muted' })
     const actions = header.createDiv({ cls: 'llm-wiki-header-actions' })
     button(actions, '', () => this.refresh(), { icon: 'refresh-cw', title: 'Read the wiki again' })
-    button(actions, '', () => this.plugin.openSettings(), { icon: 'settings', title: 'LLM Wiki settings' })
+    button(actions, '', () => this.plugin.openSettings(), { icon: 'settings', title: 'Brain settings' })
     this.tabBar = root.createDiv({ cls: 'llm-wiki-tabs' })
-    for (const t of TABS) {
-      if (t.side && !this.tabBar.querySelector('.llm-wiki-tabs-gap')) this.tabBar.createDiv({ cls: 'llm-wiki-tabs-gap' })
-      const b = this.tabBar.createEl('button', { cls: 'llm-wiki-tab', text: t.label })
-      b.dataset.tab = t.id
-      this.registerDomEvent(b, 'click', () => this.goTo(t.id))
+    const tab = (bar: HTMLElement, id: string, label: string, go: () => void) => {
+      const b = bar.createEl('button', { cls: 'llm-wiki-tab', text: label })
+      b.dataset.tab = id
+      this.registerDomEvent(b, 'click', go)
+      return b
     }
+    for (const t of TABS) tab(this.tabBar, t.id, t.label, () => this.goTo(t.id))
+    this.tabBar.createDiv({ cls: 'llm-wiki-tabs-gap' })
+    const more = tab(this.tabBar, 'more', 'More', () => this.goTo(this.lastMore))
+    more.addClass('llm-wiki-tab-more')
+    icon(more, 'chevron-down', 'llm-wiki-tab-caret')
+    this.moreBar = root.createDiv({ cls: 'llm-wiki-tabs llm-wiki-subtabs' })
+    for (const t of MORE) tab(this.moreBar, t.id, t.label, () => this.goTo(t.id))
     this.panel = root.createDiv({ cls: 'llm-wiki-panel' })
     this.searchEl = root.createDiv({ cls: 'llm-wiki-pane' })
     this.chatEl = root.createDiv({ cls: 'llm-wiki-pane' })
@@ -134,6 +147,7 @@ export class DashboardView extends ItemView {
 
   goTo(tab: Tab): void {
     this.tab = tab
+    if (MORE.some((t) => t.id === tab)) this.lastMore = tab
     void this.app.workspace.requestSaveLayout()
     this.render()
     if (tab === 'chat') this.chat.focus()
@@ -145,7 +159,9 @@ export class DashboardView extends ItemView {
   }
 
   private render(): void {
-    for (const b of Array.from(this.tabBar.children)) b.toggleClass('is-active', (b as HTMLElement).dataset.tab === this.tab)
+    const inMore = MORE.some((t) => t.id === this.tab)
+    for (const b of Array.from(this.tabBar.children)) b.toggleClass('is-active', (b as HTMLElement).dataset.tab === (inMore ? 'more' : this.tab))
+    for (const b of Array.from(this.moreBar.children)) b.toggleClass('is-active', (b as HTMLElement).dataset.tab === this.tab)
     const snapshot = this.plugin.snapshot
     const pane = PANES.includes(this.tab) && Boolean(snapshot || !this.plugin.problem)
     this.chatEl.toggle(pane && this.tab === 'chat')
@@ -162,11 +178,13 @@ export class DashboardView extends ItemView {
       this.healthPill.title = this.plugin.problem ?? 'Reading the wiki'
       this.refreshedEl.setText('')
       this.tabBar.toggle(!this.plugin.problem)
+      this.moreBar.toggle(!this.plugin.problem && inMore)
       if (this.plugin.problem) this.notReady(this.plugin.problem)
       else this.panel.createDiv({ cls: 'llm-wiki-notice', text: 'Reading the wiki…' })
       return
     }
     this.tabBar.show()
+    this.moreBar.toggle(inMore)
     this.healthPill.setText(snapshot.health.count ? `${snapshot.health.count} need you` : 'ok')
     this.healthPill.className = `llm-wiki-pill llm-wiki-pill-button is-${snapshot.health.tone}`
     const needs = snapshot.attention.filter((a) => a.severity !== 'info').map((a) => a.title)
@@ -279,7 +297,9 @@ export class DashboardView extends ItemView {
         if (actions) await this.write(() => action.slug && !this.plugin.snapshot?.runner ? actions.retryAndRun(action.ticket, action.slug) : actions.retryTicket(action.ticket))
         return
       case 'reindex':
-        if (actions) await this.write(() => actions.reindex())
+        // Which pass, and whether to spend a rebuild, is the index dialog's question.
+        this.goTo('search')
+        this.search.openIndex()
         return
       case 'credential':
         this.plugin.credentialModal({ skill: action.skill, slot: action.slot, name: action.name, retry: action.retry, job: action.job })

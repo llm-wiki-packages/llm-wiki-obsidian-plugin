@@ -38,6 +38,22 @@ export interface Args {
   credential?: string
   /** `credentials bind`: a skill unit or a job slug. */
   subject?: 'skill' | 'job'
+  /** `search query`: the `filter=` groups, one per kind, values OR'd. */
+  filters?: SearchFilter[]
+  /** `git changed`: a commit the window counts from. */
+  commit?: string
+  /** `git changed`: top-level trees to look in. */
+  dirs?: string[]
+}
+
+/** The `filter=` kinds `search query` takes (`OPS/commands/search/query.py`), each a string. */
+export const SEARCH_FILTER_KINDS = ['under', 'type', 'tag', 'author', 'area', 'curation', 'source_host', 'group', 'group_type', 'captured_from', 'captured_to', 'prop'] as const
+export type SearchFilterKind = (typeof SEARCH_FILTER_KINDS)[number]
+/** One `filter=kind:value` group; a comma inside `value` ORs, `negated` excludes. */
+export interface SearchFilter {
+  kind: SearchFilterKind
+  value: string
+  negated?: boolean
 }
 
 export interface CliConfig {
@@ -82,6 +98,11 @@ const BIND_SLOT = /^[a-z][a-z0-9_]{0,31}(\.[A-Za-z_][A-Za-z0-9_]{0,63})?$/
 const ABS_DIR = /^\/[^\x00-\x1f]{0,1023}$/ // eslint-disable-line no-control-regex -- rejecting control characters is the point
 // eslint-disable-next-line no-control-regex -- rejecting control characters is the point
 const ONE_LINE = /^[^\x00-\x1f]{1,200}$/
+const COMMIT = /^[0-9a-f]{7,64}$/
+const TREE = /^[a-z][a-z0-9_-]{0,63}$/
+const DAY = /^\d{4}-\d{2}-\d{2}$/
+// The range bounds take one value and no negation: the CLI refuses either by name.
+const RANGE_KINDS: ReadonlySet<string> = new Set(['captured_from', 'captured_to'])
 
 function key(v: string | undefined): string {
   if (!v || !KEY.test(v)) throw new CliError(`bad wiki key: ${String(v)}`, 'args')
@@ -160,6 +181,31 @@ function text(v: string | undefined): string {
   return t
 }
 
+/** Each filter one `filter=` argv element, its value one line; a kind the verb does not know never reaches it. */
+function searchFilters(v: SearchFilter[] | undefined): string[] {
+  return (v ?? []).map((f) => {
+    if (!(SEARCH_FILTER_KINDS as readonly string[]).includes(f.kind)) throw new CliError(`bad search filter: ${String(f.kind)}`, 'args')
+    const value = (f.value ?? '').trim()
+    // eslint-disable-next-line no-control-regex -- rejecting control characters is the point
+    if (!value || value.length > 500 || /[\x00-\x1f]/.test(value)) throw new CliError(`a ${f.kind} filter is one line of 1–500 characters`, 'args')
+    if (RANGE_KINDS.has(f.kind) && (f.negated || !DAY.test(value))) throw new CliError(`${f.kind} is one date, YYYY-MM-DD`, 'args')
+    if (f.kind === 'prop' && !/^[^=,]+=/.test(value)) throw new CliError('a property filter is key=value', 'args')
+    return `filter=${f.negated ? '-' : ''}${f.kind}:${value}`
+  })
+}
+
+function commit(v: string | undefined): string {
+  if (!v || !COMMIT.test(v)) throw new CliError(`bad commit: ${String(v)}`, 'args')
+  return v
+}
+
+function trees(v: string[] | undefined): string[] {
+  return (v ?? []).map((d) => {
+    if (!TREE.test(d)) throw new CliError(`bad tree: ${d}`, 'args')
+    return d
+  })
+}
+
 /** A question is one argv element: at most 8 KiB, and never dash-led, which the harness would read as a flag. */
 export function question(v: string | undefined): string {
   const t = (v ?? '').trim()
@@ -197,6 +243,8 @@ export const VERBS = {
   'wiki.tickets.ls': (a: Args) => wiki(a, 'tickets', 'ls'),
   'wiki.page.ls': (a: Args) => wiki(a, 'page', 'ls'),
   'wiki.git.conflicts': (a: Args) => wiki(a, 'git', 'conflicts'),
+  // What moved under the corpus trees since a commit: the index's own marker, for what it has not seen.
+  'wiki.git.changed': (a: Args) => wiki(a, 'git', 'changed', ...trees(a.dirs), `filter=since:${commit(a.commit)}`),
   'wiki.op.since': (a: Args) => wiki(a, 'op', 'since', since(a.since, '1d')),
   'wiki.skills.ls': (a: Args) => wiki(a, 'skills', 'ls'),
   // An exact name carries the manifest: what the unit needs and how it is used.
@@ -214,7 +262,9 @@ export const VERBS = {
   'wiki.tickets.retry': (a: Args) => write(a, 'tickets', 'retry', ticket(a.id)),
   // Accept, or reject with a reason: `reject=` is the whole rejection.
   'wiki.page.curate': (a: Args) => write(a, 'page', 'curate', ...paths(a.paths), ...(a.reason === undefined ? [] : [`reject=${oneLine(a.reason)}`])),
+  // The additive pass: what moved since the last one. `reindex` is the full one, and the only one that removes.
   'wiki.search.index': (a: Args) => write(a, 'search', 'index'),
+  'wiki.search.reindex': (a: Args) => write(a, 'search', 'reindex'),
   // Protected writes: a person clicked, so the child is marked attended. A value arrives on stdin, never here.
   'wiki.credentials.set': (a: Args) => write(a, 'credentials', 'set', credential(a.name), `kind=${a.kind === 'dir' ? 'dir' : 'value'}`,
     ...(a.kind === 'dir' && a.dir ? [`path=${absDir(a.dir)}`] : [])),
@@ -226,7 +276,7 @@ export const VERBS = {
   'wiki.page.adopt': (a: Args) => write(a, 'page', 'adopt', ...paths(a.paths)),
   // The text goes after `--`, so a query starting with a dash is never read as a flag.
   'wiki.search.query': (a: Args) => [
-    'wiki', '--read-only', key(a.wiki), 'search', 'query', topK(a), '--json', '--', text(a.text),
+    'wiki', '--read-only', key(a.wiki), 'search', 'query', topK(a), ...searchFilters(a.filters), '--json', '--', text(a.text),
   ],
   // One question in a jailed harness session, streamed as JSON lines: the sandboxed chat. With
   // `--conversation` the question is the first turn and later turns arrive as JSON lines on stdin.
@@ -247,7 +297,7 @@ export type Verb = keyof typeof VERBS
 const ATTENDED: ReadonlySet<Verb> = new Set<Verb>(['wiki.credentials.set', 'wiki.credentials.bind', 'wiki.credentials.login', 'wiki.credentials.remove'])
 
 const WRITES: ReadonlySet<Verb> = new Set<Verb>([
-  'wiki.harness.run', 'wiki.jobs.request', 'wiki.jobs.pause', 'wiki.jobs.resume', 'wiki.tickets.retry', 'wiki.page.curate', 'wiki.page.adopt', 'wiki.search.index',
+  'wiki.harness.run', 'wiki.jobs.request', 'wiki.jobs.pause', 'wiki.jobs.resume', 'wiki.tickets.retry', 'wiki.page.curate', 'wiki.page.adopt', 'wiki.search.index', 'wiki.search.reindex',
   'wiki.credentials.ls', 'wiki.credentials.bindings', ...ATTENDED,
 ])
 
@@ -489,18 +539,34 @@ export interface WikiRow {
 /** What `search query --json` answers. */
 export interface SearchAnswer {
   backend?: string
+  quality_mode?: string
   count?: number
   degraded?: boolean
+  /** A filter the backend could not apply everywhere: some matches may be missing. */
+  filter_recall_incomplete?: boolean
+  requested_filters?: string[]
   emulated_filters?: string[]
   degradations?: { kind?: string; detail?: string }[]
-  hits?: {
-    rank: number
-    score: number | null
-    locator?: string
-    title?: string
-    snippet?: string
-    document_id?: string | null
-    source_path?: string
-    line?: number | null
-  }[]
+  hits?: SearchHit[]
+  /** `index_as_of.source_commit` is the commit the answering index was built at; only an engine sets it. */
+  backend_metadata?: { index_as_of?: { source_commit?: string } | null }
+  _cmd_?: { head?: string | null }
+}
+
+export interface SearchHit {
+  rank: number
+  score: number | null
+  locator?: string
+  title?: string
+  /** The indexed chunk; `passage_start`/`passage_end` bound the window that won the hit inside it. */
+  snippet?: string
+  passage_start?: number
+  passage_end?: number
+  document_id?: string | null
+  source_path?: string
+  /** Set by a backend that read the file to find the hit (grep); the engine's needs a lookup. */
+  line?: number | null
+  backend?: string
+  passages_retained?: number | null
+  passages_truncated?: boolean | null
 }
