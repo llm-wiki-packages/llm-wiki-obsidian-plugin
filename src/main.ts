@@ -45,7 +45,7 @@ export default class LlmWikiPlugin extends Plugin {
     log.setDebug(this.settings.debug)
     this.addSettingTab(new LlmWikiSettingTab(this.app, this))
     this.registerView(VIEW_DASHBOARD, (leaf) => new DashboardView(leaf, this))
-    this.addRibbonIcon('brain', 'Open LLM wiki', () => void this.openDashboard())
+    this.addRibbonIcon('brain', 'Open Brain', () => void this.openDashboard())
     this.addCommand({ id: 'open-dashboard', name: 'Open dashboard', callback: () => void this.openDashboard() })
     this.addCommand({ id: 'open-chat', name: 'Open chat', callback: () => void this.openDashboard('chat') })
     this.addCommand({ id: 'open-search', name: 'Open search', callback: () => void this.openDashboard('search') })
@@ -194,7 +194,7 @@ export default class LlmWikiPlugin extends Plugin {
     if (!before) return
     const seen = new Set(before.attention.map((a) => a.id))
     for (const a of after.attention)
-      if (a.id.startsWith('parked:') && !seen.has(a.id)) new Notice(`${a.title}. Open the LLM wiki dashboard to fix it.`, 10_000)
+      if (a.id.startsWith('parked:') && !seen.has(a.id)) new Notice(`${a.title}. Open Brain to fix it.`, 10_000)
   }
 
   /** Tight while a ticket is running, since someone just pressed Run and is watching; relaxed otherwise. */

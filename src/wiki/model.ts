@@ -145,6 +145,29 @@ export interface Snapshot {
   /** Files under sources/ the wiki has not taken up; null when this CLI cannot tell. */
   unadopted: CurationItem[] | null
   recent: RecentRun[]
+  /** How the search index stands; null when it could not be read. */
+  search: SearchStatus | null
   /** Reads that failed, by verb, so a half-empty dashboard says why. */
   errors: Record<string, string>
+}
+
+/** What `search status --json` answers (`OPS/search/status.py`). */
+export interface SearchStatus {
+  engine_configured?: boolean
+  realm_ready?: boolean
+  realm_reason?: string
+  serving?: string | null
+  collection?: string | null
+  /** The commit the engine's index was last built at. */
+  index_as_of?: { source_commit?: string } | null
+  /** Files the index owes; `dirty` of them it does not hold at their current bytes, null on a grep-only wiki. */
+  corpus_files?: number
+  dirty?: number | null
+  /** False: the index names no commit this clone has, so every file is a candidate. */
+  marker_known?: boolean | null
+  /** `[search] paths` moved since the last full reindex: pages may sit in the index that no longer belong. */
+  reindex_required?: boolean
+  paths?: { pattern: string; origin?: string }[]
+  not_indexed?: { pattern: string; origin?: string }[]
+  _cmd_?: { head?: string | null }
 }

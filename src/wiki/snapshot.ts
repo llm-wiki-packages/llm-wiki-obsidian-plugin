@@ -4,7 +4,7 @@
 import type { Args, Verb } from './cli'
 import { parseSkill } from '../chat/skills'
 import { slotWords } from './slots'
-import type { AttentionItem, CredentialView, CurationItem, JobView, RecentRun, SkillView, SlotView, Snapshot, TicketView } from './model'
+import type { AttentionItem, CredentialView, CurationItem, JobView, RecentRun, SearchStatus, SkillView, SlotView, Snapshot, TicketView } from './model'
 import { slash } from '../chat/skills'
 
 /** What the builder needs of a Cli, so a test can hand it fixtures. */
@@ -72,12 +72,8 @@ export interface PageRow {
 export interface OpSinceAnswer {
   runs?: { op: string; outcome: string; when: string; summary: string }[]
 }
-export interface SearchStatusAnswer {
-  engine_configured?: boolean
-  realm_ready?: boolean
-  realm_reason?: string
-  serving?: string | null
-}
+/** `search status`, kept whole on the snapshot for the Search tab. */
+export type SearchStatusAnswer = SearchStatus
 export interface RunnerLsAnswer {
   wikis?: { wiki_key: string; installed: object | null }[]
 }
@@ -235,6 +231,7 @@ export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now(
     curation: pageRows.filter((p) => p.status === 'draft').map(curationItem),
     unadopted: tellsChange ? pageRows.filter((p) => p.change === 'new' && p.path.startsWith('sources/')).map(curationItem) : null,
     recent: (ops?.runs ?? []).map((r) => recentRun(r, jobRows)),
+    search,
     errors,
   }
 }

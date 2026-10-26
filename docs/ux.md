@@ -24,9 +24,10 @@ visibly changes (accept, pause, remove…) raise none.
 ### The view (main area tab; brain ribbon icon, command "Open dashboard")
 Header: title, one health pill (`ok` or `N need you`; a button: hover lists
 what needs you, click opens the Overview from any tab), refreshed time,
-Refresh (icon), a gear for the plugin settings. Seven tabs, remembered per leaf:
-Overview, Jobs, Skills, Ingest, Credentials on the left; Search and Chat on
-the right. A note opened from the view goes to a new tab (Cmd-click: a
+Refresh (icon), a gear for the plugin settings. The header reads **Brain**. Tabs,
+remembered per leaf: Chat, Search, Overview on the left; **More** at the far
+right, which shows a second row (Jobs, Skills, Ingest, Credentials) and
+reopens the one last used. A note opened from the view goes to a new tab (Cmd-click: a
 split), never into the view's own leaf. Chat and Search are panes built once and kept across tab
 switches; a snapshot never redraws them. Text is selectable everywhere.
 
@@ -39,7 +40,7 @@ switches; a snapshot never redraws them. Text is selectable everywhere.
   it), any other parked ticket (**Retry**), a ticket in review (**Ask the
   agent**), a blocked job (**Ask the agent**), a doctor warn/fail row (**Fix
   with the agent**), a drifted skill (**Inspect**), an unreadable job, a handoff
-  problem, a git conflict (**Open**), search engine not ready (**Reindex**).
+  problem, a git conflict (**Open**), search engine not ready (**Review index**, the Search index dialog).
   Info rows (an update available, an enabled skill with an empty optional slot)
   follow under a small "Also" label, uncounted. With no runner installed, one
   notice here with **Install the runner** (a chat hand-off).
@@ -167,10 +168,32 @@ command. Chips on an empty chat: "What needs attention in this wiki?", "What
 did the wiki learn since yesterday?", "Add a source…".
 
 ### Search (tab)
-One field; a pause in typing or Enter searches, and a new search kills the one
-in flight. Results with title, path and snippet; click opens the note. "No
-pages match" for zero hits, the degradation reason when the engine is
-degraded, and **Ask the agent about this** carrying the query.
+One field, a filters icon and an index icon; a pause in typing or Enter
+searches, and a new search kills the one in flight. Results with title,
+`path:line` and two lines of the winning passage (cut to start near the first
+query word, query words marked); click opens the note at that line. "No pages
+match" for zero hits, the degradation reason when the engine is degraded, the
+commit the index was built at (and "older than this checkout" when it is), and
+**Ask the agent about this** carrying the query.
+
+Freshness, per hit: the passage is looked up in the page as it is on disk, the
+check the CLI's own renderer makes. **page deleted** (the row no longer opens)
+or **text changed**, and one line over the results: "3 of 12 results are out
+of date … **Update the index**". Grep hits are read live and never checked.
+
+Filters: the kinds `search query` takes, as fields that commit on change and
+re-run the search; a comma ORs. In force they show as removable chips; the
+icon shows a count. Kept in the settings.
+
+**Search index** (the refresh icon, which carries a dot when the index owes
+something): a verdict first (up to date; N files changed; search answering
+with deleted pages; paths changed since the last rebuild; engine not ready),
+then the facts (built at, checkout at, file count, paths), the files waiting
+(`git changed` since the index's commit, cut to the corpus) and the stale hits
+seen this session. Two cards: **Update index** (`search index`: quick, removes
+nothing) and **Rebuild index** (`search reindex`: every file, drops deleted
+pages; confirms first). The verdict marks one recommended. A grep-only wiki
+says there is no index to go stale and offers neither.
 
 ### Commands
 Open dashboard / chat / search, Run a job… (fuzzy), Open a job… (fuzzy, the
@@ -302,3 +325,8 @@ name with a "pages written" row that lands on them.
   as switches in a permission panel under the box. That row also holds
   Skills…, Model, Effort, a context ring, and one Send / Stop button; New
   chat moved to the top left; `/` lists the skills.
+- **Cycle 8 (2026-10-26)**: renamed LLM Wiki Brain, header Brain (owner). Tabs
+  reordered to Chat, Search, Overview, with Jobs, Skills, Ingest and
+  Credentials under More on a second row. Search: per-hit freshness against
+  the page on disk, filters, two marked lines per hit, and the Search index
+  dialog with Update and Rebuild.

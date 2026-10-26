@@ -175,3 +175,42 @@ describe('Actions.runJob says what the request answered', () => {
     expect(await new Actions(standIn('{"error":"gmail: paused — `jobs resume gmail` first"}', 2), 'kb').runJob('gmail')).toEqual({ ok: false, message: 'gmail did not start: gmail: paused — `jobs resume gmail` first' })
   })
 })
+
+describe('search filters, index and reindex', () => {
+  it('spells each filter as one filter= element before --json, negation on the kind', () => {
+    const argv = VERBS['wiki.search.query']({ wiki: 'kb', text: 'pricing', k: 5, filters: [{ kind: 'under', value: 'wiki/notes' }, { kind: 'tag', value: 'sales, ai', negated: true }, { kind: 'captured_from', value: '2026-01-01' }] })
+    expect(argv).toEqual(['wiki', '--read-only', 'kb', 'search', 'query', 'filter=k:5', 'filter=under:wiki/notes', 'filter=-tag:sales, ai', 'filter=captured_from:2026-01-01', '--json', '--', 'pricing'])
+  })
+
+  it('refuses a kind the verb does not take, a bad date, a negated range and a property without =', () => {
+    const q = (f: unknown) => () => VERBS['wiki.search.query']({ wiki: 'kb', text: 'q', filters: [f as never] })
+    expect(q({ kind: 'k', value: '100' })).toThrow(CliError)
+    expect(q({ kind: 'captured_to', value: 'yesterday' })).toThrow(CliError)
+    expect(q({ kind: 'captured_to', value: '2026-01-01', negated: true })).toThrow(CliError)
+    expect(q({ kind: 'prop', value: 'status' })).toThrow(CliError)
+    expect(q({ kind: 'tag', value: 'a\nb' })).toThrow(CliError)
+  })
+
+  it('reads what changed since a commit under named trees, and refuses a sha that is not one', () => {
+    expect(VERBS['wiki.git.changed']({ wiki: 'kb', commit: '9f3c2a1', dirs: ['wiki', 'sources'] })).toEqual(['wiki', '--read-only', 'kb', 'git', 'changed', 'wiki', 'sources', 'filter=since:9f3c2a1', '--json'])
+    expect(() => VERBS['wiki.git.changed']({ wiki: 'kb', commit: '1d' })).toThrow(CliError)
+    expect(() => VERBS['wiki.git.changed']({ wiki: 'kb', commit: '9f3c2a1', dirs: ['../x'] })).toThrow(CliError)
+  })
+
+  it('runs reindex as a write', () => {
+    expect(VERBS['wiki.search.reindex']({ wiki: 'kb' })).toEqual(['wiki', 'kb', 'search', 'reindex', '--json'])
+    expect(childEnv({ LLM_WIKI_PERMISSIONS: 'read' }, 'wiki.search.reindex').LLM_WIKI_PERMISSIONS).toBeUndefined()
+  })
+
+  it('says what an index pass did, including a partial one that exits 1', async () => {
+    expect(await new Actions(standIn('{"status":"synced","indexed":3,"unchanged":10,"failed":[],"skipped":[],"conflicts":[]}'), 'kb').index()).toEqual({ ok: true, message: 'search index updated: 3 files indexed' })
+    expect(await new Actions(standIn('{"status":"synced","indexed":0,"unchanged":10}'), 'kb').index()).toEqual({ ok: true, message: 'search index already up to date' })
+    expect(await new Actions(standIn('{"status":"partial","indexed":2,"failed":["wiki/a.md"],"skipped":[],"conflicts":[]}', 1), 'kb').index()).toEqual({ ok: false, message: 'search index updated: 2 files indexed, but 1 file did not go in' })
+    expect((await new Actions(standIn('{"status":"deferred"}'), 'kb').index()).ok).toBe(false)
+  })
+
+  it('says what a rebuild removed', async () => {
+    const out = await new Actions(standIn('{"owner":"search_server","status":"synced","report":{"indexed":5,"unchanged":95,"deleted":["wiki/gone.md","wiki/old.md"],"failed":[],"refused":[],"conflicts":[]}}'), 'kb').reindex()
+    expect(out).toEqual({ ok: true, message: 'search index rebuilt: 100 files, 2 missing pages removed' })
+  })
+})

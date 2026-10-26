@@ -1,4 +1,4 @@
-# LLM Wiki for Obsidian
+# LLM Wiki Brain for Obsidian
 
 Chat with an agent, search, and operate an [llm-wiki](https://github.com/simple10/llm-wiki-plugins)
 wiki from inside Obsidian. The vault is the wiki; the plugin is a command center
@@ -10,11 +10,12 @@ spawns local processes.
 
 ## What it does
 
-One view, **LLM Wiki** (the brain icon in the ribbon, the status bar item, or
-*LLM Wiki: Open dashboard*), opened as a tab in the main area; drag it into a
-side split to keep it beside a note. Seven tabs: Overview, Jobs, Skills,
-Ingest and Credentials on the left for managing the wiki, Search and Chat on
-the right for talking to it. A note opened from the view (a search hit, a
+One view, **Brain** (the brain icon in the ribbon, the status bar item, or
+*LLM Wiki Brain: Open dashboard*), opened as a tab in the main area; drag it into a
+side split to keep it beside a note. Chat, Search and Overview on the left,
+the everyday tabs; **More** on the far right opens a second row with Jobs,
+Skills, Ingest and Credentials, for running the wiki, and reopens the one
+last used. A note opened from the view (a search hit, a
 link in a reply, an Ingest row) opens in a new tab, never in the view's own
 place; Cmd-click opens a split. The health pill in the header reads `ok` or `N
 need you`, lists what needs you on hover, and opens the Overview from any tab;
@@ -104,7 +105,20 @@ Wikilinks and URLs in a reply open on click; a reply has a Copy button on
 hover; text is selectable everywhere.
 
 **Search** (a tab of the view): `search query` through the CLI, no model
-involved; results open as notes.
+involved; results open as notes, at the passage's line where it is known. Each
+hit shows two lines of the passage that won it, starting near the first query
+word, with the query words marked. Each hit is checked against the page as it
+is now: a page that is gone reads **page deleted**, and a passage the page no
+longer holds reads **text changed**; a line over the results counts them. The
+sliders icon opens the filters `search query` takes (folder, not-in-folder,
+page type, tag, author, area, source site, a `key=value` property, curation,
+captured date range); they show as chips under the field and are kept in the
+settings. The refresh icon carries a dot when the index owes something, and
+opens **Search index**: one verdict (up to date, N files changed, deleted pages
+answering, paths changed, engine not ready), the files waiting and the stale
+hits seen, and two passes: **Update index** (`search index`, additive) and
+**Rebuild index** (`search reindex`, every file, and removes deleted pages;
+asks first). The one marked recommended is the one the verdict calls for.
 
 **Chat skills**: *Run a skill…* (a command, and the **Skills…** button in chat)
 lists the same `/brain:` slash skills, read from the brain plugin Claude Code
@@ -142,8 +156,8 @@ npm run install-to-vault -- /path/to/your/vault
 ```
 
 Then in Obsidian: Settings → Community plugins → turn off Restricted mode
-(if on) → enable **LLM Wiki**. The ribbon's brain icon opens the view; the
-command palette has **LLM Wiki: Open chat** and **Open search**, which land on
+(if on) → enable **LLM Wiki Brain**. The ribbon's brain icon opens the view; the
+command palette has **LLM Wiki Brain: Open chat** and **Open search**, which land on
 those tabs. The status bar shows which wiki the vault resolved to, or why it
 did not.
 
