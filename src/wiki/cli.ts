@@ -4,8 +4,6 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { log } from '../logger'
 
-// The renderer's own timers where there is a window (popout-safe); node's own in the tests, which have none.
-const timers = typeof window === 'undefined' ? global : window
 
 export interface Args {
   wiki?: string
@@ -350,7 +348,9 @@ function killGroup(child: ChildProcess): void {
   }
   if (child.exitCode !== null || child.signalCode !== null) return
   sig('SIGTERM')
-  timers.setTimeout(() => sig('SIGKILL'), 5000).unref()
+  // Node's timer can be unref'd so it never holds a test run open; the renderer's is a number.
+  const kill: unknown = window.setTimeout(() => sig('SIGKILL'), 5000)
+  ;(kill as { unref?: () => void }).unref?.()
 }
 
 export class Cli {
@@ -385,19 +385,19 @@ export class Cli {
       opts.signal?.addEventListener('abort', onAbort, { once: true })
       let out = ''
       let err = ''
-      const timer = timers.setTimeout(() => {
+      const timer = window.setTimeout(() => {
         killGroup(child)
         reject(new CliError(`${verb}: timed out after ${timeoutMs}ms`, 'timeout'))
       }, timeoutMs)
       child.stdout.on('data', (d: Buffer) => (out += d.toString()))
       child.stderr.on('data', (d: Buffer) => (err += d.toString()))
       child.on('error', (e) => {
-        timers.clearTimeout(timer)
+        window.clearTimeout(timer)
         this.live.delete(child)
         reject(new CliError(`${verb}: ${e.message}`, 'spawn'))
       })
       child.on('close', (rc) => {
-        timers.clearTimeout(timer)
+        window.clearTimeout(timer)
         this.live.delete(child)
         opts.signal?.removeEventListener('abort', onAbort)
         log.debug('cli', verb, `rc ${String(rc)}`, `${Date.now() - started}ms`, err.trim() ? tail(err) : '')
@@ -469,7 +469,7 @@ export class Cli {
       if (ended) return
       ended = true
       this.live.delete(child)
-      if (timer) timers.clearTimeout(timer)
+      if (timer) window.clearTimeout(timer)
       line(buf)
       buf = ''
       log.debug('cli', verb, `rc ${String(rc)}`, `${Date.now() - started}ms`, err.trim() ? tail(err) : '')
@@ -488,7 +488,7 @@ export class Cli {
     const timer =
       timeoutMs === undefined
         ? undefined
-        : timers.setTimeout(() => {
+        : window.setTimeout(() => {
             timedOut = true
             killGroup(child)
           }, timeoutMs)
@@ -507,7 +507,7 @@ export class Cli {
           await new Promise<void>((r) => (wake = r))
         }
       } finally {
-        if (timer) timers.clearTimeout(timer)
+        if (timer) window.clearTimeout(timer)
         opts.signal?.removeEventListener('abort', onAbort)
         if (!ended) killGroup(child)
       }

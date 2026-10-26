@@ -14,8 +14,6 @@ export interface HarnessRunConfig {
 
 export const RESTARTED = 'The sandboxed chat restarted; earlier turns are forgotten'
 
-// The renderer's own timers where there is a window (popout-safe); node's own in the tests, which have none.
-const timers = typeof window === 'undefined' ? global : window
 
 const str = (v: unknown, fallback = ''): string => (typeof v === 'string' ? v : typeof v === 'number' ? String(v) : fallback)
 
@@ -68,7 +66,7 @@ export class HarnessRunBackend implements ChatBackend {
   private conv: Conversation | null = null
   /** A session has run since the last reset, so a fresh one after it means turns were lost. */
   private hadSession = false
-  private idle: ReturnType<typeof timers.setTimeout> | null = null
+  private idle: number | null = null
   private running = false
 
   constructor(
@@ -90,7 +88,7 @@ export class HarnessRunBackend implements ChatBackend {
   }
 
   private clearIdle(): void {
-    if (this.idle !== null) timers.clearTimeout(this.idle)
+    if (this.idle !== null) window.clearTimeout(this.idle)
     this.idle = null
   }
 
@@ -98,7 +96,7 @@ export class HarnessRunBackend implements ChatBackend {
     this.clearIdle()
     const minutes = this.config.idleMinutes()
     if (!(minutes > 0)) return
-    this.idle = timers.setTimeout(() => {
+    this.idle = window.setTimeout(() => {
       if (this.running || this.conv !== conv) return
       conv.close()
       this.conv = null
