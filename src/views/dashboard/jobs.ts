@@ -4,6 +4,7 @@ import { slotWords } from '../../wiki/slots'
 import { openJobModal } from '../../ui/jobModal'
 import type { Action, JobView, NextKind } from '../../wiki/model'
 import type { TabContext } from './index'
+import { slash } from '../../chat/skills'
 
 /** The jobs, what each is waiting on, and the one button that matters on each row. */
 export function renderJobs(root: HTMLElement, ctx: TabContext): void {
@@ -192,7 +193,7 @@ export function jobButtons(parent: HTMLElement, j: JobView, ctx: TabContext, ful
     if (!j.running && !j.paused && j.next.kind !== 'due' && RUNNABLE.includes(j.next.kind)) menu.addItem((i) => i.setTitle('Run now').setIcon('play').onClick(run))
     if (!j.running && !j.paused) menu.addItem((i) => i.setTitle('Pause').setIcon('pause').onClick(() => ctx.write(() => actions.pauseJob(j.slug), true)))
     menu.addItem((i) => i.setTitle('Change schedule…').setIcon('clock').onClick(() => ctx.act({ kind: 'ask', prompt: `Change the schedule of job ${j.slug} (${j.name}, now ${j.schedule}) to ` })))
-    menu.addItem((i) => i.setTitle('Remove…').setIcon('trash-2').onClick(() => ctx.act({ kind: 'ask', prompt: `/llm-wiki:remove ${j.slug}` })))
+    menu.addItem((i) => i.setTitle('Remove…').setIcon('trash-2').onClick(() => ctx.act({ kind: 'ask', prompt: slash('remove', j.slug) })))
     menu.addItem((i) => i.setTitle('Ask the agent about it').setIcon('message-square').onClick(() => ctx.act({ kind: 'ask', prompt: askAbout(j) })))
     menu.showAtMouseEvent(e)
   }, { icon: 'ellipsis', title: 'More' })

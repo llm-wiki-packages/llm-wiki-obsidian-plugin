@@ -1,7 +1,7 @@
 import { FileSystemAdapter, FuzzySuggestModal, Notice, Plugin } from 'obsidian'
 import { ClaudeSdkBackend } from './chat/claudeSdk'
 import { HarnessRunBackend } from './chat/harnessRun'
-import { listSkills, pluginDirs, slashCommand, type SkillEntry } from './chat/skills'
+import { listSkills, pluginDirs, slash, slashCommand, type SkillEntry } from './chat/skills'
 import type { BackendKind, ChatBackend, ModelChoice, WikiTarget } from './chat/types'
 import { log } from './logger'
 import { DEFAULT_SETTINGS, LlmWikiSettingTab, type LlmWikiSettings } from './settings'
@@ -248,7 +248,7 @@ export default class LlmWikiPlugin extends Plugin {
   /** One field; the add skill decides the rest in chat. */
   async addJob(): Promise<void> {
     const text = await this.promptAddJob()
-    if (text) await this.openChat(`/llm-wiki:add ${text}`)
+    if (text) await this.openChat(slash('add', text))
   }
 
   /** The credential dialog; after a save the dashboard re-reads, since the binding is the CLI's to confirm. */
@@ -280,7 +280,7 @@ export default class LlmWikiPlugin extends Plugin {
   private pickFrom(skills: SkillEntry[]): void {
     const start = (skill: SkillEntry) =>
       void (async () => {
-        const args = skill.args ? await promptText(this.app, { title: `/llm-wiki:${skill.name}`, description: skill.description, placeholder: skill.args, cta: 'Start' }) : ''
+        const args = skill.args ? await promptText(this.app, { title: slash(skill.name), description: skill.description, placeholder: skill.args, cta: 'Start' }) : ''
         if (args !== null) await this.openChat(slashCommand(skill, args))
       })()
     const modal = new (class extends FuzzySuggestModal<SkillEntry> {
@@ -288,7 +288,7 @@ export default class LlmWikiPlugin extends Plugin {
       getItemText = (s: SkillEntry) => `${s.name} ${s.description}`
       onChooseItem = (s: SkillEntry) => start(s)
       renderSuggestion = (item: { item: SkillEntry }, el: HTMLElement) => {
-        el.createDiv({ text: `/llm-wiki:${item.item.name}${item.item.args ? ` ${item.item.args}` : ''}` })
+        el.createDiv({ text: slash(item.item.name, item.item.args) })
         el.createDiv({ cls: 'llm-wiki-muted', text: item.item.description })
       }
     })(this.app)

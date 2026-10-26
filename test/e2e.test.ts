@@ -54,7 +54,7 @@ describe.skipIf(!bin || !vault)('the seam against a real CLI', () => {
   it('refuses a harness run on a wiki with no enabled sandbox, through the stream', async () => {
     const types: string[] = []
     let exit: { rc: number | null; stderr: string } | undefined
-    for await (const l of cli().stream('wiki.harness.run', { wiki: 'scratch', text: 'hi', sandbox: 'read-search', skill: 'llm-wiki:search' })) {
+    for await (const l of cli().stream('wiki.harness.run', { wiki: 'scratch', text: 'hi', sandbox: 'read-search', skill: 'brain:search' })) {
       types.push(l.type)
       if (l.type === '_exit') exit = l as { rc: number | null; stderr: string }
     }

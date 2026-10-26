@@ -9,7 +9,7 @@ describe('slash completion', () => {
     expect(slashQuery('/', 1)).toBe('')
     expect(slashQuery('/sea', 4)).toBe('sea')
     expect(slashQuery('first line\n/cur', 15)).toBe('cur')
-    expect(slashQuery('/llm-wiki:se', 12)).toBe('llm-wiki:se')
+    expect(slashQuery('/brain:se', 9)).toBe('brain:se')
   })
   it('stays shut mid-sentence, after a space, or with the caret elsewhere', () => {
     expect(slashQuery('look in a/b', 11)).toBeNull()
@@ -20,7 +20,7 @@ describe('slash completion', () => {
   it('matches a name before a description, and ignores the plugin prefix typed out', () => {
     const skills = [skill('curate', 'review search hits'), skill('search', 'look things up'), skill('status')]
     expect(matchSkills(skills, 'se').map((s) => s.name)).toEqual(['search', 'curate'])
-    expect(matchSkills(skills, 'llm-wiki:sta').map((s) => s.name)).toEqual(['status'])
+    expect(matchSkills(skills, 'brain:sta').map((s) => s.name)).toEqual(['status'])
     expect(matchSkills(skills, '').map((s) => s.name)).toEqual(['curate', 'search', 'status'])
   })
 })

@@ -6,6 +6,7 @@ import { button, pill } from './dom'
 import { addWith, problem, runSkillAction, skillAction } from '../views/dashboard/skills'
 import { slotWords } from '../wiki/slots'
 import type { TabContext } from '../views/dashboard/index'
+import { slash } from '../chat/skills'
 
 /** Everything about one unit in one place: what it needs here, which jobs use it, and the notes Obsidian cannot show. */
 export function openSkillModal(app: App, s: SkillView, ctx: TabContext): void {
@@ -60,7 +61,7 @@ export function openSkillModal(app: App, s: SkillView, ctx: TabContext): void {
       const bar = c.createDiv({ cls: 'llm-wiki-composer-buttons' })
       const a = skillAction(s)
       if (a) button(bar, s.state === 'available' ? 'Install and enable' : a.label, () => { this.close(); return runSkillAction(a.action, ctx) }, { icon: a.icon, cta: a.cta })
-      if (s.outdated) button(bar, 'Update', () => { this.close(); return ctx.act({ kind: 'ask', prompt: `/llm-wiki:enable ${s.name}` }) }, { icon: 'arrow-up-circle' })
+      if (s.outdated) button(bar, 'Update', () => { this.close(); return ctx.act({ kind: 'ask', prompt: slash('enable', s.name) }) }, { icon: 'arrow-up-circle' })
       if (s.state !== 'available') button(bar, 'Add a source with it', () => { this.close(); return ctx.act({ kind: 'ask', prompt: addWith(s) }) }, { icon: 'plus' })
       button(bar, 'Close', () => this.close())
     }

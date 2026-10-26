@@ -5,6 +5,7 @@ import type { Args, Verb } from './cli'
 import { parseSkill } from '../chat/skills'
 import { slotWords } from './slots'
 import type { AttentionItem, CredentialView, CurationItem, JobView, RecentRun, SkillView, SlotView, Snapshot, TicketView } from './model'
+import { slash } from '../chat/skills'
 
 /** What the builder needs of a Cli, so a test can hand it fixtures. */
 export interface Reader {
@@ -457,7 +458,7 @@ function attentionItems(input: {
       out.push({ id: `blocked:${j.slug}`, severity: 'warn', title: `${j.name}: ${j.next.detail ?? 'blocked'}`, detail: j.slug, action: { kind: 'ask', prompt: `Job ${j.slug} is blocked: ${j.next.detail ?? 'blocked'}. What does it need, and can you fix it?` } })
   for (const s of input.skills) {
     if (s.drifted) out.push({ id: `drifted:${s.name}`, severity: 'warn', title: `${s.name} differs from the wiki's copy on this machine`, detail: s.warnings[0], action: { kind: 'inspect', skill: s.name } })
-    else if (s.outdated) out.push({ id: `outdated:${s.name}`, severity: 'info', title: `A newer ${s.name} is in its package`, action: { kind: 'ask', prompt: `/llm-wiki:enable ${s.name}`, label: 'Update' } })
+    else if (s.outdated) out.push({ id: `outdated:${s.name}`, severity: 'info', title: `A newer ${s.name} is in its package`, action: { kind: 'ask', prompt: slash('enable', s.name), label: 'Update' } })
     const enabledUnbound = s.state === 'enabled' && !s.jobs.length ? unboundSlot(s) : undefined
     if (enabledUnbound) out.push({ id: `slot:${s.name}`, severity: 'info', title: `${s.name} needs a credential for ${enabledUnbound.name}`, action: { kind: 'credential', skill: s.name, slot: enabledUnbound.name } })
   }

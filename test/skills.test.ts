@@ -35,7 +35,7 @@ describe('the chat skill list', () => {
     expect(dirs).toEqual([ops, glob])
     const skills = await listSkills(dirs)
     expect(skills.map((s) => `${s.name}: ${s.description}`)).toEqual(['add: When asked to watch, follow, track, or add a source to the wiki you stand in — a URL, or a channel.', 'search: In-wiki search.'])
-    expect(slashCommand(skills[0]!, ' https://x ')).toBe('/llm-wiki:add https://x')
+    expect(slashCommand(skills[0]!, ' https://x ')).toBe('/brain:add https://x')
     expect(await pluginDirs(join(home, 'nowhere'))).toEqual([])
   })
 })

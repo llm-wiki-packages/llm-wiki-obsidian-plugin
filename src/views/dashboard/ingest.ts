@@ -2,6 +2,7 @@ import { button, empty, section } from '../../ui/dom'
 import { promptText } from '../../ui/modals'
 import type { CurationItem } from '../../wiki/model'
 import type { TabContext } from './index'
+import { slash } from '../../chat/skills'
 
 /** The intake pipeline, top to bottom: a file under sources/ is adopted as a draft, then accepted or rejected. */
 export function renderIngest(root: HTMLElement, ctx: TabContext): void {
@@ -25,7 +26,7 @@ export function renderIngest(root: HTMLElement, ctx: TabContext): void {
     count: snapshot.curation.length,
     actions: (bar) => {
       if (snapshot.curation.length)
-        button(bar, 'Ask the agent to curate', () => ctx.act({ kind: 'ask', prompt: `/llm-wiki:curate ${snapshot.curation.slice(0, 20).map((c) => c.path).join(' ')}` }), { icon: 'message-square' })
+        button(bar, 'Ask the agent to curate', () => ctx.act({ kind: 'ask', prompt: slash('curate', snapshot.curation.slice(0, 20).map((c) => c.path).join(' ')) }), { icon: 'message-square' })
     },
   })
   if (!snapshot.curation.length) empty(body, 'No drafts are waiting.', 'An adopted file and every page a job captures sit here as drafts until you accept or reject them. Accepted pages are in the wiki.')

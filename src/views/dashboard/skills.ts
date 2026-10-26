@@ -3,6 +3,7 @@ import type { Action, SkillView } from '../../wiki/model'
 import { unboundSlot } from '../../wiki/snapshot'
 import { slotWords } from '../../wiki/slots'
 import type { TabContext } from './index'
+import { slash } from '../../chat/skills'
 
 /** The units the wiki holds and this machine loads, which Obsidian itself hides. */
 export function renderSkills(root: HTMLElement, ctx: TabContext): void {
@@ -29,7 +30,7 @@ export function renderSkills(root: HTMLElement, ctx: TabContext): void {
 
 /** The chat opener for a source that this skill should follow; the add skill asks the rest. */
 export function addWith(s: SkillView): string {
-  return `/llm-wiki:add a new source using the ${s.name} skill${s.inputs.length ? ` (it will need: ${s.inputs.map((i) => i.name).join(', ')})` : ''}: `
+  return `${slash('add')} a new source using the ${s.name} skill${s.inputs.length ? ` (it will need: ${s.inputs.map((i) => i.name).join(', ')})` : ''}: `
 }
 
 /** What a click on the skill's own button should do: fix its credential, run its one job, or hand its command to chat. */
@@ -40,8 +41,8 @@ export function skillAction(s: SkillView): { label: string; icon: string; cta: b
   if (s.state === 'enabled' && s.jobs.length > 1) return { label: 'Jobs', icon: 'list', cta: false, action: { kind: 'jobs' } }
   // A channel skill's usage wants a ticket only the runner has; a person runs it through a job.
   if (s.state === 'enabled' && s.usage && !/ticket=/.test(s.usage)) return { label: 'Run', icon: 'play', cta: false, action: { kind: 'ask', prompt: s.usage } }
-  if (s.state === 'installed') return { label: 'Enable', icon: 'power', cta: true, action: { kind: 'ask', prompt: `/llm-wiki:enable ${s.name}` } }
-  if (s.state === 'available') return { label: 'Add', icon: 'plus', cta: false, action: { kind: 'ask', prompt: `/llm-wiki:enable ${s.name}` } }
+  if (s.state === 'installed') return { label: 'Enable', icon: 'power', cta: true, action: { kind: 'ask', prompt: slash('enable', s.name) } }
+  if (s.state === 'available') return { label: 'Add', icon: 'plus', cta: false, action: { kind: 'ask', prompt: slash('enable', s.name) } }
   return null
 }
 

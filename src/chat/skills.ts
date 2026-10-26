@@ -4,6 +4,14 @@ import { readdir, readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
+/** The Claude Code plugin namespace every typed slash command is spelled with. */
+export const PLUGIN_NAMESPACE = 'brain'
+
+/** `/<namespace>:<name>` with trimmed arguments after it. */
+export function slash(name: string, args = ''): string {
+  return `/${PLUGIN_NAMESPACE}:${name}${args.trim() ? ` ${args.trim()}` : ''}`
+}
+
 export interface SkillEntry {
   name: string
   /** The first sentence of the skill's description. */
@@ -73,5 +81,5 @@ export function parseSkill(name: string, md: string): SkillEntry {
 }
 
 export function slashCommand(skill: SkillEntry, args = ''): string {
-  return `/llm-wiki:${skill.name}${args.trim() ? ` ${args.trim()}` : ''}`
+  return slash(skill.name, args)
 }
