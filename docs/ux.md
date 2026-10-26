@@ -61,7 +61,7 @@ stale**; "When you press Run" when no runner is installed). One primary
 button per row: Set or Replace credential, Run when due (or always, without a
 runner), Resume when paused; a "…" menu holds Run now, Pause, Details, Ask the
 agent. Clicking a row opens the job's detail dialog. "Add a source…" asks one
-line in plain words and hands it to chat as `/llm-wiki:add <text>`. Nothing
+line in plain words and hands it to chat as `/brain:add <text>`. Nothing
 on screen says running or due that the ticket store does not.
 
 ### Job detail dialog
@@ -80,9 +80,9 @@ the state, the reason and the last failure), Close.
   **Jobs** (several) / **Run** (a skill with a typable usage line). Clicking
   the row opens the inspector.
 - *In the wiki, not enabled here*: the unit's description; **Enable** → chat
-  `/llm-wiki:enable <name>`.
+  `/brain:enable <name>`.
 - *Available from the package*: rows with the unit's description (read from
-  the package cache's SKILL.md); **Add** → chat `/llm-wiki:enable <name>`.
+  the package cache's SKILL.md); **Add** → chat `/brain:enable <name>`.
 **Credentials** — *Stored on this machine*: every credential by name, kind
 (secret / folder / login) and state pill (verified · failed · stale · empty ·
 not verified yet), who uses it; Replace… (the accent only when it is broken
@@ -103,7 +103,7 @@ Header: state · version · package, then the unit's description sentence. *What
 Facts: jobs using it, what a new job asks for, the CLI's warnings. Tabs Skill /
 Enabling / Usage render SKILL.md and the unit's reference notes (the files
 Obsidian hides). Footer: Run job / Enable / Install and enable, **Add a source with it** (chat
-`/llm-wiki:add a new source using the <name> skill (it will need: mailbox): `),
+`/brain:add a new source using the <name> skill (it will need: mailbox): `),
 Close. For a unit not yet installed, the package manifest says what it will
 need and what a new job asks for, before Add.
 
@@ -131,7 +131,7 @@ Allow, **Allow for this turn**, Deny. A failed turn puts the prompt back in
 the box. The duration sits on the bubble's hover.
 
 The box, then one row under it: **Skills…** at the left (a fuzzy list of the
-`/llm-wiki:` slash skills; asks for arguments; starts the turn), the
+`/brain:` slash skills; asks for arguments; starts the turn), the
 permission button, Model, Effort, then the context ring and **Send** at the
 right. The ring and Send stay together when the row wraps.
 
@@ -198,9 +198,9 @@ override, default chat mode, model, Ask sandbox and skill, search k, debug.
    "Joe's mailbox cannot run on this machine" → Set credential → paste → Save
    and bind → row gone, job reads Due now → Run.
 2. **Enable a skill**: Skills → In the wiki, not enabled → Enable → chat runs
-   `/llm-wiki:enable channel-youtube` with permission cards → back on Skills
+   `/brain:enable channel-youtube` with permission cards → back on Skills
    it is enabled; if it needs a credential the row says so.
-3. **Add a source**: Jobs → Add a job… → one line → chat `/llm-wiki:add …`
+3. **Add a source**: Jobs → Add a job… → one line → chat `/brain:add …`
    → the agent asks what it needs, installs the skill, declares the job.
 4. **Update now**: Jobs → Run on the row (no runner needed) → Running 0m →
    ok, pages written → Pages shows them for curation.

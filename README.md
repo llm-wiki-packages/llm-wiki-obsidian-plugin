@@ -35,7 +35,7 @@ the gear opens the plugin settings.
   the **job detail dialog**: state and reasons, what it needs on this
   machine, its last runs with Retry, Ask the agent with the failure attached.
   **Add a source…** asks one question and hands it to the agent in chat as
-  `/llm-wiki:add …`. Run all due; Pause all / Resume all. The row's state is
+  `/brain:add …`. Run all due; Pause all / Resume all. The row's state is
   read back from the tickets, never assumed from the click.
 - **Skills**: the units the wiki holds and this machine loads, which Obsidian
   hides under `.llm-wiki/skills` and `.agents/skills`: enabled here, in the
@@ -50,7 +50,7 @@ the gear opens the plugin settings.
   **Awaiting curation**: drafts grouped by the folder they landed in, Accept
   all per folder; click opens the note; **Accept** and **Reject…** go through
   `page curate`; one button hands the queue to the agent with
-  `/llm-wiki:curate`.
+  `/brain:curate`.
 - **Credentials**: every credential the CLI holds for this wiki, by name,
   kind and state, never a value, with who uses it; Replace, Remove, Log in,
   Add. Below, what an enabled skill still needs, with **Set credential**.
@@ -67,7 +67,7 @@ that stops between two polls raises a Notice.
 
 **Chat** (a tab of the view): a Claude Code session at the wiki root, with the
 wiki's own committed `.claude/settings.json` in force (write guard,
-`op record`, the llm-wiki skills). It can run jobs and edit pages; a job it
+`op record`, the brain skills). It can run jobs and edit pages; a job it
 runs for you is composed into its own jail by the CLI, credentials included.
 The chat never sees a credential, and the verbs that would print one are
 denied in every permission mode. Multi-turn until **New chat** (top left);
@@ -79,7 +79,7 @@ open.
 The row under the box holds everything the next turn runs with, saved as the
 defaults (the Chat settings change the same values):
 
-- **Skills…** lists the `/llm-wiki:` slash skills; typing `/` at the start of
+- **Skills…** lists the `/brain:` slash skills; typing `/` at the start of
   a line lists them too (a setting turns that off).
 - **Permissions**: Ask first, Auto-accept edits, Auto (a classifier approves
   routine actions), or Full access. **Read-only** sets the CLI's read floor
@@ -97,7 +97,7 @@ defaults (the Chat settings change the same values):
 - **Send** turns into a red **Stop** while the agent works (Esc stops too).
 
 A **Default skill** setting starts every new chat with that skill typed into
-the box, e.g. `/llm-wiki:search `, so what runs is on screen and one
+the box, e.g. `/brain:search `, so what runs is on screen and one
 backspace away.
 
 Wikilinks and URLs in a reply open on click; a reply has a Copy button on
@@ -107,9 +107,9 @@ hover; text is selectable everywhere.
 involved; results open as notes.
 
 **Chat skills**: *Run a skill…* (a command, and the **Skills…** button in chat)
-lists the same `/llm-wiki:` slash skills, read from the llm-wiki plugin Claude Code
+lists the same `/brain:` slash skills, read from the brain plugin Claude Code
 has installed, with what each does and what it takes, and turns the pick into
-a chat turn such as `/llm-wiki:research <goal>`. The wiki's own skill units
+a chat turn such as `/brain:research <goal>`. The wiki's own skill units
 live on the dashboard's Skills tab.
 
 **Commands**: Open dashboard, Open chat, Open search, Run a job… (a fuzzy list;
@@ -176,7 +176,7 @@ Add `LLM_WIKI_E2E_SANDBOX=<sandbox>` to also hold a real sandboxed chat: a few h
 | `src/chat/claudeSdk.ts` | the chat backend on `@anthropic-ai/claude-agent-sdk`, driving the user's own `claude` |
 | `src/chat/harnessRun.ts` | the sandboxed chat backend on `harness run --stream --conversation` |
 | `src/views/composer.ts` | the row under the chat box: permission panel, model and effort lists, context ring, `/` list |
-| `src/chat/skills.ts` | the `/llm-wiki:` slash skills, read from the installed Claude Code plugin's `skills/*/SKILL.md` |
+| `src/chat/skills.ts` | the `/brain:` slash skills, read from the installed Claude Code plugin's `skills/*/SKILL.md` |
 | `src/wiki/model.ts` | what the dashboard shows: `Snapshot`, jobs with a plain-words `next`, attention items with one action |
 | `src/wiki/snapshot.ts` | CLI answers into a `Snapshot`; the one place that knows the answers' field names |
 | `src/wiki/actions.ts` | the writes a click makes, each one verb, each answering one sentence |
