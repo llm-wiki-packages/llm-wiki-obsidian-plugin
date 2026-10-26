@@ -6,6 +6,7 @@ import { renderCredentials } from './credentials'
 import { renderIngest } from './ingest'
 import { renderJobs } from './jobs'
 import { renderOverview } from './overview'
+import { PLUGIN_NAMESPACE } from '../../chat/skills'
 import { renderSkills } from './skills'
 import { ChatPane } from '../chat'
 import { SearchPane } from '../search'
@@ -210,7 +211,7 @@ export class DashboardView extends ItemView {
   private olderCli(errors: [string, string][]): void {
     const card = this.panel.createDiv({ cls: 'llm-wiki-first' })
     card.createEl('h3', { text: 'This llm-wiki-cli cannot answer the plugin' })
-    card.createEl('p', { cls: 'llm-wiki-muted', text: 'Every read was refused, which an older CLI does. Update the llm-wiki plugins, then re-detect.' })
+    card.createEl('p', { cls: 'llm-wiki-muted', text: `Every read was refused, which an older CLI does. Update the ${PLUGIN_NAMESPACE} plugins, then re-detect.` })
     card.createEl('pre', { cls: 'llm-wiki-permission-summary', text: errors.slice(0, 3).map(([v, m]) => `${v}: ${m}`).join('\n') })
     const bar = card.createDiv({ cls: 'llm-wiki-row-actions' })
     button(bar, 'Re-detect', () => this.plugin.detect(true), { icon: 'refresh-cw', cta: true })
@@ -224,7 +225,7 @@ export class DashboardView extends ItemView {
     const notWiki = /not a registered wiki/.test(problem)
     card.createEl('h3', { text: missingCli ? 'llm-wiki-cli was not found' : notWiki ? 'This vault is not a registered wiki' : 'Not ready' })
     card.createEl('p', { cls: 'llm-wiki-muted', text: missingCli
-      ? 'The plugin runs the llm-wiki CLI from your login shell PATH. Install the llm-wiki plugins, or set the path to llm-wiki-cli in the plugin settings.'
+      ? `The plugin runs the llm-wiki CLI from your login shell PATH. Install the ${PLUGIN_NAMESPACE} plugins, or set the path to llm-wiki-cli in the plugin settings.`
       : notWiki
         ? `${problem.charAt(0).toUpperCase()}${problem.slice(1)}.`
         : problem })

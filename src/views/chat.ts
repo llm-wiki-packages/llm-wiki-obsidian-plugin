@@ -1,4 +1,5 @@
 import { Component, MarkdownRenderer, Notice, setIcon, type App } from 'obsidian'
+import { skillsButtonLabel } from '../chat/skills'
 import type { BackendKind, ChatBackend, ChatEvent, ModelChoice, PermissionDecision, PermissionRequest } from '../chat/types'
 import { log } from '../logger'
 import { wireLinks } from '../ui/links'
@@ -93,7 +94,7 @@ export class ChatPane extends Component {
     this.slash = new SlashMenu(composer, this.composer, () => this.plugin.chatSkills(), () => this.settings.slashComplete)
 
     const row = composer.createDiv({ cls: 'llm-wiki-composer-row' })
-    const skillsBtn = row.createEl('button', { text: 'Skills…', attr: { 'aria-label': 'The skills the llm-wiki plugin ships; one becomes a chat turn' } })
+    const skillsBtn = row.createEl('button', { text: 'Skills…', attr: { 'aria-label': skillsButtonLabel() } })
     this.registerDomEvent(skillsBtn, 'click', () => this.plugin.pickSkill())
     this.permBtn = row.createEl('button', { cls: 'llm-wiki-control' })
     this.registerDomEvent(this.permBtn, 'click', () => this.openPermissions())

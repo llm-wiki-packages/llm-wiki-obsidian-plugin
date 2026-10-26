@@ -19,7 +19,7 @@ describe('the chat skill list', () => {
     expect(parseSkill('add', ADD)).toEqual({ name: 'add', description: 'When asked to watch, follow, track, or add a source to the wiki you stand in — a URL, or a channel.', args: '<url, channel or task>' })
     expect(parseSkill('x', '# no frontmatter')).toEqual({ name: 'x', description: '', args: '' })
   })
-  it('reads skills/<name>/SKILL.md under the llm-wiki plugin directories, the in-wiki plugin first', async () => {
+  it('reads skills/<name>/SKILL.md under the brain plugin directories, the in-wiki plugin first', async () => {
     const home = await mkdtemp(join(tmpdir(), 'llm-wiki-skills-'))
     const ops = join(home, 'ops')
     const glob = join(home, 'global')

@@ -1,7 +1,7 @@
 import { FileSystemAdapter, FuzzySuggestModal, Notice, Plugin } from 'obsidian'
 import { ClaudeSdkBackend } from './chat/claudeSdk'
 import { HarnessRunBackend } from './chat/harnessRun'
-import { listSkills, pluginDirs, slash, slashCommand, type SkillEntry } from './chat/skills'
+import { listSkills, noSkillsMessage, pluginDirs, slash, slashCommand, type SkillEntry } from './chat/skills'
 import type { BackendKind, ChatBackend, ModelChoice, WikiTarget } from './chat/types'
 import { log } from './logger'
 import { DEFAULT_SETTINGS, LlmWikiSettingTab, type LlmWikiSettings } from './settings'
@@ -270,7 +270,7 @@ export default class LlmWikiPlugin extends Plugin {
     this.skillList = null
     void this.chatSkills().then((skills) => {
       if (!skills.length) {
-        new Notice('No llm-wiki skills found under ~/.claude/plugins; install the llm-wiki plugin in Claude Code first')
+        new Notice(noSkillsMessage())
         return
       }
       this.pickFrom(skills)

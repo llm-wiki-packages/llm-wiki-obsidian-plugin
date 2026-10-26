@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { PLUGIN_NAMESPACE, slash, slashCommand } from '../src/chat/skills'
+import { PLUGIN_NAMESPACE, noSkillsMessage, skillsButtonLabel, slash, slashCommand } from '../src/chat/skills'
 import { addWith, skillAction } from '../src/views/dashboard/skills'
 import { matchSkills } from '../src/views/composer'
 import type { SkillView } from '../src/wiki/model'
@@ -22,4 +22,11 @@ describe('the plugin namespace', () => {
     expect(matchSkills(skills, 'brain:')).toEqual(skills)
     expect(matchSkills(skills, 'brain:ad')).toEqual(skills)
   })
+})
+
+describe('user-facing plugin names', () => {
+  it('names the brain plugin when no skills are found', () => {
+    expect(noSkillsMessage()).toBe('No brain skills found under ~/.claude/plugins; install the brain plugin in Claude Code first')
+  })
+  it('names the brain plugin in the skills button label', () => expect(skillsButtonLabel()).toContain('brain plugin'))
 })

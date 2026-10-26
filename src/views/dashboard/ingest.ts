@@ -2,7 +2,7 @@ import { button, empty, section } from '../../ui/dom'
 import { promptText } from '../../ui/modals'
 import type { CurationItem } from '../../wiki/model'
 import type { TabContext } from './index'
-import { slash } from '../../chat/skills'
+import { PLUGIN_NAMESPACE, slash } from '../../chat/skills'
 
 /** The intake pipeline, top to bottom: a file under sources/ is adopted as a draft, then accepted or rejected. */
 export function renderIngest(root: HTMLElement, ctx: TabContext): void {
@@ -18,7 +18,7 @@ export function renderIngest(root: HTMLElement, ctx: TabContext): void {
         button(bar, 'Adopt all', () => ctx.write(() => actions.adopt(unadopted.map((c) => c.path)), true), { icon: 'check-check' })
     },
   })
-  if (snapshot.unadopted === null) empty(fresh, 'This CLI cannot tell which files are new.', 'Update the llm-wiki plugins; a current page listing reports each page’s change state.')
+  if (snapshot.unadopted === null) empty(fresh, 'This CLI cannot tell which files are new.', `Update the ${PLUGIN_NAMESPACE} plugins; a current page listing reports each page’s change state.`)
   else if (!unadopted.length) empty(fresh, 'Everything under sources/ is known to the wiki.', 'A file dropped into sources/ shows here until it is adopted.')
   for (const c of unadopted) pageRow(fresh, c, ctx, false)
 
