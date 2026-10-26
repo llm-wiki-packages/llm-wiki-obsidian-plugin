@@ -189,7 +189,7 @@ or a flag with no registry entry); `no-cadence` registered but promised no
 `every`, so never judged; `unreadable` registry entry no reader accepts.
 `capabilities` values are stage words `ready | sandbox-unbound | sandbox-off |
 no-engine` or unit words `disabled | drifted` (`machines.py:43-44`), plus the
-engines `llm-wiki:transcribe`, `llm-wiki:index`.
+engines `PLUGIN:transcribe`, `PLUGIN:index`.
 `git.dirty` counts tracked changes; `untracked` separate; `null` both when git
 pre-flight refused (not "clean").
 
@@ -288,7 +288,7 @@ interface Verdict {
 `RunningTicket` (`jobs/active_tickets.py:35`):
 `{ id: string; stage: string; machine: string; since: string|null; step: {index:number; name:string}|null }`
 (`step` only on a `routine` ticket: `index` counts from 0, `name` is the
-routine's value e.g. `llm-wiki:improve`; `machine` is always THIS machine).
+routine's value e.g. `PLUGIN:improve`; `machine` is always THIS machine).
 
 Enums: job `state` `active|paused` (plus `archived` view); STAGES `harvest,
 transcribe, enrich, process, routine`; routine verbs `skill|run|op`. A fresh
@@ -298,13 +298,13 @@ ops-nightly, ops-nightly-host, ops-synthesize`; all `paused` except the two
 
 ```json
 { "slug": "ops-hourly", "description": "curate what the pipeline has landed, every hour", "target": "", "dest": null,
-  "route": null, "every": "1h", "skill": "llm-wiki:curate",
+  "route": null, "every": "1h", "skill": "PLUGIN:curate",
   "stages": [ { "stage": "routine", "machine": null, "budget": "1h", "skipped": false, "holder": null, "refreshed_at": null,
                 "stalled": false, "stolen": null, "leftover": [], "ok_started": null, "ran_on": [], "failing": [], "attempts": 0 } ],
   "state": "paused", "kind": "routines", "claim": "any", "machine": null, "due": false, "blocked": null,
   "verdict": { "due": false, "kind": "paused", "reasons": ["paused"], "blocked_by": [], "next_at": null,
                "due_since": null, "last_ok": null, "anchor": null, "chain": null },
-  "running": [], "window": null, "routines": [ { "verb": "skill", "name": "llm-wiki:curate", "args": [] } ] }
+  "running": [], "window": null, "routines": [ { "verb": "skill", "name": "PLUGIN:curate", "args": [] } ] }
 ```
 
 ### 1.4 `jobs due`
@@ -424,7 +424,7 @@ interface TicketRow {
   stage: "harvest" | "transcribe" | "enrich" | "process" | "routine" | "handoff"; // the queue
   state: "pending" | "active" | "done" | "failed" | "orphan";  // the lane
   slug: string | null;       // owning job
-  unit: string | null;       // e.g. "llm-wiki:doctor"
+  unit: string | null;       // e.g. "PLUGIN:doctor"
   queued_at: string | null;
   claimed_at: string | null; // set while active
   worker: string | null;
@@ -447,7 +447,7 @@ Example (real):
 
 ```json
 { "tickets": [ { "id": "6837700e8464", "stage": "routine", "state": "pending", "slug": "demo-doctor",
-    "unit": "llm-wiki:doctor", "queued_at": "2026-10-23T06:39:37Z", "claimed_at": null, "worker": null,
+    "unit": "PLUGIN:doctor", "queued_at": "2026-10-23T06:39:37Z", "claimed_at": null, "worker": null,
     "attempts_left": 2, "max_attempts": 3, "runs": 1, "runtime_s": 1,
     "not_before": "2026-10-23T07:39:38Z", "reason": "killed" } ], "missing": [] }
 ```

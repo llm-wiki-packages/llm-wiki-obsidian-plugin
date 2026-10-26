@@ -75,7 +75,7 @@ const SINCE = /^\d{1,4}[hd]$/
 // eslint-disable-next-line no-control-regex -- rejecting control characters is the point
 const REL = /^(?!\/)(?!.*(^|\/)\.\.(\/|$))[^\x00-\x1f]{1,512}$/
 const WORD = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/
-const SKILL = /^[a-z0-9][a-z0-9-]{0,63}(:[a-z0-9][a-z0-9-]{0,63})?$/
+const SKILL = /^[A-Za-z0-9][A-Za-z0-9-]{0,63}(:[a-z0-9][a-z0-9-]{0,63})?$/
 const PACKAGE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}\/[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/
 const CREDENTIAL = /^[a-z0-9][a-z0-9_.-]{0,63}$/
 const BIND_SLOT = /^[a-z][a-z0-9_]{0,31}(\.[A-Za-z_][A-Za-z0-9_]{0,63})?$/
