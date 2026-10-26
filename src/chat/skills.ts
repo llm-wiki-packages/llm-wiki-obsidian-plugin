@@ -1,8 +1,26 @@
-// The chat slash skills the installed llm-wiki plugins ship, read from where Claude Code keeps them.
+// The chat slash skills the installed `brain` plugins ship, read from where Claude Code keeps them.
 // Obsidian hides none of this on purpose; it just lives outside the vault.
 import { readdir, readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+
+/** The Claude Code plugin namespace every typed slash command is spelled with. */
+export const PLUGIN_NAMESPACE = 'brain'
+
+/** The notice when no installed plugin ships a skill. */
+export function noSkillsMessage(): string {
+  return `No ${PLUGIN_NAMESPACE} skills found under ~/.claude/plugins; install the ${PLUGIN_NAMESPACE} plugin in Claude Code first`
+}
+
+/** The skills button's tooltip. */
+export function skillsButtonLabel(): string {
+  return `The skills the ${PLUGIN_NAMESPACE} plugin ships; one becomes a chat turn`
+}
+
+/** `/<namespace>:<name>` with trimmed arguments after it. */
+export function slash(name: string, args = ''): string {
+  return `/${PLUGIN_NAMESPACE}:${name}${args.trim() ? ` ${args.trim()}` : ''}`
+}
 
 export interface SkillEntry {
   name: string
@@ -16,7 +34,7 @@ interface InstalledPlugins {
   plugins?: Record<string, { installPath?: string }[]>
 }
 
-/** The `llm-wiki` plugins' install directories: the in-wiki one first, so its skill wins a shared name. */
+/** The `brain` plugins' install directories: the in-wiki one first, so its skill wins a shared name. */
 export async function pluginDirs(home = homedir()): Promise<string[]> {
   let doc: InstalledPlugins
   try {
@@ -26,7 +44,7 @@ export async function pluginDirs(home = homedir()): Promise<string[]> {
   }
   const dirs: { path: string; ops: boolean }[] = []
   for (const [key, installs] of Object.entries(doc.plugins ?? {})) {
-    if (!key.startsWith('llm-wiki@')) continue
+    if (!key.startsWith(`${PLUGIN_NAMESPACE}@`)) continue
     for (const i of installs) if (i.installPath) dirs.push({ path: i.installPath, ops: key.includes('ops') })
   }
   return dirs.sort((a, b) => Number(b.ops) - Number(a.ops)).map((d) => d.path)
@@ -73,5 +91,5 @@ export function parseSkill(name: string, md: string): SkillEntry {
 }
 
 export function slashCommand(skill: SkillEntry, args = ''): string {
-  return `/llm-wiki:${skill.name}${args.trim() ? ` ${args.trim()}` : ''}`
+  return slash(skill.name, args)
 }

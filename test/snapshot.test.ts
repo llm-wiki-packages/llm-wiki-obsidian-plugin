@@ -24,9 +24,9 @@ describe('jobView: the Next column in plain words', () => {
   it('reads due, paused, running, blocked, held and queued', () => {
     expect(jobView(job({ verdict: { due: true, kind: null, reasons: ['never run'], next_at: null } }), [], NOW).next).toEqual({ kind: 'due', detail: 'never run' })
     expect(jobView(job({ state: 'paused', verdict: { due: false, kind: 'paused' } }), [], NOW).next.kind).toBe('paused')
-    const r = jobView(job({ running: [{ id: 't1', stage: 'routine', since: '2026-10-23T11:58:00Z', step: { index: 0, name: 'llm-wiki:curate' } }] }), [], NOW)
+    const r = jobView(job({ running: [{ id: 't1', stage: 'routine', since: '2026-10-23T11:58:00Z', step: { index: 0, name: 'PLUGIN:curate' } }] }), [], NOW)
     expect(r.next.kind).toBe('running')
-    expect(r.running).toEqual({ ticket: 't1', stage: 'llm-wiki:curate', since: '2026-10-23T11:58:00Z' })
+    expect(r.running).toEqual({ ticket: 't1', stage: 'PLUGIN:curate', since: '2026-10-23T11:58:00Z' })
     expect(jobView(job({ verdict: { due: false, kind: 'requires', blocked_by: ['credential gmail'] } }), [], NOW).next).toEqual({ kind: 'blocked', detail: 'credential gmail' })
     expect(jobView(job({ blocked: 'no search server is configured here' }), [], NOW).next.kind).toBe('blocked')
     const held = jobView(job({}), [{ id: 't2', stage: 'routine', state: 'pending', slug: 'ops-hourly', not_before: '2026-10-23T13:00:00Z', reason: 'killed' }], NOW)

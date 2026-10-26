@@ -2,7 +2,7 @@
 // effort lists, the context ring, and the `/` skill list. The pure helpers
 // at the top are what the tests read.
 import { setIcon } from 'obsidian'
-import { slashCommand, type SkillEntry } from '../chat/skills'
+import { PLUGIN_NAMESPACE, slash, slashCommand, type SkillEntry } from '../chat/skills'
 import { PERMISSION_NAMES, type LlmWikiSettings } from '../settings'
 
 /** The word after a `/` that opens a line, when the caret sits at its end; null otherwise. */
@@ -11,10 +11,10 @@ export function slashQuery(text: string, caret: number): string | null {
   return m ? (m[1] ?? '') : null
 }
 
-/** Skills whose name holds the query first, then those whose description does; the `llm-wiki:` prefix typed out is ignored. */
+/** Skills whose name holds the query first, then those whose description does; the `brain:` prefix typed out is ignored. */
 export function matchSkills(skills: SkillEntry[], query: string): SkillEntry[] {
-  const q = query.toLowerCase().replace(/^llm-wiki:/, '')
-  if (!q || 'llm-wiki:'.startsWith(q)) return skills
+  const q = query.toLowerCase().replace(new RegExp(`^${PLUGIN_NAMESPACE}:`), '')
+  if (!q || `${PLUGIN_NAMESPACE}:`.startsWith(q)) return skills
   const rank = (s: SkillEntry): number => (s.name.startsWith(q) ? 0 : s.name.includes(q) ? 1 : s.description.toLowerCase().includes(q) ? 2 : 3)
   return skills.map((s) => ({ s, r: rank(s) })).filter((x) => x.r < 3).sort((a, b) => a.r - b.r).map((x) => x.s)
 }
@@ -276,7 +276,7 @@ export class SlashMenu {
     this.items.forEach((s, i) => {
       const row = this.el.createDiv({ cls: 'llm-wiki-slash-row' })
       row.toggleClass('is-selected', i === this.index)
-      row.createSpan({ cls: 'llm-wiki-slash-name', text: `/llm-wiki:${s.name}` })
+      row.createSpan({ cls: 'llm-wiki-slash-name', text: slash(s.name) })
       row.createSpan({ cls: 'llm-wiki-slash-desc', text: s.args ? `${s.args} — ${s.description}` : s.description })
       // mousedown, not click: a click would blur the box first.
       row.addEventListener('mousedown', (e) => {

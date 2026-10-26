@@ -1,6 +1,6 @@
 // Claude, host-side and unjailed: the operator's seat with a UI. The session
 // runs at the wiki root with the wiki's own committed settings and hooks, so
-// the write guard, `op record` and the llm-wiki skills are all in force, and
+// the write guard, `op record` and the brain skills are all in force, and
 // a job the agent asks for (`jobs request`) is composed into its own jail by
 // the CLI, credentials and all. Nothing here handles a credential.
 import { query } from '@anthropic-ai/claude-agent-sdk'

@@ -19,7 +19,7 @@ describe('the chat skill list', () => {
     expect(parseSkill('add', ADD)).toEqual({ name: 'add', description: 'When asked to watch, follow, track, or add a source to the wiki you stand in — a URL, or a channel.', args: '<url, channel or task>' })
     expect(parseSkill('x', '# no frontmatter')).toEqual({ name: 'x', description: '', args: '' })
   })
-  it('reads skills/<name>/SKILL.md under the llm-wiki plugin directories, the in-wiki plugin first', async () => {
+  it('reads skills/<name>/SKILL.md under the brain plugin directories, the in-wiki plugin first', async () => {
     const home = await mkdtemp(join(tmpdir(), 'llm-wiki-skills-'))
     const ops = join(home, 'ops')
     const glob = join(home, 'global')
@@ -30,12 +30,12 @@ describe('the chat skill list', () => {
     await writeFile(join(ops, 'skills', 'add', 'SKILL.md'), ADD)
     await writeFile(join(ops, 'skills', 'search', 'SKILL.md'), '---\nname: search\ndescription: In-wiki search.\n---\n')
     await writeFile(join(glob, 'skills', 'search', 'SKILL.md'), '---\nname: search\ndescription: Cross-wiki search.\n---\n')
-    await writeFile(join(home, '.claude', 'plugins', 'installed_plugins.json'), JSON.stringify({ plugins: { 'llm-wiki@llm-wiki-global': [{ installPath: glob }], 'llm-wiki@llm-wiki-ops-v1': [{ installPath: ops }], 'other@x': [{ installPath: home }] } }))
+    await writeFile(join(home, '.claude', 'plugins', 'installed_plugins.json'), JSON.stringify({ plugins: { 'brain@llm-wiki-global': [{ installPath: glob }], 'brain@llm-wiki-ops-v1': [{ installPath: ops }], 'llm-wiki@llm-wiki-ops-v1': [{ installPath: home }], 'other@x': [{ installPath: home }] } }))
     const dirs = await pluginDirs(home)
     expect(dirs).toEqual([ops, glob])
     const skills = await listSkills(dirs)
     expect(skills.map((s) => `${s.name}: ${s.description}`)).toEqual(['add: When asked to watch, follow, track, or add a source to the wiki you stand in — a URL, or a channel.', 'search: In-wiki search.'])
-    expect(slashCommand(skills[0]!, ' https://x ')).toBe('/llm-wiki:add https://x')
+    expect(slashCommand(skills[0]!, ' https://x ')).toBe('/brain:add https://x')
     expect(await pluginDirs(join(home, 'nowhere'))).toEqual([])
   })
 })

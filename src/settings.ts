@@ -1,5 +1,6 @@
 import { PluginSettingTab, Setting, type App } from 'obsidian'
 import type LlmWikiPlugin from './main'
+import { PLUGIN_NAMESPACE } from './chat/skills'
 
 /** The Agent SDK's permission modes a person picks between; `plan` and `dontAsk` are not offered. */
 export type PermissionMode = 'default' | 'acceptEdits' | 'auto' | 'bypassPermissions'
@@ -133,7 +134,7 @@ export class LlmWikiSettingTab extends PluginSettingTab {
       .addDropdown((d) => d.addOptions(EFFORT_NAMES).setValue(s.effort).onChange((v) => { s.effort = v as Effort; save() }))
     new Setting(containerEl)
       .setName('Default skill')
-      .setDesc('A new chat’s box starts with this skill typed in, e.g. llm-wiki:search, so you see what runs and can delete it. Empty starts blank.')
+      .setDesc(`A new chat’s box starts with this skill typed in, e.g. ${PLUGIN_NAMESPACE}:search, so you see what runs and can delete it. Empty starts blank.`)
       .addText((t) => t.setPlaceholder('None').setValue(s.defaultSkill).onChange((v) => { s.defaultSkill = v.trim().replace(/^\//, ''); save() }))
     new Setting(containerEl)
       .setName('Skill completion')
