@@ -34,7 +34,7 @@ export async function pluginDirs(home = homedir()): Promise<string[]> {
   }
   const dirs: { path: string; ops: boolean }[] = []
   for (const [key, installs] of Object.entries(doc.plugins ?? {})) {
-    if (!key.startsWith('llm-wiki@')) continue
+    if (!key.startsWith(`${PLUGIN_NAMESPACE}@`)) continue
     for (const i of installs) if (i.installPath) dirs.push({ path: i.installPath, ops: key.includes('ops') })
   }
   return dirs.sort((a, b) => Number(b.ops) - Number(a.ops)).map((d) => d.path)

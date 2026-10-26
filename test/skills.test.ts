@@ -30,7 +30,7 @@ describe('the chat skill list', () => {
     await writeFile(join(ops, 'skills', 'add', 'SKILL.md'), ADD)
     await writeFile(join(ops, 'skills', 'search', 'SKILL.md'), '---\nname: search\ndescription: In-wiki search.\n---\n')
     await writeFile(join(glob, 'skills', 'search', 'SKILL.md'), '---\nname: search\ndescription: Cross-wiki search.\n---\n')
-    await writeFile(join(home, '.claude', 'plugins', 'installed_plugins.json'), JSON.stringify({ plugins: { 'llm-wiki@llm-wiki-global': [{ installPath: glob }], 'llm-wiki@llm-wiki-ops-v1': [{ installPath: ops }], 'other@x': [{ installPath: home }] } }))
+    await writeFile(join(home, '.claude', 'plugins', 'installed_plugins.json'), JSON.stringify({ plugins: { 'brain@llm-wiki-global': [{ installPath: glob }], 'brain@llm-wiki-ops-v1': [{ installPath: ops }], 'llm-wiki@llm-wiki-ops-v1': [{ installPath: home }], 'other@x': [{ installPath: home }] } }))
     const dirs = await pluginDirs(home)
     expect(dirs).toEqual([ops, glob])
     const skills = await listSkills(dirs)
