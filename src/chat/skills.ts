@@ -46,6 +46,11 @@ export interface SkillsLsRow {
 /** The record form of a plugin skill's name, as `skills ls` lists it. */
 export const PLUGIN_PREFIX = 'PLUGIN:'
 
+/** Whether this machine loads a copy of a unit in this `skills ls` state, so `/<name>` resolves; the Skills tab's "enabled here". */
+export function loadsHere(state: string | null): boolean {
+  return state === 'enabled' || state === 'drifted' || state === 'linked'
+}
+
 /** Whether a `skills ls` answer comes from a CLI that reads skill manifests: some row carries a `mode` key, even a null one. */
 export function hasModes(rows: SkillsLsRow[]): boolean {
   return rows.some((r) => 'mode' in r)
@@ -59,7 +64,7 @@ export function paletteOf(rows: SkillsLsRow[]): SkillEntry[] | null {
   if (!hasModes(rows)) return null
   const session = rows.filter((r) => r.mode?.includes('session'))
   const plugin = session.filter((r) => r.name.startsWith(PLUGIN_PREFIX))
-  const units = session.filter((r) => !r.name.startsWith(PLUGIN_PREFIX) && (r.state === 'enabled' || r.state === 'drifted' || r.state === 'linked'))
+  const units = session.filter((r) => !r.name.startsWith(PLUGIN_PREFIX) && loadsHere(r.state))
   return [
     ...plugin.map((r) => ({ name: r.name.slice(PLUGIN_PREFIX.length), description: r.description ?? '', args: r.argument_hint ?? '' })),
     ...units.map((r) => ({ name: r.name, description: r.description ?? '', args: r.argument_hint ?? '', unit: true })),

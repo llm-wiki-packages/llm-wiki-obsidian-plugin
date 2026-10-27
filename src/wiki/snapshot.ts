@@ -2,7 +2,7 @@
 // answers' field names (docs/cli-shapes.md). Every read is soft, so one
 // failing verb leaves a hole and a note, never an empty dashboard.
 import type { Args, Verb } from './cli'
-import { hasModes, parseSkill, PLUGIN_PREFIX } from '../chat/skills'
+import { hasModes, loadsHere, parseSkill, PLUGIN_PREFIX } from '../chat/skills'
 import { slotWords } from './slots'
 import type { AttentionItem, Commit, CredentialView, JobView, MachineView, PageItem, PageState, PipelineView, RecentRun, SearchStatus, SkillView, SlotView, Snapshot, SyncState, TicketView } from './model'
 import { isFeed } from './layout'
@@ -398,7 +398,7 @@ function skillViews(
       return { name, required: declared[name] === 'required', credential: b?.credential ?? null, ...(problem ? { problem } : {}) }
     })
     // Without the manifest the slot's key is unknown, so no dialog is offered; the doctor's own bindings row still names the gap.
-    const enabled = r.state === 'enabled' || r.state === 'drifted' || r.state === 'linked'
+    const enabled = loadsHere(r.state)
     const inputs = Object.entries(r.manifest?.watch?.inputs ?? {}).map(([name, i]) => ({ name, prompt: i.prompt ?? name, required: i.required ?? false }))
     const rel = r.path ?? `.llm-wiki/skills/${r.name}`
     const dir = where ? `${where.root}/${rel}` : rel

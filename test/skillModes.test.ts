@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { hasModes, paletteOf, slashCommand, type SkillsLsRow } from '../src/chat/skills'
+import { hasModes, loadsHere, paletteOf, slashCommand, type SkillsLsRow } from '../src/chat/skills'
 import type { Args, Verb } from '../src/wiki/cli'
 import type { SkillView } from '../src/wiki/model'
 import { takeSnapshot, type Reader } from '../src/wiki/snapshot'
@@ -65,6 +65,20 @@ describe('the chat palette from skills ls', () => {
     expect(paletteOf(OLD_ROWS)).toBeNull()
     expect(paletteOf([])).toBeNull()
     expect(hasModes([{ name: 'hand-made', state: 'enabled', mode: null }])).toBe(true)
+  })
+})
+
+describe('which units this machine loads', () => {
+  it('is one answer for the / list and the Skills tab, state by state', async () => {
+    const states = ['enabled', 'drifted', 'linked', 'installed', 'missing', 'broken', null]
+    const rows: SkillsLsRow[] = states.map((state, i) => ({ name: `unit-${i}`, state, mode: ['session'] }))
+    const palette = paletteOf(rows)!.map((s) => s.name)
+    const snap = await takeSnapshot(reader(WIKI(rows)), 'kb', NOW)
+    for (const r of rows) {
+      expect(palette.includes(r.name), `${r.state} in the / list`).toBe(loadsHere(r.state))
+      expect(snap.skills.find((s) => s.name === r.name)?.state === 'enabled', `${r.state} on the Skills tab`).toBe(loadsHere(r.state))
+    }
+    expect(states.filter(loadsHere)).toEqual(['enabled', 'drifted', 'linked'])
   })
 })
 
