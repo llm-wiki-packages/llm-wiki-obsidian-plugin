@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { VERBS } from '../src/wiki/cli'
+import { CliError, VERBS } from '../src/wiki/cli'
+import { settlingOf } from '../src/wiki/actions'
 import { isContent, isFeed, isLifecycle, isSwept, neverIndexed, setLayout } from '../src/wiki/layout'
 import { collapses, groupPages } from '../src/vault/groups'
 import type { PageFacts } from '../src/vault/pages'
@@ -101,5 +102,16 @@ describe('fleet roles and the new verbs', () => {
     expect(VERBS['wiki.page.template']({ wiki: 'kb', path: 'sources/notes/Untitled.md' })).toEqual(['wiki', '--read-only', 'kb', 'page', 'template', 'sources/notes/Untitled.md', '--json'])
     expect(VERBS['wiki.git.commit']({ wiki: 'kb' })).toEqual(['wiki', 'kb', 'git', 'commit', '--json'])
     expect(() => VERBS['wiki.page.history']({ wiki: 'kb', path: '-rf.md' })).toThrow()
+  })
+})
+
+describe('the settle window, in a person’s words', () => {
+  const refusal = (message: string) => new CliError(`wiki.page.curate: refused — ${message}`, 'exit', 1, '', { type: 'error', error: 'refused', message })
+  it('reads the page and its age from the refusal', () => {
+    expect(settlingOf(refusal('sources/notes/a b.md: edited 42s ago; retry after the settle window ([edits] settle_seconds)'))).toEqual({ path: 'sources/notes/a b.md', age: 42 })
+  })
+  it('leaves any other refusal alone', () => {
+    expect(settlingOf(refusal('sources/notes/a.md is retired'))).toBeNull()
+    expect(settlingOf(new Error('edited 4s ago; retry after the settle window'))).toBeNull()
   })
 })
