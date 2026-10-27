@@ -14,6 +14,29 @@ function failed(what: string, e: unknown): Outcome {
   return { ok: false, message: `${what}: ${msg}` }
 }
 
+/** The settle window's refusal, `OPS/lib/page/settle.py` `refuse_unsettled`: the page and how long ago it moved. */
+const SETTLING = /^(.+\.md): edited (\d+)s ago; retry after the settle window/
+
+export function settlingOf(e: unknown): { path: string; age: number } | null {
+  const said = e instanceof CliError ? (e.body as { message?: unknown } | undefined)?.message : undefined
+  const m = typeof said === 'string' ? SETTLING.exec(said) : null
+  return m ? { path: m[1]!, age: Number(m[2]) } : null
+}
+
+/**
+ * A judgment the settle window held, in a person's words. The window keeps the
+ * pipeline off a page someone is typing in, and cannot yet tell that from the
+ * editor's own click (llm-wiki-plugins #3687). Named pages are judged all or
+ * nothing, so one held page holds the lot.
+ */
+function held(verb: 'accept' | 'archive', paths: string[], e: unknown): Outcome {
+  const s = settlingOf(e)
+  if (!s) return failed(paths.length === 1 ? `could not ${verb} ${paths[0]}` : `could not ${verb}`, e)
+  const ago = s.age < 60 ? 'moments ago' : `${Math.round(s.age / 60)} min ago`
+  const what = paths.length === 1 ? 'Nothing changed' : `None of the ${paths.length} pages changed`
+  return { ok: false, message: `${s.path} was edited ${ago}, and the wiki waits a few minutes after an edit before it can ${verb} a page. ${what}; try again shortly.` }
+}
+
 /** `jobs request`'s answer: `minted: false` means a ticket was already in flight; `ok` means the pass landed before it returned. */
 interface RequestAnswer {
   outcome?: 'ok' | 'failed' | 'running'
@@ -87,7 +110,7 @@ export class Actions {
       await this.cli.run('wiki.page.curate', { wiki: this.wiki, paths })
       return { ok: true, message: paths.length === 1 ? `accepted ${paths[0]}` : `accepted ${paths.length} pages` }
     } catch (e) {
-      return failed(paths.length === 1 ? `could not accept ${paths[0]}` : 'could not accept', e)
+      return held('accept', paths, e)
     }
   }
 
@@ -106,7 +129,7 @@ export class Actions {
       await this.cli.run('wiki.page.curate', { wiki: this.wiki, paths: list, reason })
       return { ok: true, message: list.length === 1 ? `archived ${list[0]}` : `archived ${list.length} pages` }
     } catch (e) {
-      return failed(list.length === 1 ? `could not archive ${list[0]}` : 'could not archive', e)
+      return held('archive', list, e)
     }
   }
 
