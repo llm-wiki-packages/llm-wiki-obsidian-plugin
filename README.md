@@ -76,16 +76,17 @@ runs for you is composed into its own jail by the CLI, credentials included.
 The chat never sees a credential, and the verbs that would print one are
 denied in every permission mode. Multi-turn until **New chat** (top left);
 **Continue last chat** picks the last session back up. Tool rows read in words
-("Running inbox-joe"); the command is on hover and in the permission card.
-Suggested prompts sit above an empty transcript, tuned to the note you have
-open.
+("Running inbox-joe"); a file the agent reads or edits opens on a click.
+An answered permission card folds away. Suggested prompts sit above an empty
+transcript: the newest source to summarize, what's new, a video to add.
 
 The row under the box holds everything the next turn runs with, saved as the
 defaults (the Chat settings change the same values):
 
 - **Skills…** lists the `/brain:` slash skills; typing `/` at the start of
   a line lists them too (a setting turns that off).
-- **Permissions**: Ask first, Auto-accept edits, Auto (a classifier approves
+- **Permissions**: Ask first (asks about writes; the wiki's read verbs run
+  without asking), Auto-accept edits, Auto (a classifier approves
   routine actions), or Full access. **Read-only** sets the CLI's read floor
   (`LLM_WIKI_PERMISSIONS=read`, what `wiki --read-only` sets) and takes away
   the file-editing tools; a shell command can still write unless Ask first

@@ -13,7 +13,8 @@ export interface WikiTarget {
 export type ChatEvent =
   | { type: 'start'; detail?: string }
   | { type: 'text'; text: string }
-  | { type: 'tool'; name: string; detail?: string }
+  /** `input` is the call's own arguments, when the harness hands them over; `detail` its one-line summary. */
+  | { type: 'tool'; name: string; detail?: string; input?: Record<string, unknown> }
   /** A tool finished; the wiki may have changed. */
   | { type: 'tool-done'; name?: string }
   | { type: 'status'; text: string }

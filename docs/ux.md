@@ -158,13 +158,29 @@ right. The ring and Send stay together when the row wraps.
 
 Every control writes the settings, so the next chat starts the same way. The
 **Default skill** setting types `/<skill> ` into each new chat's box.
-Chips: three prompts by the active note. A wikilink or URL in a reply opens on
-click (Cmd-click in a new tab); a finished reply shows a Copy button on hover.
-Every dashboard hand-off lands here prefilled, not sent. A tool row for an
-llm-wiki command reads in words ("Running inbox-joe", "Reading the job
-list"), the command itself on hover; the permission card keeps the raw
-command. Chips on an empty chat: "What needs attention in this wiki?", "What
-did the wiki learn since yesterday?", "Add a source…".
+Chips on an empty chat, in plain words: "Summarize <the newest page in
+sources/>", "What's new in the wiki?", "Add a YouTube video" (which prefills
+"Add this YouTube video to the wiki: " for the link). A wikilink or URL in a
+reply opens on click (Cmd-click in a new tab); a finished reply shows a Copy
+button on hover. Every dashboard hand-off lands here prefilled, not sent.
+
+Tool rows: an icon, a verb and what it touched. An llm-wiki command reads in
+words ("Running inbox-joe", "Checking how this session runs"), the command on
+hover; any other command shows as "Run <command>". Read, Write and Edit name
+the file by its vault path, and a markdown page inside the wiki opens on a
+click. A skill reads "Skill brain:wiki-report · what's new". Text the agent
+writes after a tool sits after it.
+
+A permission card sits under the row it asks about and repeats only what the
+row does not already say. Answered, it folds away: Allow leaves nothing
+behind, Allow for this turn leaves a small mark, Deny leaves "Denied" on the
+row, and a card the turn ended under reads "Not answered".
+
+Ask first asks about writes. The wiki's read verbs (`whereami`, `op since`,
+`page ls`, `--help`, …) run without a card, as a Read does: the plugin passes
+them as allow rules until the wiki's seeded settings carry them
+(llm-wiki-plugins #3695). The context ring stays hidden until the first reply
+says how full the window is.
 
 ### Search (tab)
 One field, a filters icon and an index icon; a pause in typing or Enter
@@ -386,3 +402,10 @@ name with a "pages written" row that lands on them.
   every note. One layout module (`src/wiki/layout.ts`) is the only place a
   tree is named. Waiting on llm-wiki-plugins #3675: diffs, duplicate ids,
   the inline title, the CLI's resolved layout, per-file activity.
+- **Cycle 10 (2026-10-27)**: a chat pass from the owner's first week. Chips
+  in plain words (the newest source, what's new, a YouTube video), no
+  `[[…]]`. Tool rows by tool, with vault paths that open; text after a tool
+  stays after it. Permission cards fold away once answered. Ask first no
+  longer asks about the wiki's read verbs (#3695 seeds them in the wiki).
+  Replies get a chat's rhythm: smaller list indents, tighter paragraphs,
+  headings at text size. The empty context ring no longer looks like a spinner.

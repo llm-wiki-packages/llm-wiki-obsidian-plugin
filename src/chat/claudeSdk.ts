@@ -8,6 +8,7 @@ import { mapMessage } from './claudeMap'
 import { tolerateRendererSignals } from './rendererGuard'
 import type { ChatBackend, ChatEvent, TurnContext } from './types'
 import { summarizeTool } from './types'
+import { readRules } from './readVerbs'
 
 export interface ClaudeSdkConfig {
   /** Absolute path of the user's own `claude` binary; the SDK's bundled one is not shipped. */
@@ -80,6 +81,8 @@ export class ClaudeSdkBackend implements ChatBackend {
           systemPrompt: { type: 'preset', preset: 'claude_code', append: APPEND + CREDENTIAL_RULE },
           permissionMode: opts.permissionMode,
           ...(opts.permissionMode === 'bypassPermissions' ? { allowDangerouslySkipPermissions: true } : {}),
+          // Ask first asks about writes: the wiki's reads run as a Read does.
+          allowedTools: readRules(),
           // Deny rules hold in every mode, Full access included.
           disallowedTools: opts.readOnly ? [...DENIED, ...EDIT_TOOLS] : DENIED,
           ...(this.sessionId ? { resume: this.sessionId } : {}),

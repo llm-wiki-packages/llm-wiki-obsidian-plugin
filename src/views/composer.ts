@@ -164,6 +164,8 @@ export class ContextRing {
     const f = this.fraction ?? 0
     this.arc.setAttribute('stroke-dasharray', `${(f * length).toFixed(2)} ${length.toFixed(2)}`)
     this.el.toggleClass('is-high', f >= 0.8)
+    // Nothing known yet reads as a spinner beside Send; the ring shows once a reply says how full it is.
+    this.el.toggleClass('is-empty', this.used === undefined)
   }
 
   private showDetail(): void {

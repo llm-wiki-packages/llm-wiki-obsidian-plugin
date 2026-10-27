@@ -66,6 +66,7 @@ export class App {
     this.workspace = {
       on: () => ({}),
       requestSaveLayout: () => {},
+      onLayoutReady: (fn: () => void) => fn(),
       openLinkText: async (p: string) => console.log('open', p),
       getLeavesOfType: () => [],
       getActiveFile: () => null,

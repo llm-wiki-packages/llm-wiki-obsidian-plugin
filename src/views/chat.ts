@@ -1,9 +1,11 @@
-import { Component, MarkdownRenderer, Notice, setIcon, type App } from 'obsidian'
+import { Component, MarkdownRenderer, Notice, setIcon, type App, type TFile } from 'obsidian'
+import { describeTool } from '../chat/describe'
 import { skillsButtonLabel } from '../chat/skills'
 import type { BackendKind, ChatBackend, ChatEvent, ModelChoice, PermissionDecision, PermissionRequest } from '../chat/types'
 import { log } from '../logger'
 import { wireLinks } from '../ui/links'
 import type LlmWikiPlugin from '../main'
+import { isFeed } from '../wiki/layout'
 import { EFFORT_NAMES, PERMISSION_NAMES, type Effort, type PermissionMode } from '../settings'
 import { choiceRow, ContextRing, openPopover, permissionLabel, SlashMenu, switchRow } from './composer'
 
@@ -11,7 +13,7 @@ import { choiceRow, ContextRing, openPopover, permissionLabel, SlashMenu, switch
 const WRITE_TOOLS = new Set(['Bash', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
 
 const PERMISSION_DESC: Record<PermissionMode, string> = {
-  default: 'Asks before each command and edit.',
+  default: 'Asks before an edit or a command that changes something. Reading pages and the wiki’s lookups run without asking.',
   acceptEdits: 'Edits pages without asking; asks before commands.',
   auto: 'A classifier approves routine actions and asks about the rest.',
   bypassPermissions: 'Runs commands and edits without asking.',
@@ -121,6 +123,7 @@ export class ChatPane extends Component {
     })
     this.registerEvent(this.app.workspace.on('llm-wiki:detected' as 'layout-change', () => this.showReadiness()))
     this.registerEvent(this.app.workspace.on('active-leaf-change', () => this.showChips()))
+    this.app.workspace.onLayoutReady(() => this.registerEvent(this.app.vault.on('create', () => this.showChips())))
     this.showReadiness()
     this.showChips()
     this.showControls()
@@ -287,23 +290,19 @@ export class ChatPane extends Component {
     }).catch((e: unknown) => this.note(e instanceof Error ? e.message : String(e)))
   }
 
-  /** Starting points above an empty transcript, by what the person is looking at. */
+  /** Starting points above an empty transcript: the newest source, what changed, a video to add. */
   private showChips(): void {
     this.chips.empty()
     if (this.transcript.childElementCount > 1) return
-    const file = this.app.workspace.getActiveFile()
-    const prompts = file
-      ? [`Summarize [[${file.path}]]`, `Verify [[${file.path}]] against its sources`, `What links to [[${file.path}]]?`]
-      : ['What needs attention in this wiki?', 'What did the wiki learn since yesterday?']
-    for (const p of prompts) {
-      const chip = this.chips.createEl('button', { cls: 'llm-wiki-chip', text: p })
+    const newest = newestSource(this.app)
+    const chip = (text: string, prompt: string, title?: string) => {
+      const el = this.chips.createEl('button', { cls: 'llm-wiki-chip', text, attr: title ? { title } : {} })
       // Chips are rebuilt on every leaf change; the DOM owns the listener with the node.
-      chip.addEventListener('click', () => this.prefill(p))
+      el.addEventListener('click', () => this.prefill(prompt))
     }
-    if (!file) {
-      const add = this.chips.createEl('button', { cls: 'llm-wiki-chip', text: 'Add a source…' })
-      add.addEventListener('click', () => void this.plugin.addJob())
-    }
+    if (newest) chip(`Summarize ${newest}`, `Summarize ${newest}`, 'The newest page in sources')
+    chip('What’s new in the wiki?', 'What’s new in the wiki?')
+    chip('Add a YouTube video', 'Add this YouTube video to the wiki: ')
   }
 
   onunload(): void {
@@ -376,7 +375,7 @@ export class ChatPane extends Component {
     this.composer.value = ''
     let failed = false
     let stopped = false
-    const assistant = new AssistantBubble(this.transcript, this.app, this)
+    const assistant = new AssistantBubble(this.transcript, this.app, this, wiki.root)
     this.bubbles.push(assistant)
     const abort = new AbortController()
     this.running = abort
@@ -429,6 +428,16 @@ export class ChatPane extends Component {
   }
 }
 
+/** The source page that came in last, by when its file was made; not a kept version. */
+function newestSource(app: App): string | null {
+  let best: TFile | null = null
+  for (const f of app.vault.getMarkdownFiles()) {
+    if (!isFeed(f.path) || f.path.includes('/_')) continue
+    if (!best || f.stat.ctime > best.stat.ctime) best = f
+  }
+  return best?.path ?? null
+}
+
 /** An llm-wiki command in the agent's own words: "Running inbox-joe", "Reading the job list". Null for anything else. */
 export function toolSentence(tool: string, detail?: string): string | null {
   if (tool !== 'Bash' || !detail) return null
@@ -443,6 +452,7 @@ export function toolSentence(tool: string, detail?: string): string | null {
     'search query': 'Searching the wiki', 'search index': 'Refreshing the search index', 'doctor': 'Running the doctor', 'status': 'Reading the status', 'skills ls': 'Reading the skills', 'skills install': `Installing ${arg ?? 'a skill'}`,
     'skills enable': `Enabling ${arg ?? 'a skill'}`, 'skills bind': 'Binding a skill to its profile', 'sandboxes enable': `Enabling the ${arg ?? ''} profile`, 'credentials ls': 'Reading the credential list', 'credentials bind': 'Binding a credential',
     'op since': 'Reading recent runs', 'op record': 'Recording the run', 'git commit': 'Committing', 'git sync': 'Syncing',
+    'whereami': 'Checking how this session runs', 'git log': 'Reading recent history', 'page read': `Reading ${arg ?? 'a page'}`, 'page history': 'Reading a page’s history', 'search status': 'Checking search', 'reference': 'Reading the reference',
   }
   return table[`${a} ${b}`] ?? table[a ?? ''] ?? null
 }
@@ -454,24 +464,33 @@ function permissionTitle(req: PermissionRequest): string {
   return v ? `${v} this?` : `Allow ${req.tool}?`
 }
 
+/** A card the turn ended under, unanswered. */
+const TURN_ENDED = 'The turn ended before anyone answered'
+
 /** One assistant turn in the transcript: streamed markdown, tool rows, permission cards. */
-class AssistantBubble {
+export class AssistantBubble {
   private readonly el: HTMLElement
-  private body: HTMLElement
+  /** The text block being streamed into; made on the first text after a tool row, so text sits in order. */
+  private body: HTMLElement | null = null
   private text = ''
   private renderTimer: number | null = null
   private readonly renderer = new Component()
 
   /** Everything the agent said this turn, for Copy. */
   private all = ''
+  /** Tool rows this turn, newest last, for a permission card to settle onto. */
+  private readonly rows: { name: string; el: HTMLElement; shown?: string }[] = []
+  /** Cards still waiting on a click; the turn's end answers them. */
+  private readonly pending = new Set<(d: PermissionDecision) => void>()
 
   constructor(
     parent: HTMLElement,
     private readonly app: App,
     private readonly owner: Component,
+    /** The wiki root, so a file the agent touched is named, and opened, by its vault path. */
+    private readonly root: string | null = null,
   ) {
     this.el = parent.createDiv({ cls: 'llm-wiki-msg llm-wiki-assistant' })
-    this.body = this.el.createDiv({ cls: 'llm-wiki-assistant-body' })
     owner.addChild(this.renderer)
   }
 
@@ -491,12 +510,15 @@ class AssistantBubble {
       case 'tool': {
         // A tool row closes the text so far, so later text starts a fresh block in order.
         this.flushText()
+        const d = describeTool(e.name, e.input, e.detail, this.root, toolSentence(e.name, e.detail))
         const row = this.el.createDiv({ cls: 'llm-wiki-tool' })
-        setIcon(row.createSpan({ cls: 'llm-wiki-tool-icon' }), 'wrench')
-        const said = toolSentence(e.name, e.detail)
-        row.createSpan({ cls: 'llm-wiki-tool-name', text: said ?? e.name })
-        if (e.detail && !said) row.createSpan({ cls: 'llm-wiki-tool-detail llm-wiki-muted', text: e.detail })
+        setIcon(row.createSpan({ cls: 'llm-wiki-tool-icon' }), d.icon)
+        row.createSpan({ cls: 'llm-wiki-tool-name', text: d.label })
+        // A page in the wiki opens on a click: the transcript's link handler takes `internal-link`.
+        if (d.open) row.createEl('a', { cls: 'internal-link llm-wiki-tool-detail llm-wiki-tool-file', text: d.detail, href: d.open, attr: { 'data-href': d.open } })
+        else if (d.detail) row.createSpan({ cls: 'llm-wiki-tool-detail', text: d.detail })
         if (e.detail) row.title = e.detail
+        this.rows.push({ name: e.name, el: row, shown: d.detail })
         break
       }
       case 'result':
@@ -512,22 +534,35 @@ class AssistantBubble {
     }
   }
 
-  /** A permission card; resolves on the click. */
+  /**
+   * A permission card under the call it asks about; resolves on the click.
+   * Answered, it folds away: the row above already says what ran, and a
+   * refusal leaves a mark on it.
+   */
   ask(req: PermissionRequest): Promise<PermissionDecision> {
     this.flushText()
+    const asked = [...this.rows].reverse().find((r) => r.name === req.tool)
+    const row = asked?.el ?? null
     const card = this.el.createDiv({ cls: 'llm-wiki-permission' })
     card.createDiv({ cls: 'llm-wiki-permission-title', text: permissionTitle(req) })
-    card.createEl('pre', { cls: 'llm-wiki-permission-summary', text: req.summary.replace(/\s--json\b/, '') })
+    // What the row above already says is not said twice; a command the row put in words is.
+    const summary = describeTool(req.tool, req.input, req.summary, this.root).detail ?? req.summary
+    if (summary !== asked?.shown) card.createEl('pre', { cls: 'llm-wiki-permission-summary', text: summary.replace(/\s--json\b/, '') })
     const buttons = card.createDiv({ cls: 'llm-wiki-permission-buttons' })
     const allow = buttons.createEl('button', { text: 'Allow', cls: 'mod-cta' })
     const allowTurn = buttons.createEl('button', { text: 'Allow for this turn', attr: { title: 'Every tool this turn still wants runs without asking' } })
     const deny = buttons.createEl('button', { text: 'Deny' })
     return new Promise((resolve) => {
       const settle = (d: PermissionDecision) => {
-        allow.disabled = allowTurn.disabled = deny.disabled = true
-        card.addClass(d.allow ? 'is-allowed' : 'is-denied')
+        if (!this.pending.delete(settle)) return
+        card.remove()
+        if (!d.allow) {
+          const mark = (row ?? this.el).createSpan({ cls: 'llm-wiki-tool-mark is-denied', text: d.reason === TURN_ENDED ? 'Not answered' : 'Denied' })
+          if (!row) mark.addClass('llm-wiki-line')
+        } else if (row && d.forTurn) row.createSpan({ cls: 'llm-wiki-tool-mark', text: 'Allowed for this turn' })
         resolve(d)
       }
+      this.pending.add(settle)
       allow.addEventListener('click', () => settle({ allow: true }))
       allowTurn.addEventListener('click', () => settle({ allow: true, forTurn: true }))
       deny.addEventListener('click', () => settle({ allow: false, reason: 'Denied in Obsidian' }))
@@ -535,6 +570,7 @@ class AssistantBubble {
   }
 
   finish(): void {
+    for (const settle of [...this.pending]) settle({ allow: false, reason: TURN_ENDED })
     this.flushText()
     if (!this.all.trim()) return
     const copy = this.el.createEl('button', { cls: 'llm-wiki-copy clickable-icon', attr: { 'aria-label': 'Copy the reply as markdown' } })
@@ -567,11 +603,11 @@ class AssistantBubble {
     if (!this.text) return
     void this.render()
     this.text = ''
-    this.body = this.el.createDiv({ cls: 'llm-wiki-assistant-body' })
+    this.body = null
   }
 
   private async render(): Promise<void> {
-    const target = this.body
+    const target = (this.body ??= this.el.createDiv({ cls: 'llm-wiki-assistant-body' }))
     const md = this.text
     target.empty()
     await MarkdownRenderer.render(this.app, md, target, '', this.renderer)

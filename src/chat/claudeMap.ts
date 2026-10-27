@@ -35,8 +35,10 @@ export function mapMessage(m: SDKMessage): MappedTurn {
       // The complete message: tool calls with their whole input.
       if (m.parent_tool_use_id) break
       for (const block of m.message.content) {
-        if (block.type === 'tool_use')
-          events.push({ type: 'tool', name: block.name, detail: summarizeTool(block.name, (block.input ?? {}) as Record<string, unknown>) })
+        if (block.type === 'tool_use') {
+          const input = (block.input ?? {}) as Record<string, unknown>
+          events.push({ type: 'tool', name: block.name, detail: summarizeTool(block.name, input), input })
+        }
       }
       if (m.error) events.push({ type: 'error', message: `assistant: ${m.error}` })
       // The whole conversation is resent each request, so the last request's input is what the context holds.
