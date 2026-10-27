@@ -109,11 +109,17 @@ function pipelineRow(parent: HTMLElement, p: PipelineView, ctx: TabContext): voi
   const title = main.createDiv({ cls: 'llm-wiki-row-title' })
   title.createSpan({ text: pipelineName(p) })
   if (p.stages.length) title.createSpan({ cls: 'llm-wiki-muted', text: ` · ${p.stages.join(', ')}` })
-  if (!p.ready) pill(title, 'not enabled here', 'info')
+  const words = pipelinePill(p)
+  if (words) pill(title, words, 'info')
   const detail = [p.description, p.jobs.length ? `${p.jobs.length === 1 ? 'Job' : 'Jobs'}: ${p.jobs.join(', ')}` : ''].filter(Boolean).join(' · ')
   if (detail) main.createDiv({ cls: 'llm-wiki-row-detail', text: detail })
   const bar = row.createDiv({ cls: 'llm-wiki-row-actions' })
   if (!p.ready) button(bar, 'Enable', () => ctx.act({ kind: 'ask', prompt: slash('enable', p.name) }), { icon: 'power', ...(p.next ? { title: p.next } : {}) })
+}
+
+/** The pill where it would not run here: a stale routine says why, in the CLI's own words, since Enable asks again. */
+export function pipelinePill(p: Pick<PipelineView, 'ready' | 'stale'>): string | null {
+  return p.ready ? null : p.stale ? 'reach grew since enable' : 'not enabled here'
 }
 
 /** A plugin routine by its own name, without the record form's `PLUGIN:`. */

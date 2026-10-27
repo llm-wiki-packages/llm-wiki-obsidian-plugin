@@ -119,6 +119,8 @@ export interface PipelineView {
   stages: string[]
   /** Whether it runs on this machine: a unit enabled here, a routine whose sandbox is accepted (or that ships none). */
   ready: boolean
+  /** A routine the operator accepted whose reach has grown since, so it waits on a fresh yes. */
+  stale: boolean
   /** The CLI's next step when it is not ready; shown, never run. */
   next: string | null
   /** The slugs of the jobs naming it as their skill. */

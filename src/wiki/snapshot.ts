@@ -463,6 +463,7 @@ export function pipelineViews(rows: SkillRow[], modes: boolean, skills: SkillVie
       description: unit?.description || (r.description ?? ''),
       stages: r.stages ?? [],
       ready,
+      stale: plugin(r) && r.state === 'stale',
       next: ready ? null : (r.next ?? null),
       jobs: jobs.filter((j) => j.skill === r.name).map((j) => j.slug),
     }

@@ -4,7 +4,7 @@ import type { Args, Verb } from '../src/wiki/cli'
 import type { SkillView } from '../src/wiki/model'
 import { takeSnapshot, type Reader } from '../src/wiki/snapshot'
 import { matchSkills } from '../src/views/composer'
-import { pipelineName } from '../src/views/dashboard/jobs'
+import { pipelineName, pipelinePill } from '../src/views/dashboard/jobs'
 import { byHand, skillAction } from '../src/views/dashboard/skills'
 
 const NOW = Date.parse('2026-10-27T12:00:00Z')
@@ -105,16 +105,25 @@ describe('the snapshot from skills ls rows', () => {
   })
   it('lists what a job can run: rows with pipeline in mode, plugin routines first, with their state and next step', async () => {
     const snap = await takeSnapshot(reader(WIKI(ROWS)), 'kb', NOW)
-    expect(snap.pipeline.map((p) => [p.name, p.ready, p.next, p.jobs])).toEqual([
-      ['PLUGIN:curate', true, null, []],
-      ['PLUGIN:dream', true, null, []],
-      ['PLUGIN:tidy', false, 'llm-wiki-ops skills enable PLUGIN:tidy', []],
-      ['PLUGIN:wiki-report', false, 'llm-wiki-ops skills enable PLUGIN:wiki-report', []],
-      ['channel-github', true, null, []],
-      ['channel-gmail', true, null, ['inbox-joe']],
-      ['daily-report', false, null, []],
+    expect(snap.pipeline.map((p) => [p.name, p.ready, p.stale, p.next, p.jobs])).toEqual([
+      ['PLUGIN:curate', true, false, null, []],
+      ['PLUGIN:dream', true, false, null, []],
+      ['PLUGIN:tidy', false, true, 'llm-wiki-ops skills enable PLUGIN:tidy', []],
+      ['PLUGIN:wiki-report', false, false, 'llm-wiki-ops skills enable PLUGIN:wiki-report', []],
+      ['channel-github', true, false, null, []],
+      ['channel-gmail', true, false, null, ['inbox-joe']],
+      ['daily-report', false, false, null, []],
     ])
     expect(pipelineName(snap.pipeline[3]!)).toBe('wiki-report')
+    expect(snap.pipeline.map((p) => [pipelineName(p), pipelinePill(p)])).toEqual([
+      ['curate', null],
+      ['dream', null],
+      ['tidy', 'reach grew since enable'],
+      ['wiki-report', 'not enabled here'],
+      ['channel-github', null],
+      ['channel-gmail', null],
+      ['daily-report', 'not enabled here'],
+    ])
     expect(snap.pipeline.find((p) => p.name === 'channel-gmail')).toMatchObject({ plugin: false, stages: ['harvest', 'process'], description: 'Gmail capture, one watch per mailbox.' })
   })
   it('puts a skill with both modes in both places, and a pipeline-only one in the jobs list alone', async () => {
