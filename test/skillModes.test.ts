@@ -18,6 +18,8 @@ const ROWS: SkillsLsRow[] & Record<string, unknown>[] = [
   { name: 'PLUGIN:add', state: null, from: 'plugin', stages: [], mode: ['session'], description: 'Follows a source or schedules recurring work in this wiki.', argument_hint: '<url-or-channel-or-task> [more...]', next: null, warnings: [] },
   { name: 'PLUGIN:curate', state: 'accepted', from: 'plugin', stages: ['routine'], mode: ['pipeline', 'session'], description: 'Reviews draft pages and accepts them into the wiki.', argument_hint: '[path|ticket=<id>]', next: null, warnings: [] },
   { name: 'PLUGIN:wiki-report', state: 'unaccepted', from: 'plugin', stages: ['routine'], mode: ['pipeline'], description: 'Writes the wiki’s digest of what its ops did since the last report.', argument_hint: '[<ISO|Nh|Nd>] ticket=<id>', next: 'llm-wiki-ops skills enable PLUGIN:wiki-report', warnings: [] },
+  { name: 'PLUGIN:dream', state: null, from: 'plugin', stages: ['routine'], mode: ['pipeline'], description: 'Ships no sandbox, so it needs no yes.', argument_hint: 'ticket=<id>', next: null, warnings: [] },
+  { name: 'PLUGIN:tidy', state: 'stale', from: 'plugin', stages: ['routine'], mode: ['pipeline'], description: 'Its reach grew since the operator’s yes.', argument_hint: 'ticket=<id>', next: 'llm-wiki-ops skills enable PLUGIN:tidy', warnings: [] },
 ]
 
 /** The same wiki from a CLI before #3702: no `mode`, `description` or `argument_hint` keys, and no plugin rows. */
@@ -105,12 +107,14 @@ describe('the snapshot from skills ls rows', () => {
     const snap = await takeSnapshot(reader(WIKI(ROWS)), 'kb', NOW)
     expect(snap.pipeline.map((p) => [p.name, p.ready, p.next, p.jobs])).toEqual([
       ['PLUGIN:curate', true, null, []],
+      ['PLUGIN:dream', true, null, []],
+      ['PLUGIN:tidy', false, 'llm-wiki-ops skills enable PLUGIN:tidy', []],
       ['PLUGIN:wiki-report', false, 'llm-wiki-ops skills enable PLUGIN:wiki-report', []],
       ['channel-github', true, null, []],
       ['channel-gmail', true, null, ['inbox-joe']],
       ['daily-report', false, null, []],
     ])
-    expect(pipelineName(snap.pipeline[1]!)).toBe('wiki-report')
+    expect(pipelineName(snap.pipeline[3]!)).toBe('wiki-report')
     expect(snap.pipeline.find((p) => p.name === 'channel-gmail')).toMatchObject({ plugin: false, stages: ['harvest', 'process'], description: 'Gmail capture, one watch per mailbox.' })
   })
   it('puts a skill with both modes in both places, and a pipeline-only one in the jobs list alone', async () => {
