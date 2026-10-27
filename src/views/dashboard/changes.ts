@@ -1,9 +1,11 @@
 import { Component, MarkdownRenderer } from 'obsidian'
+import { openDiff } from '../../ui/diffModal'
 import { button, empty, icon, relativeTime } from '../../ui/dom'
 import { confirm, promptText } from '../../ui/modals'
 import { collapses, groupPages, type GroupBy, type PageGroup } from '../../vault/groups'
 import { draftsIn, factsOf, setBox, type PageFacts } from '../../vault/pages'
 import { isFeed, isResearch, layout } from '../../wiki/layout'
+import { fileChange } from '../../wiki/diff'
 import type { Commit } from '../../wiki/model'
 import { dayOf, whoOf, type WhoKind } from '../../wiki/who'
 import type { TabContext } from './index'
@@ -15,6 +17,8 @@ const GROUP_NAMES: Record<GroupBy, string> = { source: 'By source', folder: 'By 
 const COLLAPSE_AT = [0, 3, 5, 10, 25]
 /** Asked before a bulk action this large. */
 const CONFIRM_OVER = 10
+/** Files listed under a commit or the unsaved strip before the rest fold into `and N more`. */
+const FILES_SHOWN = 4
 
 /** The pages waiting for a look; the tab's count. */
 export function newPages(ctx: TabContext): PageFacts[] {
@@ -49,7 +53,8 @@ export function renderChanges(root: HTMLElement, ctx: TabContext): void {
 function unsavedStrip(root: HTMLElement, ctx: TabContext): void {
   const autosave = ctx.plugin.autosave
   const s = ctx.snapshot.sync
-  const files = Math.max(autosave.unsaved().length, (s?.dirty ?? 0) + (s?.untracked ?? 0))
+  const listed = s?.files ?? null
+  const files = listed ? listed.length : Math.max(autosave.unsaved().length, (s?.dirty ?? 0) + (s?.untracked ?? 0))
   if (!files) return
   const mode = autosave.mode()
   const strip = root.createDiv({ cls: 'llm-wiki-unsaved' })
@@ -60,7 +65,43 @@ function unsavedStrip(root: HTMLElement, ctx: TabContext): void {
     : mode === 'off' ? 'Saving to history is off in the settings.'
       : autosave.state === 'saving' ? 'Saving…'
         : `Saved after two quiet minutes${mode === 'sync' ? ', then synced to your other machines' : ''}.` })
+  if (listed) fileList(words, listed.map((f) => ({ path: f.path, word: f.status === 'untracked' ? 'new' : f.status === 'modified' ? 'edited' : f.status })), ctx, 'changes.unsaved')
   if (mode === 'commit' || mode === 'sync') button(strip, 'Save now', () => autosave.saveNow(), { icon: 'save', cta: true })
+}
+
+/**
+ * Files under a commit or the unsaved strip: each opens what changed in it. A deleted page has nothing left to show
+ * for its unsaved edit, so it is listed without a link.
+ */
+function fileList(parent: HTMLElement, files: { path: string; word: string }[], ctx: TabContext, memoKey: string, commit?: Commit): void {
+  const list = parent.createDiv({ cls: 'llm-wiki-files' })
+  const all = ctx.memo[memoKey] === true
+  const shown = all ? files : files.slice(0, FILES_SHOWN)
+  for (const f of shown) {
+    const row = list.createDiv({ cls: 'llm-wiki-file' })
+    row.createSpan({ cls: `llm-wiki-file-change is-${f.word}`, text: f.word })
+    const md = f.path.endsWith('.md') && !(f.word === 'deleted' && !commit)
+    const name = row.createEl(md ? 'a' : 'span', { cls: 'llm-wiki-file-path', text: f.path })
+    if (!md) continue
+    name.setAttribute('role', 'button')
+    name.setAttribute('tabindex', '0')
+    name.title = commit ? 'See what this commit changed in it' : 'See the edits not saved yet'
+    const show = (e: Event) => {
+      e.stopPropagation()
+      openDiff(ctx.plugin, { path: f.path, ...(commit ? { commit } : {}) })
+    }
+    name.addEventListener('click', show)
+    name.addEventListener('keydown', (e) => {
+      if ((e as KeyboardEvent).key === 'Enter') show(e)
+    })
+  }
+  if (files.length > shown.length) {
+    const more = list.createEl('a', { cls: 'llm-wiki-file-more', text: `and ${files.length - shown.length} more` })
+    more.addEventListener('click', () => {
+      ctx.memo[memoKey] = true
+      ctx.redraw()
+    })
+  }
 }
 
 function renderNew(root: HTMLElement, tools: HTMLElement, ctx: TabContext, pages: PageFacts[]): void {
@@ -260,15 +301,17 @@ function renderActivity(root: HTMLElement, ctx: TabContext): void {
       day = d
       root.createDiv({ cls: 'llm-wiki-day', text: d })
     }
-    activityRow(root, c, who.label, who.kind)
+    activityRow(root, c, who.label, who.kind, ctx)
   }
 }
 
-function activityRow(root: HTMLElement, c: Commit, who: string, kind: WhoKind): void {
-  const row = root.createDiv({ cls: 'llm-wiki-activity' })
+function activityRow(root: HTMLElement, c: Commit, who: string, kind: WhoKind, ctx: TabContext): void {
+  const item = root.createDiv({ cls: 'llm-wiki-activity-item' })
+  const row = item.createDiv({ cls: 'llm-wiki-activity' })
   row.createSpan({ cls: 'llm-wiki-activity-when', text: new Date(c.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) })
   icon(row, kind === 'you' ? 'user' : kind === 'job' ? 'download' : 'bot', `llm-wiki-who is-${kind}`)
   row.createSpan({ cls: `llm-wiki-who is-${kind}`, text: who })
   row.createSpan({ cls: 'llm-wiki-row-detail', text: c.subject })
   row.title = c.sha.slice(0, 7)
+  if (c.files?.length) fileList(item, c.files.map((f) => ({ path: f.path, word: fileChange(f.status) })), ctx, `changes.files.${c.sha}`, c)
 }

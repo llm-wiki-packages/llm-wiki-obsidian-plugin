@@ -304,7 +304,8 @@ search k, debug. The Changes tab's grouping and fold threshold are kept too.
 
 `node preview/build.mjs`, serve the repo (`python3 -m http.server 8765`), open
 `preview/index.html` in a browser with `?tab=jobs|skills|pages`,
-`&modal=credential|skill|replace`, `&chat=turn`, `&theme=dark`, `&pane=search`.
+`&modal=credential|skill|replace|diff` (`&commit=1` for a commit's diff),
+`&tab=changes&sub=activity`, `&chat=turn`, `&theme=dark`, `&pane=search`.
 It renders the real views over fixture data with a stand-in for Obsidian's API.
 
 ## Known gaps
@@ -423,3 +424,16 @@ name with a "pages written" row that lands on them.
   id); back-to-back calls fold into one grey group that counts what ran and
   what was denied or failed. The rows are muted and spaced off the reply, so
   the work and the words no longer blur.
+- **Cycle 12 (2026-10-27)**: the plugin side of llm-wiki-plugins #3675 and
+  #3687.
+  - **Clicks lift the settle window.** Accept, Archive and Save now run under
+    the `editor` origin, so a page ticked a moment ago is accepted at once.
+  - **Diffs.** A commit in a page's history opens what it changed:
+    properties apart from the body, with Older and Newer. See edits shows
+    what is not saved yet.
+  - **Activity lists files.** Each commit lists its files, and the unsaved
+    strip names its own. Every file name opens its diff.
+  - **The layout comes from the CLI** (`whereami`), so a wiki with moved
+    trees is read right.
+  - **Identity.** A copy made in Obsidian gets its own id. A rename sets
+    `title:`. Both rely on the identity work.

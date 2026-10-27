@@ -1,16 +1,17 @@
 // An icon in every page's header, beside Obsidian's own actions: whether the
-// page has edits not yet in history, and on a click its recent commits. The
-// diff arrives with the CLI's `page diff` (llm-wiki-plugins #3675).
+// page has edits not yet in history, and on a click its recent commits, each
+// opening what it changed (`page diff`, llm-wiki-plugins #3675 ask 5).
 import { MarkdownView, Notice, type WorkspaceLeaf } from 'obsidian'
 import type LlmWikiPlugin from '../main'
 import { CliError } from '../wiki/cli'
 import { isContent } from '../wiki/layout'
 import type { Commit } from '../wiki/model'
 import { whoOf } from '../wiki/who'
+import { openDiff } from './diffModal'
 import { button, relativeTime } from './dom'
 
 interface HistoryAnswer {
-  commits?: { sha: string; at: string; subject: string; op?: string | null; actor?: string | null }[]
+  commits?: { sha: string; at: string; subject: string; op?: string | null; actor?: string | null; path?: string; revision?: number | null }[]
 }
 
 const SHOWN = 10
@@ -82,13 +83,20 @@ export class PageHistory {
     const title = words.createDiv({ cls: 'llm-wiki-row-title', text: unsaved ? 'Edited · not saved to history yet' : 'Reading history…' })
     const detail = words.createDiv({ cls: 'llm-wiki-row-detail' })
     const mode = this.plugin.autosave.mode()
-    if (unsaved && (mode === 'commit' || mode === 'sync')) button(pop.createDiv({ cls: 'llm-wiki-row-actions' }), 'Save now', () => this.plugin.autosave.saveNow(), { icon: 'save', cta: true })
+    if (unsaved) {
+      const bar = pop.createDiv({ cls: 'llm-wiki-row-actions' })
+      button(bar, 'See edits', () => {
+        this.close()
+        openDiff(this.plugin, { path: file.path })
+      }, { icon: 'diff' })
+      if (mode === 'commit' || mode === 'sync') button(bar, 'Save now', () => this.plugin.autosave.saveNow(), { icon: 'save', cta: true })
+    }
     const list = pop.createDiv({ cls: 'llm-wiki-history-list' })
 
     let commits: Commit[] = []
     try {
       const a = await cli.run<HistoryAnswer>('wiki.page.history', { wiki: wiki.key, path: file.path })
-      commits = (a.commits ?? []).map((c) => ({ sha: c.sha, at: c.at, subject: c.subject, op: c.op ?? 'none', actor: c.actor ?? '' }))
+      commits = (a.commits ?? []).map((c) => ({ sha: c.sha, at: c.at, subject: c.subject, op: c.op ?? 'none', actor: c.actor ?? '', ...(c.path ? { path: c.path } : {}), revision: c.revision ?? null }))
     } catch (err) {
       detail.setText(err instanceof CliError ? err.short : String(err))
     }
@@ -100,11 +108,20 @@ export class PageHistory {
     if (last) detail.setText(`last saved ${relativeTime(last.at)} by ${whoOf(last, machine, jobName).label}`)
     for (const c of commits.slice(0, SHOWN)) {
       const who = whoOf(c, machine, jobName)
-      const row = list.createDiv({ cls: 'llm-wiki-history-row' })
+      const row = list.createDiv({ cls: 'llm-wiki-history-row is-link', attr: { role: 'button', tabindex: '0' } })
       row.createSpan({ cls: 'llm-wiki-history-when', text: relativeTime(c.at) })
       row.createSpan({ cls: `llm-wiki-who is-${who.kind}`, text: who.label })
-      row.createSpan({ cls: 'llm-wiki-row-detail', text: c.subject })
-      row.title = `${c.sha.slice(0, 7)} · ${new Date(c.at).toLocaleString()}`
+      // A rename shows where the page was then; otherwise what the commit was.
+      row.createSpan({ cls: 'llm-wiki-row-detail', text: c.path && c.path !== file.path ? `as ${c.path}` : c.subject })
+      row.title = `${c.sha.slice(0, 7)} · ${new Date(c.at).toLocaleString()}${c.revision ? ` · revision ${c.revision}` : ''} · see what changed`
+      const show = () => {
+        this.close()
+        openDiff(this.plugin, { path: file.path, commit: c, history: commits })
+      }
+      row.addEventListener('click', show)
+      row.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') show()
+      })
     }
     if (commits.length > SHOWN) list.createDiv({ cls: 'llm-wiki-muted', text: `and ${commits.length - SHOWN} older` })
     const foot = pop.createDiv({ cls: 'llm-wiki-history-foot' })

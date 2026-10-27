@@ -7,6 +7,7 @@ import type { Snapshot } from '../src/wiki/model'
 import { openCredentialModal } from '../src/ui/credentialModal'
 import { openSkillModal } from '../src/ui/skillModal'
 import { openJobModal } from '../src/ui/jobModal'
+import { openDiff } from '../src/ui/diffModal'
 import { DEFAULT_SETTINGS } from '../src/settings'
 
 const NOW = Date.now()
@@ -59,9 +60,9 @@ const snapshot: Snapshot = {
   ],
   boxes: true,
   activity: [
-    { sha: 'a1b2c3d4', at: ago(35), subject: 'dream: refreshed 2 wiki pages from their sources', op: 'dream', actor: 'agent@mac-mini' },
-    { sha: 'b2c3d4e5', at: ago(120), subject: 'inbox-joe: 3 messages', op: 'inbox-joe', actor: 'agent@mac-mini' },
-    { sha: 'c3d4e5f6', at: ago(200), subject: 'sweep 4 files', op: 'none', actor: 'user@macbook' },
+    { sha: 'a1b2c3d4', at: ago(35), subject: 'dream: refreshed 2 wiki pages from their sources', op: 'dream', actor: 'agent@mac-mini', files: [{ path: 'wiki/topics/retrieval-evals.md', status: 'M' }, { path: 'wiki/concepts/offers.md', status: 'M' }] },
+    { sha: 'b2c3d4e5', at: ago(120), subject: 'inbox-joe: 3 messages', op: 'inbox-joe', actor: 'agent@mac-mini', files: [{ path: 'sources/email/joe/2026-10-27.md', status: 'A' }, { path: 'sources/email/joe/2026-10-26.md', status: 'M' }, { path: 'sources/email/joe/2026-10-25.md', status: 'M' }] },
+    { sha: 'c3d4e5f6', at: ago(200), subject: 'sweep 4 files', op: 'none', actor: 'user@macbook', files: [{ path: 'sources/notes/mine.md', status: 'A' }, { path: 'sources/web/acme/pricing-teardown.md', status: 'M' }, { path: 'sources/notes/old idea.md', status: 'D' }, { path: 'wiki/topics/pricing.md', status: 'M' }, { path: 'templates/Note.md', status: 'M' }, { path: 'sources/attachments/chart.png', status: 'A' }] },
     { sha: 'd4e5f6a7', at: ago(1500), subject: 'sweep 1 file', op: 'none', actor: 'user@macbook' },
     { sha: 'e5f6a7b8', at: ago(1600), subject: 'curate: accepted 6 pages', op: 'curate', actor: 'agent@macbook' },
   ],
@@ -71,7 +72,7 @@ const snapshot: Snapshot = {
     { name: 'mac-mini', state: 'healthy', lastSeen: ago(3), roles: ['harvest', 'index', 'process'], me: false },
     { name: 'linux-box', state: 'stuck', lastSeen: ago(2900), roles: ['transcribe'], me: false, detail: 'push rejected since Sunday' },
   ],
-  sync: { dirty: 3, untracked: 0, unpushed: 2, behind: 0, upstream: 'origin/main' },
+  sync: { dirty: 2, untracked: 1, unpushed: 2, behind: 0, upstream: 'origin/main', files: [{ path: 'wiki/topics/retrieval-evals.md', status: 'modified' }, { path: 'sources/web/acme/pricing-teardown.md', status: 'modified' }, { path: 'sources/notes/mine.md', status: 'untracked' }] },
   search: { engine_configured: true, realm_ready: true, serving: 'search_server', corpus_files: 1284, dirty: 4, marker_known: true, reindex_required: false, index_as_of: { source_commit: '9f3c2a1e7b' }, paths: [{ pattern: 'wiki/' }, { pattern: 'sources/' }], _cmd_: { head: 'c41d07be22' } },
   recent: [
     { op: 'pass', outcome: 'ok', at: ago(20), summary: '' },
@@ -106,6 +107,24 @@ const fakeCli = {
   run: async (verb: string) => {
     if (verb === 'wiki.search.query') return { backend: 'search_server', quality_mode: 'hybrid_rerank', count: hits.length, hits, backend_metadata: { index_as_of: { source_commit: '9f3c2a1e7b' } }, _cmd_: { head: 'c41d07be22' } }
     if (verb === 'wiki.search.status') return snapshot.search
+    // A real `page diff` answer, captured from a scratch wiki and trimmed.
+    if (verb === 'wiki.page.diff') return { path: 'sources/notes/Alpha note.md',
+      old: { at: 'saved', sha: '1556611', path: 'sources/notes/Alpha note.md', revision: 2, exists: true, frontmatter: 'ok' },
+      new: { at: 'working', sha: null, path: 'sources/notes/Alpha note.md', revision: 2, exists: true, frontmatter: 'ok' },
+      frontmatter: [{ key: 'tags', change: 'changed', old: ['demo'], new: ['demo', 'more'] }, { key: 'Draft', change: 'added', old: null, new: 'true' }, { key: 'verified', change: 'removed', old: '2026-10-20', new: null }],
+      hunks: [
+        { old_start: 18, old_count: 3, new_start: 18, new_count: 4, lines: [
+          { kind: 'context', old: 18, new: 18, text: '## What it costs' },
+          { kind: 'removed', old: 19, new: null, text: 'Three tiers: starter, growth and enterprise.' },
+          { kind: 'added', old: null, new: 19, text: 'Three tiers: starter, growth and a usage-based tier that bills per API call, so pricing tracks the value a customer gets out of the product each month.' },
+          { kind: 'added', old: null, new: 20, text: '' },
+          { kind: 'context', old: 20, new: 21, text: 'See [[offers]] for how the bonuses stack.' },
+        ] },
+        { old_start: 41, old_count: 1, new_start: 42, new_count: 1, lines: [
+          { kind: 'removed', old: 41, new: null, text: '- [ ] ask about annual billing' },
+          { kind: 'added', old: null, new: 42, text: '- [x] ask about annual billing' },
+        ] },
+      ], identical: false }
     if (verb === 'wiki.git.changed') return { files: ['sources/web/acme/pricing-tiers.md', 'wiki/concepts/offers.md', 'wiki/notes/2026-10-25.md', 'wiki/index.md', 'research/r.md', 'sources/web/acme/on-call.md'] }
     return {}
   },
@@ -166,6 +185,8 @@ if (q.get('many') === '1') {
   for (let i = 0; i < 20; i++) snapshot.jobs.push({ slug: `feed-${i}`, name: `Feed ${i}`, kind: 'pipeline', skill: 'web-page', schedule: 'every 1d', paused: false, last: { at: ago(100 + i * 60), outcome: 'ok' }, next: { kind: 'at', at: ahead(60 + i * 45) }, running: null, credential: null, reasons: [], tickets: [] })
   dash.render()
 }
+if (q.get('modal') === 'diff') openDiff(plugin, q.get('commit') ? { path: 'sources/notes/Alpha note.md', commit: snapshot.activity[2]!, history: snapshot.activity } : { path: 'sources/notes/Alpha note.md' })
+if (q.get('sub')) { dash.memo['changes.tab'] = q.get('sub'); dash.render() }
 if (q.get('modal') === 'replace') plugin.credentialModal({ name: 'yt-cookies', kind: 'dir', skill: 'channel-youtube', slot: 'dir', retry: 't9', job: 'yt-subs' })
 if (q.get('chat') === 'turn') {
   // A fabricated turn, through the real bubble.

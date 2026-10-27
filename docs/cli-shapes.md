@@ -859,14 +859,53 @@ no host entry on this machine: scratch - nothing fires them", fix
   subject, op, actor, session, … }] }`, newest first. `at` is the commit
   time; the trailer keys are lowercased (`Op:` → `op`). A hand edit the sweep
   carried reads `op: "none"`, `actor: "user@<machine>"`; a session's write
-  `agent@<machine>`. No file list per commit yet (llm-wiki-plugins #3675).
+  `agent@<machine>`. Each commit carries `files: [{ path, status }]` with git's
+  letter (`A`, `M`, `D`). A rename reads as a `D` and an `A`.
 
 ### 1.20 `page history <path>`
 
 - argv: `wiki --read-only <key> page history <path> --json`. Answer
   `History`, `OPS/page/history.py`: `{ path, commits: [{ sha, at, author,
-  subject, op, actor, session }] }`, newest first; a path no commit touched
-  answers `commits: []`. Does not follow renames yet (#3675).
+  subject, op, actor, session, path, revision }] }`, newest first. `path` is
+  where the page sat at that commit; history follows renames. `revision` is
+  its `document_revision` then, or null. A path no commit touched answers
+  `commits: []`.
+
+### 1.22 `page diff <path> [commit=<sha>]`
+
+- argv: `wiki --read-only <key> page diff <path> [commit=<sha>] --json`. With
+  no `commit=`, the last save against the working copy; with it, that
+  commit's own change. Answer `OPS/commands/page/diff.py`:
+  - `{ path, old, new, frontmatter, hunks, identical }`.
+  - `old` and `new` are `{ at, sha, path, revision, exists, frontmatter }`.
+    `exists: false` is the side where the page did not exist. `path` differing
+    between them is a rename.
+  - `frontmatter` rows are `{ key, change: added|removed|changed, old, new,
+    old_type, new_type }`.
+  - `hunks` are `{ old_start, old_count, new_start, new_count, lines: [{ kind:
+    context|removed|added, old, new, text, eol }] }`, numbered in file lines.
+- Captured from a scratch wiki: an untracked page answers `old.exists: false`
+  with every line added. A rename commit answers `identical: true` with the
+  two paths.
+
+### 1.23 `page ls id=<document_id>`
+
+- argv: `wiki --read-only <key> page ls id=<id> --json`. The `page ls` rows
+  of every page carrying the id. Rows gain `title`, `resource`,
+  `resource_id`, `job`, `duplicate_of` (the other carriers) and `moved`.
+
+### 1.24 `whereami` → `wiki.layout`
+
+- `{ feeds: ["wiki/", "sources/"], pages: "wiki/", raw: "_raw/", templates:
+  "templates/" }`, each with a trailing slash. `feeds` is every tree the index
+  reads, the wiki's own pages included. The plugin's feeds, the trees a
+  person accepts in, are `feeds` minus `pages`.
+
+### 1.25 `git status`
+
+- argv: `wiki --read-only <key> git status --json`. `{ files: [{ path,
+  status: added|modified|deleted|untracked }], upstream, unpushed, behind }`,
+  for the swept trees only.
 
 ### 1.21 `page template <path>`
 
@@ -1098,7 +1137,22 @@ Refusals: read-only; a search config the reader refuses.
   `OPS/lib/git/commit.py`: `{ commits, adopted, unadopted, links_left_out,
   swept, deferred, withheld, observed, settling }`. `settling` lists the
   pages changed inside the settle window (`[edits] settle_seconds`, 600 by
-  default) that the sweep left for a later one.
+  default) that the sweep left for a later one. Under
+  `LLM_WIKI_SESSION_ORIGIN=editor` (#3687) the window is 0 and `settling` is
+  empty.
+
+### 2.12 `page fix <paths> [--force]`
+
+- argv: `wiki <key> page fix <path> --force --json`. The answer is
+  `{ pages: [{ path, document_id, actions, skipped, duplicate_of, note }],
+  dry_run, reindexed, note }`.
+  - Without `--force`, a copy answers `skipped: "needs_force"`, with the
+    cascade in `note`.
+  - Naming the original answers `skipped: "older_copy"`, and `note` names the
+    newer copy.
+  - With `--force`, the copy answers `actions: ["reminted"]` and a new
+    `document_id`, and the original is left untouched.
+  - rc 0 throughout.
 
 ### 2.8 `git sync`
 

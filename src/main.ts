@@ -18,6 +18,9 @@ import { homedir } from 'node:os'
 import { effectivePath, findBinary, matchWiki } from './wiki/resolve'
 import { AutoSave } from './vault/autosave'
 import { NewNoteTemplates } from './vault/templates'
+import { CopyWatch } from './vault/copies'
+import { TitleFollowsName } from './vault/titles'
+import { DEFAULT_LAYOUT, layoutFrom, setLayout, type LayoutAnswer } from './wiki/layout'
 import { PageHistory } from './ui/pageHistory'
 
 export default class LlmWikiPlugin extends Plugin {
@@ -45,6 +48,8 @@ export default class LlmWikiPlugin extends Plugin {
   readonly autosave = new AutoSave(this)
   private readonly templates = new NewNoteTemplates(this)
   private readonly history = new PageHistory(this)
+  private readonly copies = new CopyWatch(this)
+  private readonly titles = new TitleFollowsName(this)
 
   async onload(): Promise<void> {
     await this.loadSettings()
@@ -82,6 +87,8 @@ export default class LlmWikiPlugin extends Plugin {
     this.autosave.register()
     this.templates.register()
     this.history.register()
+    this.copies.register()
+    this.titles.register()
     this.registerEvent(this.app.workspace.on('llm-wiki:saved' as 'layout-change', () => this.showStatus()))
     this.addCommand({ id: 'redetect', name: 'Re-detect wiki and binaries', callback: () => void this.detect(true) })
     this.statusBar = this.addStatusBarItem()
@@ -155,6 +162,7 @@ export default class LlmWikiPlugin extends Plugin {
       if (!row) throw new Error(`the vault is not a registered wiki (${(rows.wikis ?? []).length} registered); join it, or set the wiki key in the plugin settings`)
       this.wiki = { key: row.key, name: row.name, root: vault }
       this.actions = new Actions(this.cli, row.key)
+      await this.readLayout(row.key)
     } catch (e) {
       this.problem = e instanceof Error ? e.message : String(e)
       this.actions = null
@@ -173,6 +181,17 @@ export default class LlmWikiPlugin extends Plugin {
     await this.refreshSnapshot()
     // The runner is known now: save what was left unsaved, and pull, unless it does that.
     this.autosave.onReady()
+  }
+
+  /** The wiki's own trees, from the CLI; a CLI from before `whereami` said them keeps the seeded defaults. */
+  private async readLayout(key: string): Promise<void> {
+    try {
+      const a = await this.cli?.run<{ wiki?: { layout?: LayoutAnswer } }>('wiki.whereami', { wiki: key })
+      setLayout(layoutFrom(a?.wiki?.layout))
+    } catch (e) {
+      setLayout(DEFAULT_LAYOUT)
+      log.warn(`layout: ${e instanceof Error ? e.message : String(e)}; using the seeded one`)
+    }
   }
 
   /** Reads the wiki once; views redraw on the `llm-wiki:snapshot` event. Coalesces concurrent calls. */

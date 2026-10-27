@@ -25,9 +25,10 @@ export function settlingOf(e: unknown): { path: string; age: number } | null {
 
 /**
  * A judgment the settle window held, in a person's words. The window keeps the
- * pipeline off a page someone is typing in, and cannot yet tell that from the
- * editor's own click (llm-wiki-plugins #3687). Named pages are judged all or
- * nothing, so one held page holds the lot.
+ * pipeline off a page someone is typing in; the plugin's clicks run under the
+ * `editor` origin, which lifts it, so only a CLI from before llm-wiki-plugins
+ * #3687 answers this. Named pages are judged all or nothing, so one held page
+ * holds the lot.
  */
 function held(verb: 'accept' | 'archive', paths: string[], e: unknown): Outcome {
   const s = settlingOf(e)
@@ -142,6 +143,21 @@ export class Actions {
     }
   }
 
+  /**
+   * A copy Obsidian just made carries its original's `document_id`: give the copy one of its own. The CLI picks the
+   * newer page by git and refuses the original by name, so a wrong guess here writes nothing.
+   */
+  async fixCopy(path: string): Promise<Outcome & { reminted: boolean }> {
+    try {
+      const a = await this.cli.run<FixAnswer>('wiki.page.fix', { wiki: this.wiki, paths: [path], force: true })
+      const row = a.pages?.find((p) => p.path === path)
+      if (row?.actions?.includes('reminted')) return { ok: true, reminted: true, message: `${path} is a copy, so it has its own identity now, as a new page` }
+      return { ok: true, reminted: false, message: row?.note ?? `${path} needed no repair` }
+    } catch (e) {
+      return { ...failed(`could not give ${path} its own identity`, e), reminted: false }
+    }
+  }
+
   /** Store a secret (on stdin) or adopt a folder, then bind it where asked. The value is never echoed, not even in the Notice. */
   async setCredential(name: string, value: { kind: 'value'; secret: string } | { kind: 'dir'; dir: string }, bindTo: { skill?: string; job?: string; slot: string }[]): Promise<Outcome> {
     try {
@@ -236,6 +252,11 @@ export class Actions {
 interface CommitAnswer {
   commits?: object[]
   settling?: string[]
+}
+
+/** `page fix`'s answer, `OPS/commands/page/fix.py`: per page what was done, or why not (`needs_force`, `older_copy`). */
+interface FixAnswer {
+  pages?: { path: string; actions?: string[]; skipped?: string | null; note?: string | null }[]
 }
 
 /** `git sync`'s answer, `OPS/lib/git/sync.py` `Synced`. */

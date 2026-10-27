@@ -44,6 +44,8 @@ export interface Args {
   dirs?: string[]
   /** One vault-relative page, for the verbs that read a single page. */
   path?: string
+  /** `page fix`: re-mint a copy's shared id, which the CLI asks a person for. */
+  force?: boolean
 }
 
 /** The `filter=` kinds `search query` takes (`OPS/commands/search/query.py`), each a string. */
@@ -101,6 +103,7 @@ const ONE_LINE = /^[^\x00-\x1f]{1,200}$/
 const COMMIT = /^[0-9a-f]{7,64}$/
 const TREE = /^[a-z][a-z0-9_-]{0,63}$/
 const DAY = /^\d{4}-\d{2}-\d{2}$/
+const DOCUMENT_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/
 // The range bounds take one value and no negation: the CLI refuses either by name.
 const RANGE_KINDS: ReadonlySet<string> = new Set(['captured_from', 'captured_to'])
 
@@ -199,6 +202,11 @@ function commit(v: string | undefined): string {
   return v
 }
 
+function documentId(v: string | undefined): string {
+  if (!v || !DOCUMENT_ID.test(v)) throw new CliError(`bad document id: ${String(v)}`, 'args')
+  return v
+}
+
 function trees(v: string[] | undefined): string[] {
   return (v ?? []).map((d) => {
     if (!TREE.test(d)) throw new CliError(`bad tree: ${d}`, 'args')
@@ -250,6 +258,14 @@ export const VERBS = {
   'wiki.status': (a: Args) => wiki(a, 'status', '--peers'),
   'wiki.git.log': (a: Args) => wiki(a, 'git', 'log', since(a.since, '7d')),
   'wiki.page.history': (a: Args) => wiki(a, 'page', 'history', rel(a.path ?? '')),
+  /** What changed in a page: the edits since the last save, or with `commit` that commit's own change. */
+  'wiki.page.diff': (a: Args) => wiki(a, 'page', 'diff', rel(a.path ?? ''), ...(a.commit === undefined ? [] : [`commit=${commit(a.commit)}`])),
+  /** Every page carrying one `document_id`, wherever each sits. */
+  'wiki.page.find': (a: Args) => wiki(a, 'page', 'ls', `id=${documentId(a.id)}`),
+  /** Where the wiki is and its resolved layout: the trees, raw captures, templates. */
+  'wiki.whereami': (a: Args) => wiki(a, 'whereami'),
+  /** Each uncommitted path under the swept trees, with how it changed. */
+  'wiki.git.status': (a: Args) => wiki(a, 'git', 'status'),
   /** The frontmatter and body a template would add to a page; writes nothing. */
   'wiki.page.template': (a: Args) => wiki(a, 'page', 'template', rel(a.path ?? '')),
   'wiki.skills.ls': (a: Args) => wiki(a, 'skills', 'ls'),
@@ -280,6 +296,8 @@ export const VERBS = {
   'wiki.credentials.remove': (a: Args) => write(a, 'credentials', 'remove', credential(a.name)),
   // Mint identity into pages the wiki does not know yet.
   'wiki.page.adopt': (a: Args) => write(a, 'page', 'adopt', ...paths(a.paths)),
+  // Frontmatter repairs; with `force`, a copy Obsidian just made gets its own id (the CLI refuses the older copy by name).
+  'wiki.page.fix': (a: Args) => write(a, 'page', 'fix', ...paths(a.paths), ...(a.force ? ['--force'] : [])),
   /** The sweep: every uncommitted change under the wiki's trees, adopted, observed and committed by author. */
   'wiki.git.commit': (a: Args) => write(a, 'git', 'commit'),
   'wiki.git.sync': (a: Args) => write(a, 'git', 'sync'),
@@ -305,18 +323,27 @@ export type Verb = keyof typeof VERBS
 /** Writes a person asked for by clicking; the ones the CLI would otherwise ask a terminal to confirm are marked attended. */
 const ATTENDED: ReadonlySet<Verb> = new Set<Verb>(['wiki.credentials.set', 'wiki.credentials.bind', 'wiki.credentials.login', 'wiki.credentials.remove'])
 
+/**
+ * Page writes from the editor itself: a click, or the sweep of what was typed here. Under the `editor` origin the
+ * CLI lifts its settle window (llm-wiki-plugins #3687): the person editing is the one asking, so there is nothing to
+ * wait out.
+ */
+const EDITOR: ReadonlySet<Verb> = new Set<Verb>(['wiki.page.curate', 'wiki.page.adopt', 'wiki.page.fix', 'wiki.git.commit'])
+
 const WRITES: ReadonlySet<Verb> = new Set<Verb>([
-  'wiki.harness.run', 'wiki.jobs.request', 'wiki.jobs.pause', 'wiki.jobs.resume', 'wiki.tickets.retry', 'wiki.page.curate', 'wiki.page.adopt', 'wiki.git.commit', 'wiki.git.sync', 'wiki.search.index', 'wiki.search.reindex',
-  'wiki.credentials.ls', 'wiki.credentials.bindings', ...ATTENDED,
+  'wiki.harness.run', 'wiki.jobs.request', 'wiki.jobs.pause', 'wiki.jobs.resume', 'wiki.tickets.retry', 'wiki.git.sync', 'wiki.search.index', 'wiki.search.reindex',
+  'wiki.credentials.ls', 'wiki.credentials.bindings', ...ATTENDED, ...EDITOR,
 ])
 
-/** The child's environment: the read floor unless the verb writes, and the attendance mark on a protected write. */
+/** The child's environment: the read floor unless the verb writes, the attendance mark on a protected write, and the editor origin on a page write. */
 export function childEnv(base: NodeJS.ProcessEnv, verb: Verb): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...base }
   if (WRITES.has(verb)) delete env.LLM_WIKI_PERMISSIONS
   else env.LLM_WIKI_PERMISSIONS = 'read'
   if (ATTENDED.has(verb)) env.LLM_WIKI_SESSION_ATTENDED = '1'
   else delete env.LLM_WIKI_SESSION_ATTENDED
+  if (EDITOR.has(verb)) env.LLM_WIKI_SESSION_ORIGIN = 'editor'
+  else delete env.LLM_WIKI_SESSION_ORIGIN
   return env
 }
 

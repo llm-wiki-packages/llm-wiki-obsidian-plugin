@@ -55,6 +55,7 @@ function reader(answers: Partial<Record<Verb, unknown>>): Reader {
 const EMPTY_UNITS: Partial<Record<Verb, unknown>> = {
   'wiki.status': { machine: 'mac', git: { dirty: 0, untracked: 0, unpushed: 0, behind: 0 }, peers: [] },
   'wiki.git.log': { commits: [] },
+  'wiki.git.status': { files: [] },
   'wiki.skills.ls': { skills: [] },
   'wiki.skills.doctor': { findings: [] },
   'wiki.packages.ls': { this_wiki: [] },
@@ -85,6 +86,7 @@ const GMAIL: Partial<Record<Verb, unknown>> = {
   'wiki.credentials.bindings': { skills: [], jobs: [] },
   'wiki.status': { machine: 'mac', git: { dirty: 0, untracked: 0, unpushed: 0, behind: 0 }, peers: [] },
   'wiki.git.log': { commits: [] },
+  'wiki.git.status': { files: [] },
 }
 
 describe('takeSnapshot: skills and credentials', () => {
@@ -262,7 +264,8 @@ describe('takeSnapshot', () => {
           { machine: 'mac', state: 'no-cadence', last_seen: '2026-10-23T11:00:00Z', capabilities: {} },
           { machine: 'mini', state: 'healthy', last_seen: '2026-10-23T11:58:00Z', capabilities: { 'channel-youtube': { harvest: 'ready', process: 'ready' }, 'PLUGIN:index': { index: 'ready' }, 'channel-gmail': 'disabled' } },
         ] },
-        'wiki.git.log': { commits: [{ sha: 'abc1234', at: '2026-10-23T11:30:00Z', subject: 'sweep 2 files', op: 'none', actor: 'user@mac' }] },
+        'wiki.git.log': { commits: [{ sha: 'abc1234', at: '2026-10-23T11:30:00Z', subject: 'sweep 2 files', op: 'none', actor: 'user@mac', files: [{ path: 'sources/web/a.md', status: 'A' }, { path: 'wiki/w.md', status: 'M' }] }] },
+        'wiki.git.status': { files: [{ path: 'sources/web/b.md', status: 'modified' }, { path: 'sources/notes/n.md', status: 'untracked' }] },
       }),
       'kb',
       NOW,
@@ -271,7 +274,7 @@ describe('takeSnapshot', () => {
     expect(snap.pages?.map((p) => p.state)).toEqual(['new', 'draft', 'accepted', 'archived', 'none'])
     expect(snap.machine).toBe('mac')
     expect(snap.fleet.map((m) => [m.name, m.me, m.roles])).toEqual([['mac', true, []], ['mini', false, ['harvest', 'index', 'process']]])
-    expect(snap.sync).toEqual({ dirty: 2, untracked: 1, unpushed: 3, behind: 0, upstream: 'origin/main' })
-    expect(snap.activity).toEqual([{ sha: 'abc1234', at: '2026-10-23T11:30:00Z', subject: 'sweep 2 files', op: 'none', actor: 'user@mac' }])
+    expect(snap.sync).toEqual({ dirty: 2, untracked: 1, unpushed: 3, behind: 0, upstream: 'origin/main', files: [{ path: 'sources/web/b.md', status: 'modified' }, { path: 'sources/notes/n.md', status: 'untracked' }] })
+    expect(snap.activity).toEqual([{ sha: 'abc1234', at: '2026-10-23T11:30:00Z', subject: 'sweep 2 files', op: 'none', actor: 'user@mac', files: [{ path: 'sources/web/a.md', status: 'A' }, { path: 'wiki/w.md', status: 'M' }] }])
   })
 })

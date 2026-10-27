@@ -4,7 +4,7 @@
 import type { Args, Verb } from './cli'
 import { parseSkill } from '../chat/skills'
 import { slotWords } from './slots'
-import type { AttentionItem, Commit, CredentialView, JobView, MachineView, PageItem, PageState, RecentRun, SearchStatus, SkillView, SlotView, Snapshot, SyncState, TicketView } from './model'
+import type { AttentionItem, Commit, CommitFile, CredentialView, JobView, MachineView, PageItem, PageState, RecentRun, SearchStatus, SkillView, SlotView, Snapshot, SyncState, TicketView, UnsavedFile } from './model'
 import { isFeed } from './layout'
 import { slash } from '../chat/skills'
 
@@ -83,7 +83,11 @@ export interface StatusAnswer {
   peers?: { machine: string; state: string; last_seen?: string | null; capabilities?: Record<string, string | Record<string, string>>; detail?: string }[] | null
 }
 export interface GitLogAnswer {
-  commits?: { sha: string; at: string; subject: string; op?: string; actor?: string }[]
+  commits?: { sha: string; at: string; subject: string; op?: string; actor?: string; files?: CommitFile[] }[]
+}
+/** `git status` (`OPS/commands/git/status.py`): the paths behind `status`'s counts. */
+export interface GitStatusAnswer {
+  files?: UnsavedFile[]
 }
 export interface OpSinceAnswer {
   runs?: { op: string; outcome: string; when: string; summary: string }[]
@@ -169,7 +173,7 @@ export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now(
   }
   const light = previous !== undefined
   const skip = <T>(): Promise<T | null> => Promise.resolve(null)
-  const [doctor, jobsLs, due, tickets, pages, ops, search, conflicts, status, gitLog, runnerLs, skillsLs, skillsDoctor, packagesLs, credentialsLs, bindings] = await Promise.all([
+  const [doctor, jobsLs, due, tickets, pages, ops, search, conflicts, status, gitLog, gitStatus, runnerLs, skillsLs, skillsDoctor, packagesLs, credentialsLs, bindings] = await Promise.all([
     soft<DoctorAnswer>('wiki.doctor'),
     soft<JobsLsAnswer>('wiki.jobs.ls'),
     soft<JobsDueAnswer>('wiki.jobs.due'),
@@ -180,6 +184,7 @@ export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now(
     soft<{ pages?: string[] }>('wiki.git.conflicts'),
     soft<StatusAnswer>('wiki.status'),
     soft<GitLogAnswer>('wiki.git.log', { since: '7d' }),
+    soft<GitStatusAnswer>('wiki.git.status'),
     light ? skip<RunnerLsAnswer>() : soft<RunnerLsAnswer>('machine.runner.ls'),
     light ? skip<SkillsLsAnswer>() : soft<SkillsLsAnswer>('wiki.skills.ls'),
     light ? skip<SkillsDoctorAnswer>() : soft<SkillsDoctorAnswer>('wiki.skills.doctor'),
@@ -250,7 +255,7 @@ export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now(
     activity: (gitLog?.commits ?? []).map(commitOf),
     machine: status?.machine ?? null,
     fleet: fleetOf(status),
-    sync: syncOf(status),
+    sync: syncOf(status, gitStatus),
     search,
     errors,
   }
@@ -518,7 +523,7 @@ function pageItem(p: PageRow): PageItem {
 }
 
 function commitOf(c: NonNullable<GitLogAnswer['commits']>[number]): Commit {
-  return { sha: c.sha, at: c.at, subject: c.subject, op: c.op ?? 'none', actor: c.actor ?? '' }
+  return { sha: c.sha, at: c.at, subject: c.subject, op: c.op ?? 'none', actor: c.actor ?? '', ...(c.files ? { files: c.files } : {}) }
 }
 
 /** The stages a machine says it takes: every stage word `ready`, and the plugin engines by name. */
@@ -538,10 +543,10 @@ function fleetOf(s: StatusAnswer | null): MachineView[] {
   return (s?.peers ?? []).map((p) => ({ name: p.machine, state: p.state, lastSeen: p.last_seen ?? null, roles: rolesOf(p.capabilities), me: p.machine === s?.machine, ...(p.detail ? { detail: p.detail } : {}) }))
 }
 
-function syncOf(s: StatusAnswer | null): SyncState | null {
+function syncOf(s: StatusAnswer | null, files: GitStatusAnswer | null): SyncState | null {
   const g = s?.git
   if (!g) return null
-  return { dirty: g.dirty ?? null, untracked: g.untracked ?? null, unpushed: g.unpushed ?? null, behind: g.behind ?? 0, upstream: g.upstream ?? null }
+  return { dirty: g.dirty ?? null, untracked: g.untracked ?? null, unpushed: g.unpushed ?? null, behind: g.behind ?? 0, upstream: g.upstream ?? null, files: files?.files ?? null }
 }
 
 function recentRun(r: NonNullable<OpSinceAnswer['runs']>[number], jobs: JobRow[]): RecentRun {

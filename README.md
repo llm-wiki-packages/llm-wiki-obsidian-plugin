@@ -36,8 +36,9 @@ the gear opens the plugin settings.
   big group folds to one row) with **Accept** (into the wiki, through `page
   curate`), **Draft** (hold it; ticks the `Draft` box) and **Archive…**
   (`page curate reject=`); **Drafts**, every page you are holding, beside a
-  live preview; **Activity**, the week's commits by who made them. A strip
-  on top says what edits here are not in history yet, with **Save now**.
+  live preview; **Activity**, the week's commits by who made them, each with
+  the files it added, edited or deleted. A strip on top lists the edits here
+  not in history yet, with **Save now**. Every file name opens its diff.
 - **Jobs**: grouped by state (needs you, running, due, scheduled, manual,
   paused), each row with its schedule, last run (a failure shows its reason)
   and what it is waiting on in plain words, one primary button (Set or
@@ -135,7 +136,12 @@ live on the dashboard's Skills tab.
 
 **Every note** gets a history icon in its header, beside Obsidian's own: a
 dot while it has edits not yet in history; a click shows when and by whom it
-was last saved, the last ten commits, **Save now**, and **Local snapshots…**.
+was last saved, the last ten commits, **See edits**, **Save now**, and
+**Local snapshots…**. A commit opens what it changed in the page (`page
+diff`): properties listed apart from the body, with Older and Newer. History
+follows a rename. Renaming a page in Obsidian sets its `title:` to the new
+name. A copy made in Obsidian gets its own `document_id` (`page fix
+--force`), so the wiki never counts two pages as one.
 A blank note made in Obsidian starts from the wiki's template for its folder
 (`page template`), the same frontmatter a page the agent makes gets. Without
 a runner on this machine, edits are saved to history two quiet minutes after
@@ -214,6 +220,7 @@ Add `LLM_WIKI_E2E_SANDBOX=<sandbox>` to also hold a real sandboxed chat: a few h
 | `src/wiki/layout.ts` | where things live in a wiki (feeds, wiki, research, templates, raw) and the two box names; the only place a tree is spelled |
 | `src/vault/` | what Obsidian knows of a page, the Draft and Archive boxes, grouping, saving edits to history, templates on new notes |
 | `src/ui/pageHistory.ts` | the history icon in every note's header |
+| `src/ui/diffModal.ts`, `src/wiki/diff.ts` | one page's change, from `page diff` |
 | `src/views/dashboard/` | the one view: `index.ts` (header, tabs, action routing), one file per data tab |
 | `src/views/chat.ts`, `src/views/search.ts` | the Chat and Search panes the view hosts |
 | `src/ui/` | DOM helpers, the prompt and confirm modals, the credential dialog, the skill inspector |
@@ -234,6 +241,10 @@ plus one case in `main.ts`'s `backend()`.
   job, retry a ticket, accept or archive a page, adopt a page, save to
   history and sync (`git commit`, `git sync`), reindex, and `harness run`.
   The Draft and Archive boxes are ticked through Obsidian, as a person would.
+- **The editor's page writes say so.** Accept, Archive, adopt, a copy's
+  repair and the sweep run with `LLM_WIKI_SESSION_ORIGIN=editor` (`EDITOR` in
+  `src/wiki/cli.ts`), which lifts the CLI's settle window: the person editing
+  is the one asking.
 - **Nothing on screen says running or due that the ticket store does not.**
   Run is optimistic for one poll; the row's state comes from `tickets ls`.
 - **The agent is attended.** The session carries `LLM_WIKI_SESSION_ATTENDED=1`

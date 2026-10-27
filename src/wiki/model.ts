@@ -144,6 +144,20 @@ export interface SyncState {
   unpushed: number | null
   behind: number
   upstream: string | null
+  /** Each uncommitted path under the swept trees, from `git status`; null on a CLI without it. */
+  files: UnsavedFile[] | null
+}
+
+/** One uncommitted path, `git status`'s row. */
+export interface UnsavedFile {
+  path: string
+  status: 'added' | 'modified' | 'deleted' | 'untracked'
+}
+
+/** One path a commit touched: added, modified, deleted (and `R`, `C`, `T` as git spells them). */
+export interface CommitFile {
+  path: string
+  status: string
 }
 
 /** One commit, read off its trailers. */
@@ -154,6 +168,11 @@ export interface Commit {
   op: string
   /** `user@<machine>`, `agent@<machine>`, or a producer. */
   actor: string
+  /** What it touched, when the CLI lists files (`git log`, llm-wiki-plugins #3675 ask 6). */
+  files?: CommitFile[]
+  /** `page history`: the page's path and `document_revision` at this commit. */
+  path?: string
+  revision?: number | null
 }
 
 export interface RecentRun {

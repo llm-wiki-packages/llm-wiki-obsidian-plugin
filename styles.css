@@ -371,6 +371,8 @@ tr:focus-visible, .llm-wiki-row:focus-visible { outline: 2px solid var(--interac
 .llm-wiki-history-row { display: flex; align-items: baseline; gap: var(--size-4-2); padding: var(--size-2-2) 0; font-size: var(--font-ui-small); }
 .llm-wiki-history-row .llm-wiki-row-detail { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .llm-wiki-history-when { width: 4.5em; flex: none; color: var(--text-faint); font-size: var(--font-ui-smaller); }
+.llm-wiki-history-row.is-link { cursor: pointer; border-radius: var(--radius-s); padding-inline: var(--size-2-2); margin-inline: calc(-1 * var(--size-2-2)); }
+.llm-wiki-history-row.is-link:hover, .llm-wiki-history-row.is-link:focus-visible { background: var(--background-modifier-hover); }
 .llm-wiki-history-foot { display: flex; justify-content: flex-end; border-top: 1px solid var(--background-modifier-border); padding-top: var(--size-4-2); }
 
 /* Chat, cycle 10: tool rows that open their page, cards that fold away, tighter markdown */
@@ -434,3 +436,41 @@ a.llm-wiki-tool-file:hover { opacity: 1; text-decoration: underline; }
 .llm-wiki-tool-pre .is-added { color: var(--color-green); }
 .llm-wiki-tool-pre .is-removed { color: var(--color-red); }
 .llm-wiki-work-head .llm-wiki-tool-mark { margin-left: var(--size-2-3); }
+
+/* Files a commit touched, and the ones not saved yet: each opens its diff. */
+.llm-wiki-activity-item { padding-bottom: var(--size-2-2); }
+.llm-wiki-files { display: flex; flex-direction: column; gap: 1px; padding-inline-start: calc(5.5em + var(--size-4-2)); font-size: var(--font-ui-smaller); }
+.llm-wiki-unsaved .llm-wiki-files { padding-inline-start: 0; margin-top: var(--size-2-2); }
+.llm-wiki-file { display: flex; align-items: baseline; gap: var(--size-4-2); min-width: 0; }
+.llm-wiki-file-change { flex: none; width: 4.5em; color: var(--text-faint); }
+.llm-wiki-file-change.is-added, .llm-wiki-file-change.is-new { color: var(--color-green); }
+.llm-wiki-file-change.is-deleted { color: var(--color-red); }
+.llm-wiki-file-path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-muted); }
+a.llm-wiki-file-path { cursor: pointer; text-decoration: none; }
+a.llm-wiki-file-path:hover, a.llm-wiki-file-path:focus-visible { color: var(--text-accent); text-decoration: underline; }
+.llm-wiki-file-more { color: var(--text-faint); cursor: pointer; }
+
+/* The diff: what happened, the properties that changed, then the page's hunks. */
+.llm-wiki-diff-modal { width: min(760px, 92vw); }
+.llm-wiki-diff-head { display: flex; align-items: center; gap: var(--size-4-3); padding-bottom: var(--size-4-2); border-bottom: 1px solid var(--background-modifier-border); }
+.llm-wiki-diff-head .llm-wiki-row-actions { flex: none; align-items: center; gap: var(--size-4-2); }
+.llm-wiki-diff-body { display: flex; flex-direction: column; gap: var(--size-4-2); padding-top: var(--size-4-3); }
+.llm-wiki-diff-summary { color: var(--text-muted); font-size: var(--font-ui-small); }
+.llm-wiki-diff-label { font-size: var(--font-ui-smaller); font-weight: var(--font-semibold); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-top: var(--size-4-2); }
+.llm-wiki-diff-props { display: grid; grid-template-columns: max-content 1fr; gap: var(--size-2-2) var(--size-4-4); font-size: var(--font-ui-small); }
+.llm-wiki-diff-key { font-family: var(--font-monospace); color: var(--text-muted); }
+.llm-wiki-diff-value { overflow-wrap: anywhere; }
+.llm-wiki-diff-old { color: var(--color-red); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--color-red) 50%, transparent); }
+.llm-wiki-diff-new { color: var(--color-green); }
+.llm-wiki-diff-arrow { color: var(--text-faint); }
+.llm-wiki-diff-hunk { border: 1px solid var(--background-modifier-border); border-radius: var(--radius-s); overflow: hidden; font-family: var(--font-monospace); font-size: var(--font-ui-smaller); }
+.llm-wiki-diff-at { padding: var(--size-2-1) var(--size-4-2); background: var(--background-secondary); color: var(--text-faint); }
+.llm-wiki-diff-line { display: grid; grid-template-columns: 3.2em 3.2em 1.4em 1fr; }
+.llm-wiki-diff-line.is-added { background: color-mix(in srgb, var(--color-green) 12%, transparent); }
+.llm-wiki-diff-line.is-removed { background: color-mix(in srgb, var(--color-red) 12%, transparent); }
+.llm-wiki-diff-num { text-align: end; padding-inline-end: var(--size-2-3); color: var(--text-faint); user-select: none; }
+.llm-wiki-diff-sign { text-align: center; color: var(--text-faint); user-select: none; }
+.llm-wiki-diff-line.is-added .llm-wiki-diff-sign { color: var(--color-green); }
+.llm-wiki-diff-line.is-removed .llm-wiki-diff-sign { color: var(--color-red); }
+.llm-wiki-diff-text { white-space: pre-wrap; overflow-wrap: anywhere; padding-inline-end: var(--size-4-2); }
+.llm-wiki-diff-foot { justify-content: flex-end; margin-top: var(--size-4-3); }
