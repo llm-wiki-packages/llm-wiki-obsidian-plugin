@@ -3,7 +3,7 @@ import type LlmWikiPlugin from '../../main'
 import { button, icon } from '../../ui/dom'
 import type { Action, Snapshot } from '../../wiki/model'
 import { renderCredentials } from './credentials'
-import { renderIngest } from './ingest'
+import { renderChanges } from './changes'
 import { renderJobs } from './jobs'
 import { renderOverview } from './overview'
 import { PLUGIN_NAMESPACE } from '../../chat/skills'
@@ -16,18 +16,18 @@ import type { JobView } from '../../wiki/model'
 
 export const VIEW_DASHBOARD = 'llm-wiki-dashboard'
 
-export type Tab = 'overview' | 'jobs' | 'skills' | 'credentials' | 'ingest' | 'search' | 'chat'
+export type Tab = 'overview' | 'changes' | 'jobs' | 'skills' | 'credentials' | 'search' | 'chat'
 /** What a person reaches for every day, in the first row. */
 const TABS: { id: Tab; label: string }[] = [
   { id: 'chat', label: 'Chat' },
   { id: 'search', label: 'Search' },
   { id: 'overview', label: 'Overview' },
+  { id: 'changes', label: 'Changes' },
 ]
 /** Under More, on a second row: running the wiki, which is less often. */
 const MORE: { id: Tab; label: string }[] = [
   { id: 'jobs', label: 'Jobs' },
   { id: 'skills', label: 'Skills' },
-  { id: 'ingest', label: 'Ingest' },
   { id: 'credentials', label: 'Credentials' },
 ]
 /** Panes that keep their own state and never redraw on a snapshot. */
@@ -42,6 +42,8 @@ export interface TabContext {
   /** A write the tab asked for; the dashboard refreshes after it and reports the outcome. `quiet` skips the Notice when the row itself will show the change. */
   write(run: () => Promise<{ ok: boolean; message: string }>, quiet?: boolean): Promise<void>
   goTo(tab: Tab): void
+  /** Draw the current tab again from the same snapshot: a filter or a selection changed. */
+  redraw(): void
   /** Per-view scratch a tab keeps across renders: a filter, an expansion. */
   memo: Record<string, unknown>
 }
@@ -67,6 +69,7 @@ export class DashboardView extends ItemView {
   private chatEl!: HTMLElement
   private searchEl!: HTMLElement
   private readonly memo: Record<string, unknown> = {}
+  private redrawTimer: number | null = null
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -93,8 +96,8 @@ export class DashboardView extends ItemView {
 
   async setState(state: unknown, result: { history: boolean }): Promise<void> {
     const saved = (state as { tab?: string } | null)?.tab
-    // 'pages' was the Ingest tab's name before cycle 6.
-    const tab = saved === 'pages' ? 'ingest' : saved
+    // 'pages', then 'ingest', were the Changes tab's names before.
+    const tab = saved === 'pages' || saved === 'ingest' ? 'changes' : saved
     if (tab && [...TABS, ...MORE].some((t) => t.id === tab)) this.tab = tab as Tab
     await super.setState(state, result)
     if (this.panel) this.render()
@@ -133,9 +136,18 @@ export class DashboardView extends ItemView {
     this.search = this.addChild(new SearchPane(this.plugin, this.searchEl))
     this.chat = this.addChild(new ChatPane(this.plugin, this.chatEl))
     this.registerEvent(this.app.workspace.on('llm-wiki:snapshot' as 'layout-change', () => this.render()))
+    // A box ticked in a note, or a save, changes what Changes shows before the next read.
+    this.registerEvent(this.app.workspace.on('llm-wiki:saved' as 'layout-change', () => this.renderIf('changes', 'overview')))
+    this.registerEvent(this.app.metadataCache.on('changed', () => this.renderIf('changes')))
     this.registerEvent(this.app.workspace.on('llm-wiki:detected' as 'layout-change', () => void this.refresh()))
     this.render()
     void this.refresh()
+    return Promise.resolve()
+  }
+
+  onClose(): Promise<void> {
+    if (this.redrawTimer !== null) window.clearTimeout(this.redrawTimer)
+    ;(this.memo['changes.renderer'] as { unload(): void } | undefined)?.unload()
     return Promise.resolve()
   }
 
@@ -152,6 +164,16 @@ export class DashboardView extends ItemView {
     this.render()
     if (tab === 'chat') this.chat.focus()
     if (tab === 'search') this.search.focus()
+  }
+
+  /** Redraw only when one of these tabs is showing, so a keystroke elsewhere costs nothing. */
+  private renderIf(...tabs: Tab[]): void {
+    if (!tabs.includes(this.tab) || !this.panel) return
+    if (this.redrawTimer !== null) window.clearTimeout(this.redrawTimer)
+    this.redrawTimer = window.setTimeout(() => {
+      this.redrawTimer = null
+      this.render()
+    }, 300)
   }
 
   private refresh(): Promise<void> {
@@ -185,6 +207,9 @@ export class DashboardView extends ItemView {
     }
     this.tabBar.show()
     this.moreBar.toggle(inMore)
+    const fresh = (snapshot.pages ?? []).filter((p) => p.state === 'new').length
+    const changesTab = this.tabBar.querySelector<HTMLElement>('[data-tab="changes"]')
+    if (changesTab) changesTab.setText(fresh ? `Changes · ${fresh}` : 'Changes')
     this.healthPill.setText(snapshot.health.count ? `${snapshot.health.count} need you` : 'ok')
     this.healthPill.className = `llm-wiki-pill llm-wiki-pill-button is-${snapshot.health.tone}`
     const needs = snapshot.attention.filter((a) => a.severity !== 'info').map((a) => a.title)
@@ -217,8 +242,8 @@ export class DashboardView extends ItemView {
       case 'credentials':
         renderCredentials(this.panel, ctx)
         break
-      case 'ingest':
-        renderIngest(this.panel, ctx)
+      case 'changes':
+        renderChanges(this.panel, ctx)
         break
       case 'search':
       case 'chat':
@@ -273,6 +298,7 @@ export class DashboardView extends ItemView {
       act: (a) => this.act(a),
       write: (run, quiet) => this.write(run, quiet),
       goTo: (t) => this.goTo(t),
+      redraw: () => this.render(),
       memo: this.memo,
     }
   }

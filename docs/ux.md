@@ -15,9 +15,10 @@ the pulling, which Obsidian hides under `.llm-wiki/skills` and
 ## Surfaces
 
 ### Status bar (bottom of Obsidian)
-`llm-wiki · ok` / `llm-wiki · 2 need you` / `llm-wiki · 1 stopped` (when every
-item is a stopped job) / `llm-wiki · running Joe's mailbox` (only when nothing
-needs a person) / `llm-wiki · not ready`. Click opens the dashboard. A job
+`Brain · ok` / `Brain · 2 need you` / `Brain · 1 stopped` (when every
+item is a stopped job) / `Brain · running Joe's mailbox` (only when nothing
+needs a person) / `Brain · not ready`, then quietly what history owes:
+`· 3 unsaved`, `· saving`, or `· ↑2` unpushed. Click opens the dashboard. A job
 that stops between two polls raises an Obsidian Notice; writes whose row
 visibly changes (accept, pause, remove…) raise none.
 
@@ -25,14 +26,18 @@ visibly changes (accept, pause, remove…) raise none.
 Header: title, one health pill (`ok` or `N need you`; a button: hover lists
 what needs you, click opens the Overview from any tab), refreshed time,
 Refresh (icon), a gear for the plugin settings. The header reads **Brain**. Tabs,
-remembered per leaf: Chat, Search, Overview on the left; **More** at the far
-right, which shows a second row (Jobs, Skills, Ingest, Credentials) and
+remembered per leaf: Chat, Search, Overview, Changes (with the count of new
+pages) on the left; **More** at the far right, which shows a second row (Jobs,
+Skills, Credentials) and
 reopens the one last used. A note opened from the view goes to a new tab (Cmd-click: a
 split), never into the view's own leaf. Chat and Search are panes built once and kept across tab
 switches; a snapshot never redraws them. Text is selectable everywhere.
 
-**Overview** — do I need to do anything?
-- One sentence: "2 things need you. Running Curate…. 1 job is due now."
+**Overview** — is the wiki well, which machines carry it, what runs next?
+- One sentence: "Running Curate…. 1 job is due now.", and three pills that
+  open where their state is fixed: *Search* (fresh, N stale, not ready, or
+  grep), *History* (saved, N unsaved, ↑ unpushed, ↓ behind) and *Runner*
+  (here, on another machine, or none).
 - *Needs you* (count = the pill): one row per item, one button each.
   Sources: a job whose skill has an empty credential slot here (**Set
   credential**), a stopped job whose credential is stale or failed (**Replace
@@ -44,14 +49,15 @@ switches; a snapshot never redraws them. Text is selectable everywhere.
   Info rows (an update available, an enabled skill with an empty optional slot)
   follow under a small "Also" label, uncounted. With no runner installed, one
   notice here with **Install the runner** (a chat hand-off).
-- *Running and due*: up to four cards, then "and N more"; a click opens the
-  job's detail dialog.
+- *Fleet*, when more than one machine is joined: the shared remote in the
+  middle and each machine around it with its state (a stuck one red and
+  dashed), when it was last seen and the stages it runs; this machine is
+  outlined.
+- *Jobs*: running jobs as cards, then the next six by time (due first) with
+  when, schedule and last run, **Run now**, and **All jobs**.
+- One line, "Today: 15 new · 3 drafts · 3 saved to history → Changes".
 - A wiki with no jobs shows one card instead: "Nothing is pulling into this
   wiki yet", what a job and a skill are, **Add a source…** and **Browse skills**.
-- *Waiting for curation*: count, first five paths, how many new files under
-  sources/ are not yet in the wiki; Review goes to Pages.
-- *Last day*: "3 runs, 1 failed. 2 pages are waiting for review." then the
-  runs in words (Scheduled pass, Harvest yt-subs · failed, with the summary).
 
 **Jobs** — a table grouped by state (Needs you, Running, Due, Scheduled,
 Manual, Paused), soonest first inside a group; a filter field above 10 rows.
@@ -90,13 +96,6 @@ not verified yet), who uses it; Replace… (the accent only when it is broken
 and used), Remove (confirm names who loses it), Log in for a harness login;
 "Add a credential…". *Needed by an enabled skill*: each empty required slot
 with **Set credential**.
-
-**Ingest** — the intake pipeline, top to bottom, with one line saying so.
-*New under sources/*: files the wiki has not adopted: Adopt / Adopt all;
-an older CLI says it cannot tell. *Awaiting curation*: drafts grouped by
-the folder they landed in, each group with **Accept all in <folder>**; rows
-(title from frontmatter, path): click or Enter opens the note; Accept,
-Reject… (one-line reason); "Ask the agent to curate".
 
 ### Inspect (skill dialog)
 Header: state · version · package, then the unit's description sentence. *What it needs on this machine*: each slot
@@ -195,12 +194,55 @@ nothing) and **Rebuild index** (`search reindex`: every file, drops deleted
 pages; confirms first). The verdict marks one recommended. A grep-only wiki
 says there is no index to go stale and offers neither.
 
+### Changes (tab)
+What happened to my content, and what waits for me. A strip on top when
+edits here are not in history yet: "3 files edited since the last save",
+what will happen to them (saved after two quiet minutes, then synced; or the
+runner saves them; or saving is off) and **Save now**. Three subtabs:
+- **New** (the tab's count): pages a job brought in or a person dropped into
+  a feed folder that nobody has judged (#3669's curate candidates). Grouped
+  by the job that brought them, by folder, or not at all; a group over N
+  (default 5) folds to one row ("12 · YouTube · Lex · newest 2h ago") with
+  **Review**, **Archive all…** and **Accept all…** (confirmed over 10). A row
+  shows title, summary, host and age, with **Draft**, **Archive…** and
+  **Accept**. A dismissible line says what each does: Accept takes a page into
+  the wiki and it stays accepted when edited; Draft holds it; Archive takes
+  it out of search and the agent's reach.
+- **Drafts**: every page with the `Draft` box ticked, newest edit first, as a
+  list beside a live preview; **Accept** (curate for a feed page; untick for a
+  wiki or research page) moves to the next draft. A pill says why: on hold,
+  or research.
+- **Activity**: the week's commits by day, each with who in words (You, You ·
+  other machine, a job's name, Dream, Agent) and the subject; chips filter by
+  You, Jobs and Agent.
+
+### Page history (every note's header)
+A history icon beside Obsidian's own view actions, with a dot while the note
+has edits not yet in history. Click: saved or edited, when and by whom it was
+last saved, **Save now**, the last ten commits (when, who, subject), and
+**Local snapshots…** (Obsidian's File recovery). Diffs arrive with the CLI's
+`page diff`.
+
+### New notes
+A blank note made in Obsidian under a content folder gets the wiki's template
+for that folder (`page template`, written through Obsidian's frontmatter API).
+An `Untitled` note gets an empty title, filled from its first real name.
+Command: **Apply the wiki's template to this page**.
+
+### Saving edits to history
+Without a runner on this machine, the plugin runs the CLI's sweep two quiet
+minutes after the last edit, at startup and on Save now, and re-sweeps pages
+the settle window held. **Save and sync** also pulls and pushes; it is
+refused while Obsidian Sync or iCloud syncs the vault. A runner on this
+machine does all of this itself, and the plugin stands back.
+
 ### Commands
 Open dashboard / chat / search, Run a job… (fuzzy), Open a job… (fuzzy, the
 detail dialog), Add a source…, Set a credential… (fuzzy over empty or broken
 slots), Run a skill… (fuzzy), Ask the agent about this note, Refresh,
-Re-detect, **Accept this draft** and **Reject this draft…** (on the active
-note when it is a draft). Rows in every list take focus and open on Enter;
+Re-detect, Open changes, Save edits to history now, Apply the wiki's template
+to this page, **Accept this page into the wiki** and **Archive this page…**
+(on the active note when it is new or a draft). Rows in every list take focus and open on Enter;
 Escape in the composer stops a running turn.
 
 ### Not ready
@@ -213,7 +255,9 @@ one Notice naming the wiki and the binary; settings say what a missing
 
 ### Settings
 Paths to `llm-wiki-cli` and `claude` (login shell PATH by default), wiki key
-override, default chat mode, model, Ask sandbox and skill, search k, debug.
+override, default chat mode, model, Ask sandbox and skill, save edits to
+history (off, on this machine, and sync), apply templates to new notes,
+search k, debug. The Changes tab's grouping and fold threshold are kept too.
 
 ## Flows the design is judged on
 
@@ -330,3 +374,15 @@ name with a "pages written" row that lands on them.
   Credentials under More on a second row. Search: per-hit freshness against
   the page on disk, filters, two marked lines per hit, and the Search index
   dialog with Update and Rebuild.
+- **Cycle 9 (2026-10-27)**: the daily-ops redesign, first half
+  (docs/design-daily-ops.md, issue #6). Tabs are Chat, Search, Overview,
+  Changes; More holds Jobs, Skills, Credentials, and Ingest is gone. Overview
+  is health (a sentence and Search, History and Runner pills), Needs you, a
+  fleet picture from `status --peers` when more than one machine is joined,
+  Jobs (running cards, then the next six with Run now) and one line about
+  today's content. Changes has New (grouped, folding), Drafts (list and
+  preview) and Activity; the verbs are Accept, Draft, Archive. Templates on
+  new notes, saving edits to history without a runner, and a history icon on
+  every note. One layout module (`src/wiki/layout.ts`) is the only place a
+  tree is named. Waiting on llm-wiki-plugins #3675: diffs, duplicate ids,
+  the inline title, the CLI's resolved layout, per-file activity.

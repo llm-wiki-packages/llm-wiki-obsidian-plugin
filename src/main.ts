@@ -16,6 +16,9 @@ import { takeSnapshot } from './wiki/snapshot'
 import { readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { effectivePath, findBinary, matchWiki } from './wiki/resolve'
+import { AutoSave } from './vault/autosave'
+import { NewNoteTemplates } from './vault/templates'
+import { PageHistory } from './ui/pageHistory'
 
 export default class LlmWikiPlugin extends Plugin {
   settings: LlmWikiSettings = DEFAULT_SETTINGS
@@ -39,6 +42,9 @@ export default class LlmWikiPlugin extends Plugin {
   /** What `machine wikis ls` returned, so a not-ready card can offer the registered keys. */
   registered: WikiRow[] = []
   private unloaded = false
+  readonly autosave = new AutoSave(this)
+  private readonly templates = new NewNoteTemplates(this)
+  private readonly history = new PageHistory(this)
 
   async onload(): Promise<void> {
     await this.loadSettings()
@@ -61,11 +67,22 @@ export default class LlmWikiPlugin extends Plugin {
       return true
     } })
     this.addCommand({ id: 'refresh', name: 'Refresh the dashboard', callback: () => void this.refreshSnapshot() })
-    this.addCommand({ id: 'accept-draft', name: 'Accept this draft', checkCallback: (checking) => this.draftCommand(checking, (a, path) => a.accept([path])) })
-    this.addCommand({ id: 'reject-draft', name: 'Reject this draft…', checkCallback: (checking) => this.draftCommand(checking, async (a, path) => {
-      const reason = await promptText(this.app, { title: `Reject ${path}`, placeholder: 'Why? One line; it is stamped on the page.', cta: 'Reject' })
+    this.addCommand({ id: 'open-changes', name: 'Open changes', callback: () => void this.openDashboard('changes') })
+    this.addCommand({ id: 'accept-draft', name: 'Accept this page into the wiki', checkCallback: (checking) => this.draftCommand(checking, (a, path) => a.accept([path])) })
+    this.addCommand({ id: 'reject-draft', name: 'Archive this page…', checkCallback: (checking) => this.draftCommand(checking, async (a, path) => {
+      const reason = await promptText(this.app, { title: `Archive ${path}`, placeholder: 'Why? One line; it is stamped on the page.', cta: 'Archive' })
       return reason ? a.reject(path, reason) : { ok: true, message: '' }
     }) })
+    this.addCommand({ id: 'save-history', name: 'Save edits to history now', checkCallback: (checking) => {
+      const m = this.autosave.mode()
+      if (m !== 'commit' && m !== 'sync') return false
+      if (!checking) void this.autosave.saveNow()
+      return true
+    } })
+    this.autosave.register()
+    this.templates.register()
+    this.history.register()
+    this.registerEvent(this.app.workspace.on('llm-wiki:saved' as 'layout-change', () => this.showStatus()))
     this.addCommand({ id: 'redetect', name: 'Re-detect wiki and binaries', callback: () => void this.detect(true) })
     this.statusBar = this.addStatusBarItem()
     this.statusBar.addClass('mod-clickable')
@@ -73,11 +90,12 @@ export default class LlmWikiPlugin extends Plugin {
     this.app.workspace.onLayoutReady(() => void this.detect())
   }
 
-  /** Accept or reject the draft in the active editor, without going back to the Pages tab. */
+  /** Accept or archive the page in the active editor, without going back to the Changes tab. */
   private draftCommand(checking: boolean, run: (a: Actions, path: string) => Promise<{ ok: boolean; message: string }>): boolean {
     const path = this.app.workspace.getActiveFile()?.path
     const actions = this.actions
-    if (!path || !actions || !this.snapshot?.curation.some((c) => c.path === path)) return false
+    const state = this.snapshot?.pages?.find((p) => p.path === path)?.state
+    if (!path || !actions || (state !== 'new' && state !== 'draft')) return false
     if (!checking) void run(actions, path).then((out) => {
       if (out.message) new Notice(out.message, out.ok ? 4000 : 8000)
       void this.refreshSnapshot()
@@ -87,6 +105,7 @@ export default class LlmWikiPlugin extends Plugin {
 
   onunload(): void {
     this.unloaded = true
+    this.autosave.unload()
     if (this.pollTimer !== null) window.clearTimeout(this.pollTimer)
     for (const b of this.sandboxChats) b.close()
     this.cli?.killAll()
@@ -150,7 +169,10 @@ export default class LlmWikiPlugin extends Plugin {
       void this.saveSettings()
     }
     this.app.workspace.trigger('llm-wiki:detected')
-    if (this.wiki) await this.refreshSnapshot()
+    if (!this.wiki) return
+    await this.refreshSnapshot()
+    // The runner is known now: save what was left unsaved, and pull, unless it does that.
+    this.autosave.onReady()
   }
 
   /** Reads the wiki once; views redraw on the `llm-wiki:snapshot` event. Coalesces concurrent calls. */
@@ -210,7 +232,7 @@ export default class LlmWikiPlugin extends Plugin {
   private showStatus(): void {
     if (!this.statusBar) return
     if (!this.wiki) {
-      this.statusBar.setText('llm-wiki · not ready')
+      this.statusBar.setText('Brain · not ready')
       return
     }
     const s = this.snapshot
@@ -218,7 +240,10 @@ export default class LlmWikiPlugin extends Plugin {
     const stopped = s?.attention.filter((a) => a.id.startsWith('parked:')).length ?? 0
     // What needs a person outranks what is moving: an hourly job must not hide a stopped one.
     const text = !s ? this.wiki.key : stopped && stopped === s.health.count ? `${stopped} stopped` : s.health.count ? `${s.health.count} need you` : running ? `running ${running.name}` : 'ok'
-    this.statusBar.setText(`llm-wiki · ${text}`)
+    // Edits not yet in history, quietly, after the verdict.
+    const unsaved = this.autosave.unsaved().length
+    const save = this.autosave.state === 'saving' ? ' · saving' : unsaved ? ` · ${unsaved} unsaved` : s?.sync?.unpushed ? ` · ↑${s.sync.unpushed}` : ''
+    this.statusBar.setText(`Brain · ${text}${save}`)
   }
 
   /** The one view; with a tab, lands on it. */

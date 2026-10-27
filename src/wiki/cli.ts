@@ -42,6 +42,8 @@ export interface Args {
   commit?: string
   /** `git changed`: top-level trees to look in. */
   dirs?: string[]
+  /** One vault-relative page, for the verbs that read a single page. */
+  path?: string
 }
 
 /** The `filter=` kinds `search query` takes (`OPS/commands/search/query.py`), each a string. */
@@ -87,7 +89,7 @@ const SLUG = /^[a-z0-9][a-z0-9_-]{0,63}$/
 const TICKET = /^[A-Za-z0-9][A-Za-z0-9._#:-]{0,127}$/
 const SINCE = /^\d{1,4}[hd]$/
 // eslint-disable-next-line no-control-regex -- rejecting control characters is the point
-const REL = /^(?!\/)(?!.*(^|\/)\.\.(\/|$))[^\x00-\x1f]{1,512}$/
+const REL = /^(?![/-])(?!.*(^|\/)\.\.(\/|$))[^\x00-\x1f]{1,512}$/
 const WORD = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/
 const SKILL = /^(?:(?:PLUGIN|[a-z0-9][a-z0-9-]{0,63}):)?[a-z0-9][a-z0-9-]{0,63}$/
 const PACKAGE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}\/[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/
@@ -244,6 +246,12 @@ export const VERBS = {
   // What moved under the corpus trees since a commit: the index's own marker, for what it has not seen.
   'wiki.git.changed': (a: Args) => wiki(a, 'git', 'changed', ...trees(a.dirs), `filter=since:${commit(a.commit)}`),
   'wiki.op.since': (a: Args) => wiki(a, 'op', 'since', since(a.since, '1d')),
+  /** Where the wiki is, how this clone stands (dirty, unpushed, behind), and every joined machine. */
+  'wiki.status': (a: Args) => wiki(a, 'status', '--peers'),
+  'wiki.git.log': (a: Args) => wiki(a, 'git', 'log', since(a.since, '7d')),
+  'wiki.page.history': (a: Args) => wiki(a, 'page', 'history', rel(a.path ?? '')),
+  /** The frontmatter and body a template would add to a page; writes nothing. */
+  'wiki.page.template': (a: Args) => wiki(a, 'page', 'template', rel(a.path ?? '')),
   'wiki.skills.ls': (a: Args) => wiki(a, 'skills', 'ls'),
   // An exact name carries the manifest: what the unit needs and how it is used.
   'wiki.skills.show': (a: Args) => wiki(a, 'skills', 'ls', unit(a.name)),
@@ -272,6 +280,9 @@ export const VERBS = {
   'wiki.credentials.remove': (a: Args) => write(a, 'credentials', 'remove', credential(a.name)),
   // Mint identity into pages the wiki does not know yet.
   'wiki.page.adopt': (a: Args) => write(a, 'page', 'adopt', ...paths(a.paths)),
+  /** The sweep: every uncommitted change under the wiki's trees, adopted, observed and committed by author. */
+  'wiki.git.commit': (a: Args) => write(a, 'git', 'commit'),
+  'wiki.git.sync': (a: Args) => write(a, 'git', 'sync'),
   // The text goes after `--`, so a query starting with a dash is never read as a flag.
   'wiki.search.query': (a: Args) => [
     'wiki', '--read-only', key(a.wiki), 'search', 'query', topK(a), ...searchFilters(a.filters), '--json', '--', text(a.text),
@@ -295,7 +306,7 @@ export type Verb = keyof typeof VERBS
 const ATTENDED: ReadonlySet<Verb> = new Set<Verb>(['wiki.credentials.set', 'wiki.credentials.bind', 'wiki.credentials.login', 'wiki.credentials.remove'])
 
 const WRITES: ReadonlySet<Verb> = new Set<Verb>([
-  'wiki.harness.run', 'wiki.jobs.request', 'wiki.jobs.pause', 'wiki.jobs.resume', 'wiki.tickets.retry', 'wiki.page.curate', 'wiki.page.adopt', 'wiki.search.index', 'wiki.search.reindex',
+  'wiki.harness.run', 'wiki.jobs.request', 'wiki.jobs.pause', 'wiki.jobs.resume', 'wiki.tickets.retry', 'wiki.page.curate', 'wiki.page.adopt', 'wiki.git.commit', 'wiki.git.sync', 'wiki.search.index', 'wiki.search.reindex',
   'wiki.credentials.ls', 'wiki.credentials.bindings', ...ATTENDED,
 ])
 

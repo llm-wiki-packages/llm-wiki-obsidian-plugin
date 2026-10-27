@@ -114,11 +114,46 @@ export interface CredentialView {
   uses: { skill?: string; job?: string; slot: string; problem?: string }[]
 }
 
-export interface CurationItem {
+/** Where a page stands in the wiki, in a person's words (#3669's three facts). */
+export type PageState = 'new' | 'draft' | 'accepted' | 'archived' | 'none'
+
+/** One lifecycle page as `page ls` reports it. Title, job and times are Obsidian's to read at render. */
+export interface PageItem {
   path: string
-  title: string
-  /** The folder under sources/ it landed in, a stand-in for the job that captured it. */
-  job?: string
+  state: PageState
+  /** Moved since the pipeline last folded it in (`change`), when the CLI says. */
+  change: 'new' | 'edited' | 'current' | null
+}
+
+/** One machine joined to the wiki, as `status --peers` reads it from here. */
+export interface MachineView {
+  name: string
+  /** `healthy`, `quiet`, `stuck`, `no-cadence`, `unreadable`. */
+  state: string
+  lastSeen: string | null
+  /** The stages it runs, from its capabilities map: `harvest`, `index`… */
+  roles: string[]
+  me: boolean
+  detail?: string
+}
+
+/** How this clone stands against its remote. Null counts are unknown, not zero. */
+export interface SyncState {
+  dirty: number | null
+  untracked: number | null
+  unpushed: number | null
+  behind: number
+  upstream: string | null
+}
+
+/** One commit, read off its trailers. */
+export interface Commit {
+  sha: string
+  at: string
+  subject: string
+  op: string
+  /** `user@<machine>`, `agent@<machine>`, or a producer. */
+  actor: string
 }
 
 export interface RecentRun {
@@ -141,10 +176,17 @@ export interface Snapshot {
   jobs: JobView[]
   skills: SkillView[]
   credentials: CredentialView[]
-  curation: CurationItem[]
-  /** Files under sources/ the wiki has not taken up; null when this CLI cannot tell. */
-  unadopted: CurationItem[] | null
+  /** Every lifecycle page; null when the page list could not be read. */
+  pages: PageItem[] | null
+  /** Whether the CLI reports #3669's boxes; an older one reads drafts off Obsidian alone. */
+  boxes: boolean
   recent: RecentRun[]
+  /** The last week's commits, newest first. */
+  activity: Commit[]
+  /** This machine's name, and every machine joined to the wiki. */
+  machine: string | null
+  fleet: MachineView[]
+  sync: SyncState | null
   /** How the search index stands; null when it could not be read. */
   search: SearchStatus | null
   /** Reads that failed, by verb, so a half-empty dashboard says why. */

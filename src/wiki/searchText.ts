@@ -1,6 +1,7 @@
 // What a search hit says, read against the page it names: the winning passage, whether
 // the file still holds it, and the stretch of it worth two lines on screen.
 import type { SearchHit } from './cli'
+import { neverIndexed } from './layout'
 
 // Enough of the passage to land on one place in a file, short enough to survive the
 // whitespace the chunker and the file disagree about. The CLI's own renderer probes the same.
@@ -96,12 +97,9 @@ export function excerpt(passage: string, terms: string[], lead = 60): Segment[] 
   return out
 }
 
-// Never indexed whatever the paths say (`OPS/lib/page/corpus.py`).
-const NEVER_INDEXED = new Set(['wiki/index.md', 'wiki/log.md'])
-
 /** Whether a path is one the index owes: markdown under a `[search] paths` prefix and none of `not_indexed`, per the CLI's corpus walk. */
 export function inCorpus(path: string, include: string[], exclude: string[] = []): boolean {
-  if (!path.endsWith('.md') || NEVER_INDEXED.has(path)) return false
+  if (!path.endsWith('.md') || neverIndexed(path)) return false
   if (path.split('/').some((part) => part.startsWith('.') || part === '_versions')) return false
   return include.some((p) => path.startsWith(p)) && !exclude.some((p) => path.startsWith(p))
 }

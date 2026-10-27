@@ -1,6 +1,6 @@
 // Renders the dashboard and chat with fixture data in a browser, for screenshots. Not shipped.
 /* eslint-disable */
-import { App, WorkspaceLeaf } from 'obsidian'
+import { App, TFile, WorkspaceLeaf } from 'obsidian'
 import { DashboardView, type Tab } from '../src/views/dashboard/index'
 import type { Snapshot } from '../src/wiki/model'
 import { openCredentialModal } from '../src/ui/credentialModal'
@@ -9,6 +9,7 @@ import { openJobModal } from '../src/ui/jobModal'
 import { DEFAULT_SETTINGS } from '../src/settings'
 
 const NOW = Date.now()
+const q0 = (k: string) => new URLSearchParams(location.search).get(k)
 const ago = (min: number) => new Date(NOW - min * 60_000).toISOString()
 const ahead = (min: number) => new Date(NOW + min * 60_000).toISOString()
 
@@ -47,12 +48,29 @@ const snapshot: Snapshot = {
     { name: 'gh-token', kind: 'value', state: 'failed', verified: ago(3000), uses: [] },
     { name: 'acme-blog-key', kind: 'value', state: 'unverified', verified: null, uses: [{ job: 'blog-acme', slot: 'env.API_KEY' }] },
   ],
-  curation: [
-    { path: 'sources/web/acme/postgres-at-scale.md', title: 'postgres-at-scale', job: 'web/acme' },
-    { path: 'sources/web/acme/on-call-rotations.md', title: 'on-call-rotations', job: 'web/acme' },
-    { path: 'sources/youtube/yt-subs/2026-10-22-llm-eval-talk.md', title: '2026-10-22-llm-eval-talk', job: 'youtube/yt-subs' },
+  pages: [
+    ...Array.from({ length: 12 }, (_, i) => ({ path: `sources/youtube/lex/episode-${400 + i}.md`, state: 'new' as const, change: 'current' as const })),
+    { path: 'sources/mail/joe/q3-vendor-contract.md', state: 'new', change: 'current' },
+    { path: 'sources/mail/joe/offsite-dates.md', state: 'new', change: 'current' },
+    { path: 'sources/papers/vector-db-benchmarks.md', state: 'new', change: 'new' },
+    { path: 'sources/web/acme/pricing-teardown.md', state: 'draft', change: 'edited' },
+    { path: 'sources/web/acme/postgres-at-scale.md', state: 'accepted', change: 'current' },
   ],
-  unadopted: [{ path: 'sources/notes/meeting-2026-10-21.md', title: 'meeting-2026-10-21', job: 'notes' }],
+  boxes: true,
+  activity: [
+    { sha: 'a1b2c3d4', at: ago(35), subject: 'dream: refreshed 2 wiki pages from their sources', op: 'dream', actor: 'agent@mac-mini' },
+    { sha: 'b2c3d4e5', at: ago(120), subject: 'inbox-joe: 3 messages', op: 'inbox-joe', actor: 'agent@mac-mini' },
+    { sha: 'c3d4e5f6', at: ago(200), subject: 'sweep 4 files', op: 'none', actor: 'user@macbook' },
+    { sha: 'd4e5f6a7', at: ago(1500), subject: 'sweep 1 file', op: 'none', actor: 'user@macbook' },
+    { sha: 'e5f6a7b8', at: ago(1600), subject: 'curate: accepted 6 pages', op: 'curate', actor: 'agent@macbook' },
+  ],
+  machine: 'macbook',
+  fleet: q0('fleet') === '1' ? [] : [
+    { name: 'macbook', state: 'no-cadence', lastSeen: ago(2), roles: [], me: true },
+    { name: 'mac-mini', state: 'healthy', lastSeen: ago(3), roles: ['harvest', 'index', 'process'], me: false },
+    { name: 'linux-box', state: 'stuck', lastSeen: ago(2900), roles: ['transcribe'], me: false, detail: 'push rejected since Sunday' },
+  ],
+  sync: { dirty: 3, untracked: 0, unpushed: 2, behind: 0, upstream: 'origin/main' },
   search: { engine_configured: true, realm_ready: true, serving: 'search_server', corpus_files: 1284, dirty: 4, marker_known: true, reindex_required: false, index_as_of: { source_commit: '9f3c2a1e7b' }, paths: [{ pattern: 'wiki/' }, { pattern: 'sources/' }], _cmd_: { head: 'c41d07be22' } },
   recent: [
     { op: 'pass', outcome: 'ok', at: ago(20), summary: '' },
@@ -63,6 +81,15 @@ const snapshot: Snapshot = {
 }
 
 const app = new App()
+// The notes behind the Changes tab: what Obsidian's metadata cache would hold.
+const note = (path: string, fm: Record<string, unknown>, body: string, minAgo: number) => (app.files[path] = new TFile(path, fm, body, NOW - minAgo * 60_000))
+for (let i = 0; i < 12; i++) note(`sources/youtube/lex/episode-${400 + i}.md`, { title: `Lex Fridman Podcast #${400 + i}`, job: 'yt-lex', resource: `https://www.youtube.com/watch?v=${i}` }, '', 120 + i * 7)
+note('sources/mail/joe/q3-vendor-contract.md', { title: 'Q3 vendor contract renewal', job: 'inbox-joe', summary: 'Renewal terms move to annual billing from January; Joe asks for a decision by Friday.' }, '', 130)
+note('sources/mail/joe/offsite-dates.md', { title: 'Re: offsite dates', job: 'inbox-joe', summary: 'Two options for the March offsite, both in Lisbon.' }, '', 190)
+note('sources/papers/vector-db-benchmarks.md', { title: 'Vector DB benchmarks', source: 'vector-db-benchmarks.pdf' }, '', 1400)
+note('sources/web/acme/pricing-teardown.md', { title: 'Pricing page teardown', Draft: true, resource: 'https://acme.com/pricing' }, '---\ntitle: x\n---\n# Pricing page teardown\n\nAcme moved the Team plan from **$12 to $15** per seat and dropped the annual discount to 10%.\n\n- Starter stays free\n- Enterprise is now quote-only\n', 60)
+note('research/agent-memory/survey.md', { title: 'Agent memory survey', Draft: true }, '# Agent memory survey\n\nNotes from twelve papers on long-term memory for agents.\n', 1500)
+note('wiki/topics/retrieval-evals.md', { title: 'Notes on retrieval evals', Draft: true }, '# Retrieval evals\n\nRecall at 10 is the number we watch; MRR hides too much.\n', 20)
 // Pages on disk for the search freshness check: one current, one edited since it was indexed; a third is gone.
 const pages: Record<string, string> = {
   'wiki/concepts/value-equation.md': '# Value equation\n\nThe value equation says perceived value rises with the dream outcome and the likelihood of achieving it, and falls with time delay and effort.\n',
@@ -107,6 +134,8 @@ const plugin: any = {
   detect: () => Promise.resolve(),
   openSettings: () => console.log('settings'),
   saveSettings: () => Promise.resolve(),
+  autosave: { mode: () => (q0('save') ?? 'sync'), unsaved: () => ['wiki/topics/retrieval-evals.md', 'sources/web/acme/pricing-teardown.md', 'sources/notes/mine.md'], isUnsaved: () => true, state: 'waiting', saveNow: () => Promise.resolve() },
+  vaultPath: () => '/Users/joe/Notes',
   registered: [{ key: 'notes', name: 'Notes', path: '/Users/joe/Notes' }, { key: 'work', name: 'Work', path: '/Users/joe/Work' }],
   cliBin: '/usr/local/bin/llm-wiki-cli',
   claudeBin: new URLSearchParams(location.search).get('claude') === '0' ? null : '/usr/local/bin/claude',

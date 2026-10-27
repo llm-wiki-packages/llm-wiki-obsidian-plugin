@@ -49,10 +49,19 @@ export class Component {
   registerEvent() {}
 }
 
+export class TAbstractFile { path = '' }
+export class TFile extends TAbstractFile {
+  stat = { mtime: 0, ctime: 0, size: 0 }
+  constructor(path: string, public fm: Record<string, unknown> = {}, public body = '', mtime = Date.now()) { super(); this.path = path; this.stat = { mtime, ctime: mtime, size: body.length } }
+}
+
 export class App {
   workspace: any
   vault: any
   metadataCache: any
+  fileManager: any
+  /** The preview's notes, by path. */
+  files: Record<string, TFile> = {}
   constructor() {
     this.workspace = {
       on: () => ({}),
@@ -63,8 +72,18 @@ export class App {
       trigger: () => {},
       offref: () => {},
     }
-    this.vault = { adapter: {} }
-    this.metadataCache = { getCache: () => null }
+    const files = () => this.files
+    this.vault = {
+      adapter: {},
+      on: () => ({}),
+      getAbstractFileByPath: (p: string) => files()[p] ?? null,
+      getFileByPath: (p: string) => files()[p] ?? null,
+      getMarkdownFiles: () => Object.values(files()),
+      cachedRead: async (f: TFile) => f.body,
+      read: async (f: TFile) => f.body,
+    }
+    this.metadataCache = { on: () => ({}), getCache: (p: string) => (files()[p] ? { frontmatter: files()[p]!.fm } : null), getFileCache: (f: TFile) => ({ frontmatter: f.fm }) }
+    this.fileManager = { processFrontMatter: async (f: TFile, fn: (fm: Record<string, unknown>) => void) => fn(f.fm) }
   }
 }
 

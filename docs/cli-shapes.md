@@ -852,6 +852,31 @@ no host entry on this machine: scratch - nothing fires them", fix
 [unverified fields]. `search query` is out of scope here.)
 
 ---------------------------------------------------------------------------
+### 1.19 `git log filter=since:<x>`
+
+- argv: `wiki --read-only <key> git log filter=since:7d --json`. Answer
+  `History`, `OPS/git/log.py`: `{ marker, reason, commits: [{ sha, at,
+  subject, op, actor, session, … }] }`, newest first. `at` is the commit
+  time; the trailer keys are lowercased (`Op:` → `op`). A hand edit the sweep
+  carried reads `op: "none"`, `actor: "user@<machine>"`; a session's write
+  `agent@<machine>`. No file list per commit yet (llm-wiki-plugins #3675).
+
+### 1.20 `page history <path>`
+
+- argv: `wiki --read-only <key> page history <path> --json`. Answer
+  `History`, `OPS/page/history.py`: `{ path, commits: [{ sha, at, author,
+  subject, op, actor, session }] }`, newest first; a path no commit touched
+  answers `commits: []`. Does not follow renames yet (#3675).
+
+### 1.21 `page template <path>`
+
+- argv: `wiki --read-only <key> page template <path> --json`. Answer
+  `OPS/page/template.py`: `{ key, template, add, dates, body, unexpanded,
+  warnings }`. `add` is what the page lacks, values expanded (a date as
+  `YYYY-MM-DD`); `body` the expanded template body when the page body is
+  empty, else null; `template: null` when no `[page.templates]` entry
+  matches. Writes nothing.
+
 ## 2. Write verbs
 
 All are tier `w`: refused under `--read-only` (rc 2). None is an attended
@@ -1066,6 +1091,14 @@ Refusals: read-only; a search config the reader refuses.
   (`observed` = a non-markdown file got a stub sibling page). Mints
   `document_id` into frontmatter and queues extraction for a source file.
 - Refusals (rc 2): `no such page: <p>`; a path outside the content trees.
+
+### 2.11 `git commit` (the sweep)
+
+- argv: `wiki <key> git commit --json`. Answer `Committed`,
+  `OPS/lib/git/commit.py`: `{ commits, adopted, unadopted, links_left_out,
+  swept, deferred, withheld, observed, settling }`. `settling` lists the
+  pages changed inside the settle window (`[edits] settle_seconds`, 600 by
+  default) that the sweep left for a later one.
 
 ### 2.8 `git sync`
 
