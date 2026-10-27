@@ -59,7 +59,7 @@ export default class LlmWikiPlugin extends Plugin {
     this.addCommand({ id: 'add-job', name: 'Add a source…', callback: () => void this.addJob() })
     this.addCommand({ id: 'open-job', name: 'Open a job…', callback: () => this.pickJob() })
     this.addCommand({ id: 'set-credential', name: 'Set a credential…', callback: () => this.pickSlot() })
-    this.addCommand({ id: 'run-skill', name: 'Run a skill…', callback: () => this.pickSkill() })
+    this.addCommand({ id: 'run-skill', name: 'Run a skill…', callback: () => void this.pickSkill() })
     this.addCommand({ id: 'ask-about-note', name: 'Ask the agent about this note', checkCallback: (checking) => {
       const file = this.app.workspace.getActiveFile()
       if (!file) return false
@@ -291,17 +291,17 @@ export default class LlmWikiPlugin extends Plugin {
     })
   }
 
-  /** The chat slash skills the installed plugins ship, as a fuzzy list; the chosen one becomes a chat turn. */
-  pickSkill(): void {
-    // The plugin cache is read again, so a skill installed since launch shows; the `/` list follows it.
+  /** The chat slash skills as a fuzzy list; the chosen one becomes a chat turn. */
+  async pickSkill(): Promise<void> {
+    // `skills ls` is read again, and on an older CLI the plugin cache, so a skill enabled or installed since shows; the `/` list follows it.
     this.skillList = null
-    void this.chatSkills().then((skills) => {
-      if (!skills.length) {
-        new Notice(noSkillsMessage())
-        return
-      }
-      this.pickFrom(skills)
-    })
+    await this.refreshSnapshot()
+    const skills = await this.chatSkills()
+    if (!skills.length) {
+      new Notice(noSkillsMessage())
+      return
+    }
+    this.pickFrom(skills)
   }
 
   private pickFrom(skills: SkillEntry[]): void {
