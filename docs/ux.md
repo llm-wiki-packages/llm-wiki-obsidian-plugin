@@ -76,9 +76,10 @@ whose mode includes `pipeline`, the plugin's routines first (curate, dream,
 wiki-report…), then the units with a stage. Name · stages, a `not enabled here`
 pill where it would not run on this machine (`reach grew since enable` on a
 routine whose reach grew since the operator's yes), then its description and the
-jobs naming it. One button, **Enable** (chat `/brain:enable <name>`; the
-CLI's own line on hover), only where it is not enabled. A unit's row opens
-the inspector. A skill with both modes is here and in the chat's `/` list.
+jobs naming it. One button, **Enable** (chat `/brain:enable <name>`, or
+`/brain:enable PLUGIN:<name>` for a routine; the CLI's own line on hover),
+only where it is not enabled. A unit's row opens the inspector. A skill
+with both modes is here and in the chat's `/` list.
 From an older CLI the list is the units with a stage, and no routines.
 
 ### Job detail dialog
