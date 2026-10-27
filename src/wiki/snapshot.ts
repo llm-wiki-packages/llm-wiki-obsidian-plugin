@@ -2,7 +2,7 @@
 // answers' field names (docs/cli-shapes.md). Every read is soft, so one
 // failing verb leaves a hole and a note, never an empty dashboard.
 import type { Args, Verb } from './cli'
-import { hasModes, loadsHere, parseSkill, PLUGIN_PREFIX } from '../chat/skills'
+import { hasModes, loadsHere, paletteOf, parseSkill, PLUGIN_PREFIX } from '../chat/skills'
 import { slotWords } from './slots'
 import type { AttentionItem, Commit, CredentialView, JobView, MachineView, PageItem, PageState, PipelineView, RecentRun, SearchStatus, SkillView, SlotView, Snapshot, SyncState, TicketView } from './model'
 import { isFeed } from './layout'
@@ -272,6 +272,7 @@ export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now(
     jobs,
     skills,
     pipeline,
+    palette: previous ? previous.palette : paletteOf(listed),
     credentials,
     pages: pages === null ? null : pageRows.filter((p) => !p.unreadable).map(pageItem),
     boxes: pageRows.some((p) => 'curate_candidate' in p),

@@ -1,5 +1,6 @@
 // What the dashboard shows. Built from CLI answers by snapshot.ts; the views
 // read only this, and format every time at render.
+import type { SkillEntry } from '../chat/skills'
 
 export type Severity = 'error' | 'warn' | 'info'
 
@@ -198,6 +199,8 @@ export interface Snapshot {
   skills: SkillView[]
   /** What a job can run, from each row's mode; from an older CLI, the units with a stage and no plugin routines. */
   pipeline: PipelineView[]
+  /** The chat `/` list, from the same `skills ls` read; null from an older CLI, whose rows say no mode, or when the read failed. */
+  palette: SkillEntry[] | null
   credentials: CredentialView[]
   /** Every lifecycle page; null when the page list could not be read. */
   pages: PageItem[] | null

@@ -126,6 +126,17 @@ describe('the snapshot from skills ls rows', () => {
     expect(pipeline).not.toContain('PLUGIN:add')
     expect(pipeline).not.toContain('hand-made')
   })
+  it('holds the / list from its own skills ls, so a unit enabled since shows on the next full read and a light one keeps it', async () => {
+    const before = ROWS.map((r) => (r.name === 'daily-report' ? { ...r, state: 'installed' } : r))
+    const after = ROWS.map((r) => (r.name === 'daily-report' ? { ...r, state: 'enabled' } : r))
+    const first = await takeSnapshot(reader(WIKI(before)), 'kb', NOW)
+    expect(first.palette).toEqual(paletteOf(before))
+    expect(first.palette!.map((s) => s.name)).not.toContain('daily-report')
+    const next = await takeSnapshot(reader(WIKI(after)), 'kb', NOW)
+    expect(next.palette!.map((s) => slashCommand(s))).toEqual(['/brain:add', '/brain:curate', '/channel-github', '/daily-report'])
+    const light = await takeSnapshot(reader(WIKI([])), 'kb', NOW, undefined, next)
+    expect(light.palette).toEqual(next.palette)
+  })
   it('carries the jobs list over a light read', async () => {
     const full = await takeSnapshot(reader(WIKI(ROWS)), 'kb', NOW)
     const light = await takeSnapshot(reader(WIKI([])), 'kb', NOW, undefined, full)
@@ -159,6 +170,10 @@ describe('an older CLI, whose rows carry no mode', () => {
     const gmail = snap.skills.find((s) => s.name === 'channel-gmail')!
     expect(gmail.description).toBe('Gmail capture.')
     expect('mode' in gmail).toBe(false)
+  })
+  it('holds no / list, so the plugin cache answers as before', async () => {
+    expect((await takeSnapshot(reader(WIKI(OLD_ROWS)), 'kb', NOW)).palette).toBeNull()
+    expect((await takeSnapshot(reader({ ...WIKI([]), 'wiki.skills.ls': undefined }), 'kb', NOW)).palette).toBeNull()
   })
   it('lists the units with a stage as what a job can run, and no plugin routines', async () => {
     const snap = await takeSnapshot(reader(WIKI([...OLD_ROWS, { name: 'notes-only', state: 'enabled', stages: [] }])), 'kb', NOW)

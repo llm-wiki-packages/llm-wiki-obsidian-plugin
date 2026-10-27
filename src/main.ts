@@ -1,7 +1,7 @@
 import { FileSystemAdapter, FuzzySuggestModal, Notice, Plugin } from 'obsidian'
 import { ClaudeSdkBackend } from './chat/claudeSdk'
 import { HarnessRunBackend } from './chat/harnessRun'
-import { listSkills, noSkillsMessage, paletteOf, pluginDirs, slash, slashCommand, type SkillEntry, type SkillsLsRow } from './chat/skills'
+import { listSkills, noSkillsMessage, pluginDirs, slash, slashCommand, type SkillEntry } from './chat/skills'
 import type { BackendKind, ChatBackend, ModelChoice, WikiTarget } from './chat/types'
 import { log } from './logger'
 import { DEFAULT_SETTINGS, LlmWikiSettingTab, type LlmWikiSettings } from './settings'
@@ -141,7 +141,7 @@ export default class LlmWikiPlugin extends Plugin {
     this.problem = null
     this.wiki = null
     this.snapshot = null
-    // The palette is the wiki's `skills ls`, so a new detect reads it again.
+    // Another wiki, or another CLI, may answer from the plugin cache.
     this.skillList = null
     try {
       const path = await effectivePath()
@@ -293,7 +293,7 @@ export default class LlmWikiPlugin extends Plugin {
 
   /** The chat slash skills the installed plugins ship, as a fuzzy list; the chosen one becomes a chat turn. */
   pickSkill(): void {
-    // The palette reads the disk again, so a skill installed since launch shows; the `/` list follows it.
+    // The plugin cache is read again, so a skill installed since launch shows; the `/` list follows it.
     this.skillList = null
     void this.chatSkills().then((skills) => {
       if (!skills.length) {
@@ -396,15 +396,16 @@ export default class LlmWikiPlugin extends Plugin {
   /** The models the harness offered on the first turn of this run; empty before it. */
   models: ModelChoice[] = []
 
-  /** The chat slash skills, read once per run; New chat does not re-read them. `skills ls` first, the plugin cache from an older CLI. */
+  /** The plugin cache's skills, read once per run; New chat does not re-read them. */
   private skillList: Promise<SkillEntry[]> | null = null
+  /**
+   * The chat slash skills: the last full read's `skills ls`, so a unit enabled in chat shows once the turn's refresh
+   * lands, as it does on the Skills tab. The plugin cache before the first read, and from an older CLI.
+   */
   chatSkills(): Promise<SkillEntry[]> {
-    const cache = () => pluginDirs().then(listSkills).catch(() => [])
-    const cli = this.cli
-    const wiki = this.wiki
-    // Before the wiki is found there is no `skills ls` to read; the cache answers and is not kept.
-    if (!cli || !wiki) return this.skillList ?? cache()
-    this.skillList ??= cli.run<{ skills?: SkillsLsRow[] }>('wiki.skills.ls', { wiki: wiki.key }).then((a) => paletteOf(a.skills ?? []) ?? cache(), cache)
+    const palette = this.snapshot?.palette
+    if (palette) return Promise.resolve(palette)
+    this.skillList ??= pluginDirs().then(listSkills).catch(() => [])
     return this.skillList
   }
 
