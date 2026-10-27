@@ -1,7 +1,7 @@
 import { FileSystemAdapter, FuzzySuggestModal, Notice, Plugin } from 'obsidian'
 import { ClaudeSdkBackend } from './chat/claudeSdk'
 import { HarnessRunBackend } from './chat/harnessRun'
-import { listSkills, noSkillsMessage, pluginDirs, slash, slashCommand, type SkillEntry } from './chat/skills'
+import { listSkills, noSkillsMessage, paletteOf, pluginDirs, slash, slashCommand, type SkillEntry, type SkillsLsRow } from './chat/skills'
 import type { BackendKind, ChatBackend, ModelChoice, WikiTarget } from './chat/types'
 import { log } from './logger'
 import { DEFAULT_SETTINGS, LlmWikiSettingTab, type LlmWikiSettings } from './settings'
@@ -141,6 +141,8 @@ export default class LlmWikiPlugin extends Plugin {
     this.problem = null
     this.wiki = null
     this.snapshot = null
+    // The palette is the wiki's `skills ls`, so a new detect reads it again.
+    this.skillList = null
     try {
       const path = await effectivePath()
       this.cliBin = await findBinary('llm-wiki-cli', this.settings.cliPath)
@@ -305,7 +307,7 @@ export default class LlmWikiPlugin extends Plugin {
   private pickFrom(skills: SkillEntry[]): void {
     const start = (skill: SkillEntry) =>
       void (async () => {
-        const args = skill.args ? await promptText(this.app, { title: slash(skill.name), description: skill.description, placeholder: skill.args, cta: 'Start' }) : ''
+        const args = skill.args ? await promptText(this.app, { title: slashCommand(skill), description: skill.description, placeholder: skill.args, cta: 'Start' }) : ''
         if (args !== null) await this.openChat(slashCommand(skill, args))
       })()
     const modal = new (class extends FuzzySuggestModal<SkillEntry> {
@@ -313,7 +315,7 @@ export default class LlmWikiPlugin extends Plugin {
       getItemText = (s: SkillEntry) => `${s.name} ${s.description}`
       onChooseItem = (s: SkillEntry) => start(s)
       renderSuggestion = (item: { item: SkillEntry }, el: HTMLElement) => {
-        el.createDiv({ text: slash(item.item.name, item.item.args) })
+        el.createDiv({ text: slashCommand(item.item, item.item.args) })
         el.createDiv({ cls: 'llm-wiki-muted', text: item.item.description })
       }
     })(this.app)
@@ -394,10 +396,15 @@ export default class LlmWikiPlugin extends Plugin {
   /** The models the harness offered on the first turn of this run; empty before it. */
   models: ModelChoice[] = []
 
-  /** The chat slash skills, read once per run; New chat does not re-read the disk. */
+  /** The chat slash skills, read once per run; New chat does not re-read them. `skills ls` first, the plugin cache from an older CLI. */
   private skillList: Promise<SkillEntry[]> | null = null
   chatSkills(): Promise<SkillEntry[]> {
-    this.skillList ??= pluginDirs().then(listSkills).catch(() => [])
+    const cache = () => pluginDirs().then(listSkills).catch(() => [])
+    const cli = this.cli
+    const wiki = this.wiki
+    // Before the wiki is found there is no `skills ls` to read; the cache answers and is not kept.
+    if (!cli || !wiki) return this.skillList ?? cache()
+    this.skillList ??= cli.run<{ skills?: SkillsLsRow[] }>('wiki.skills.ls', { wiki: wiki.key }).then((a) => paletteOf(a.skills ?? []) ?? cache(), cache)
     return this.skillList
   }
 
