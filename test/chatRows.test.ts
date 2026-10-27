@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { describeTool, vaultPath } from '../src/chat/describe'
+import { clip, describeTool, groupSummary, toolDetail, vaultPath } from '../src/chat/describe'
 import { READ_VERBS, readRules } from '../src/chat/readVerbs'
 
 const ROOT = '/Users/joe/wikis/personal'
@@ -40,5 +40,26 @@ describe('Ask first asks about writes', () => {
   it('lists no verb that writes', () => {
     for (const w of ['page edit', 'page curate', 'jobs request', 'git commit', 'credentials get', 'credentials ls', 'hooks session-start'])
       expect(READ_VERBS as readonly string[]).not.toContain(w)
+  })
+})
+
+describe('an opened row', () => {
+  it('shows the whole command, under its description when the agent gave one', () => {
+    expect(toolDetail('Bash', { command: 'llm-wiki-ops op since 24h', description: 'Recent runs' }, undefined)).toEqual([{ label: 'Recent runs', text: 'llm-wiki-ops op since 24h', kind: 'code' }])
+  })
+  it('shows an edit as a diff', () => {
+    expect(toolDetail('Edit', { file_path: '/w/a.md', old_string: 'a\nb', new_string: 'c' }, undefined)).toEqual([{ label: 'Edit', text: '- a\n- b\n+ c', kind: 'diff' }])
+  })
+  it('falls back to the input for a tool it does not know', () => {
+    expect(toolDetail('mcp__x__y', { q: 1 }, undefined)[0]?.text).toBe('{\n  "q": 1\n}')
+  })
+  it('clips long output and says how much', () => {
+    const long = Array.from({ length: 50 }, (_, i) => String(i)).join('\n')
+    expect(clip(long).split('\n')).toHaveLength(41)
+    expect(clip(long).endsWith('… 10 more lines')).toBe(true)
+  })
+  it('counts a group in words', () => {
+    expect(groupSummary(['Bash', 'Bash', 'Read', 'Skill'])).toBe('Ran 2 commands · read 1 file · used 1 skill')
+    expect(groupSummary(['Edit', 'Write', 'Grep'])).toBe('Changed 2 files · searched 1 time')
   })
 })

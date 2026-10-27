@@ -76,7 +76,10 @@ runs for you is composed into its own jail by the CLI, credentials included.
 The chat never sees a credential, and the verbs that would print one are
 denied in every permission mode. Multi-turn until **New chat** (top left);
 **Continue last chat** picks the last session back up. Tool rows read in words
-("Running inbox-joe"); a file the agent reads or edits opens on a click.
+("Running inbox-joe"), grey beside the reply; a row opens on a click to show
+the whole command, an edit as a diff, and the output, and calls made back to
+back fold into one counted group. A file the agent reads or edits opens on a
+click.
 An answered permission card folds away. Suggested prompts sit above an empty
 transcript: the newest source to summarize, what's new, a video to add.
 

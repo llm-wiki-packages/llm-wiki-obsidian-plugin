@@ -8,6 +8,7 @@ import type LlmWikiPlugin from '../main'
 import { isFeed } from '../wiki/layout'
 import { EFFORT_NAMES, PERMISSION_NAMES, type Effort, type PermissionMode } from '../settings'
 import { choiceRow, ContextRing, openPopover, permissionLabel, SlashMenu, switchRow } from './composer'
+import { ToolGroupView, type ToolRowView } from './toolRows'
 
 /** Tools after which the wiki may have changed. */
 const WRITE_TOOLS = new Set(['Bash', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
@@ -479,7 +480,11 @@ export class AssistantBubble {
   /** Everything the agent said this turn, for Copy. */
   private all = ''
   /** Tool rows this turn, newest last, for a permission card to settle onto. */
-  private readonly rows: { name: string; el: HTMLElement; shown?: string }[] = []
+  private readonly rows: { row: ToolRowView; group: ToolGroupView }[] = []
+  /** Rows by the call's id, for its result to land on. */
+  private readonly byId = new Map<string, ToolRowView>()
+  /** The calls running back to back now; text after them starts a new group. */
+  private group: ToolGroupView | null = null
   /** Cards still waiting on a click; the turn's end answers them. */
   private readonly pending = new Set<(d: PermissionDecision) => void>()
 
@@ -497,12 +502,15 @@ export class AssistantBubble {
   take(e: ChatEvent): void {
     switch (e.type) {
       case 'start':
+        break
       case 'tool-done':
+        if (e.id) this.byId.get(e.id)?.done(e.output, e.error === true)
         break
       case 'status':
         this.line('llm-wiki-muted', e.text)
         break
       case 'text':
+        this.closeGroup()
         this.text += e.text
         this.all += e.text
         this.scheduleRender()
@@ -510,15 +518,10 @@ export class AssistantBubble {
       case 'tool': {
         // A tool row closes the text so far, so later text starts a fresh block in order.
         this.flushText()
-        const d = describeTool(e.name, e.input, e.detail, this.root, toolSentence(e.name, e.detail))
-        const row = this.el.createDiv({ cls: 'llm-wiki-tool' })
-        setIcon(row.createSpan({ cls: 'llm-wiki-tool-icon' }), d.icon)
-        row.createSpan({ cls: 'llm-wiki-tool-name', text: d.label })
-        // A page in the wiki opens on a click: the transcript's link handler takes `internal-link`.
-        if (d.open) row.createEl('a', { cls: 'internal-link llm-wiki-tool-detail llm-wiki-tool-file', text: d.detail, href: d.open, attr: { 'data-href': d.open } })
-        else if (d.detail) row.createSpan({ cls: 'llm-wiki-tool-detail', text: d.detail })
-        if (e.detail) row.title = e.detail
-        this.rows.push({ name: e.name, el: row, shown: d.detail })
+        const group = (this.group ??= new ToolGroupView(this.el, this.root))
+        const row = group.add({ name: e.name, input: e.input, detail: e.detail, sentence: toolSentence(e.name, e.detail) })
+        this.rows.push({ row, group })
+        if (e.id) this.byId.set(e.id, row)
         break
       }
       case 'result':
@@ -541,13 +544,15 @@ export class AssistantBubble {
    */
   ask(req: PermissionRequest): Promise<PermissionDecision> {
     this.flushText()
-    const asked = [...this.rows].reverse().find((r) => r.name === req.tool)
-    const row = asked?.el ?? null
+    const asked = [...this.rows].reverse().find((r) => r.row.call.name === req.tool)
+    const row = asked?.row ?? null
+    // The call being asked about stays in view until it is answered.
+    asked?.group.setOpen(true)
     const card = this.el.createDiv({ cls: 'llm-wiki-permission' })
     card.createDiv({ cls: 'llm-wiki-permission-title', text: permissionTitle(req) })
     // What the row above already says is not said twice; a command the row put in words is.
     const summary = describeTool(req.tool, req.input, req.summary, this.root).detail ?? req.summary
-    if (summary !== asked?.shown) card.createEl('pre', { cls: 'llm-wiki-permission-summary', text: summary.replace(/\s--json\b/, '') })
+    if (summary !== row?.shown) card.createEl('pre', { cls: 'llm-wiki-permission-summary', text: summary.replace(/\s--json\b/, '') })
     const buttons = card.createDiv({ cls: 'llm-wiki-permission-buttons' })
     const allow = buttons.createEl('button', { text: 'Allow', cls: 'mod-cta' })
     const allowTurn = buttons.createEl('button', { text: 'Allow for this turn', attr: { title: 'Every tool this turn still wants runs without asking' } })
@@ -557,9 +562,10 @@ export class AssistantBubble {
         if (!this.pending.delete(settle)) return
         card.remove()
         if (!d.allow) {
-          const mark = (row ?? this.el).createSpan({ cls: 'llm-wiki-tool-mark is-denied', text: d.reason === TURN_ENDED ? 'Not answered' : 'Denied' })
-          if (!row) mark.addClass('llm-wiki-line')
-        } else if (row && d.forTurn) row.createSpan({ cls: 'llm-wiki-tool-mark', text: 'Allowed for this turn' })
+          const denied = d.reason === TURN_ENDED ? 'Not answered' : 'Denied'
+          if (row) row.mark(denied, 'is-denied')
+          else this.line('llm-wiki-tool-mark is-denied', denied)
+        } else if (row && d.forTurn) row.mark('Allowed for this turn')
         resolve(d)
       }
       this.pending.add(settle)
@@ -571,6 +577,7 @@ export class AssistantBubble {
 
   finish(): void {
     for (const settle of [...this.pending]) settle({ allow: false, reason: TURN_ENDED })
+    this.closeGroup()
     this.flushText()
     if (!this.all.trim()) return
     const copy = this.el.createEl('button', { cls: 'llm-wiki-copy clickable-icon', attr: { 'aria-label': 'Copy the reply as markdown' } })
@@ -583,7 +590,14 @@ export class AssistantBubble {
     this.owner.removeChild(this.renderer)
   }
 
+  /** The calls so far are one group; whatever comes next sits after it. */
+  private closeGroup(): void {
+    this.group?.settle()
+    this.group = null
+  }
+
   private line(cls: string, text: string): void {
+    this.closeGroup()
     this.el.createDiv({ cls: `llm-wiki-line ${cls}`.trim(), text })
   }
 

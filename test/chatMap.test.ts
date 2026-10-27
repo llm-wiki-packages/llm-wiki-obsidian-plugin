@@ -7,7 +7,7 @@ import { summarizeTool } from '../src/chat/types'
 describe('Agent SDK frames into chat events', () => {
   it('a tool result echoed as a user message becomes tool-done', () => {
     const m = { type: 'user', parent_tool_use_id: null, message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 't', content: 'ok' }] } } as unknown as SDKMessage
-    expect(mapMessage(m).events).toEqual([{ type: 'tool-done' }])
+    expect(mapMessage(m).events).toEqual([{ type: 'tool-done', id: 't', output: 'ok', error: false }])
   })
   it('reads the session id off init and says nothing else about it', () => {
     const m = { type: 'system', subtype: 'init', session_id: 's1', claude_code_version: '2.1.309', model: 'm', permissionMode: 'default' } as unknown as SDKMessage
@@ -24,8 +24,8 @@ describe('Agent SDK frames into chat events', () => {
   })
 
   it('turns a tool_use block into a tool row with its command', () => {
-    const m = { type: 'assistant', parent_tool_use_id: null, message: { content: [{ type: 'tool_use', name: 'Bash', input: { command: 'llm-wiki-ops jobs due' } }] } } as unknown as SDKMessage
-    expect(mapMessage(m).events).toEqual([{ type: 'tool', name: 'Bash', detail: 'llm-wiki-ops jobs due', input: { command: 'llm-wiki-ops jobs due' } }])
+    const m = { type: 'assistant', parent_tool_use_id: null, message: { content: [{ type: 'tool_use', id: 'u1', name: 'Bash', input: { command: 'llm-wiki-ops jobs due' } }] } } as unknown as SDKMessage
+    expect(mapMessage(m).events).toEqual([{ type: 'tool', name: 'Bash', detail: 'llm-wiki-ops jobs due', input: { command: 'llm-wiki-ops jobs due' }, id: 'u1' }])
   })
 
   it('maps success and error results', () => {
