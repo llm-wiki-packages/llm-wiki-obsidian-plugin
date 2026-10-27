@@ -53,6 +53,7 @@ const READ_NAMES: Record<string, string> = {
   'wiki.doctor': 'the doctor report', 'wiki.jobs.ls': 'the job list', 'wiki.jobs.due': 'what is due', 'wiki.tickets.ls': 'the run list', 'wiki.page.ls': 'the page list',
   'wiki.op.since': 'recent runs', 'wiki.search.status': 'the search status', 'wiki.git.conflicts': 'conflicts', 'machine.runner.ls': 'the runner', 'wiki.skills.ls': 'the skills',
   'wiki.skills.doctor': 'the skills doctor', 'wiki.packages.ls': 'the packages', 'wiki.credentials.ls': 'the credentials', 'wiki.credentials.bindings': 'the credential bindings',
+  'wiki.status': 'the sync state', 'wiki.git.log': 'the history', 'wiki.git.status': 'the unsaved files',
 }
 
 export class DashboardView extends ItemView {

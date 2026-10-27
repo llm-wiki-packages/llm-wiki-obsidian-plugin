@@ -1,7 +1,7 @@
 // Where things live in a wiki, and the names of the two boxes. The one place
 // the plugin spells a tree: every other module asks here. The defaults are the
-// seeded layout; once the CLI answers with the resolved one (llm-wiki-plugins
-// #3675), `setLayout` takes it and nothing else changes.
+// seeded layout; `whereami`'s resolved one (llm-wiki-plugins #3675 ask 7)
+// replaces them through `layoutFrom` once the wiki is found.
 
 export interface Layout {
   /** Trees whose pages feed the wiki: a person accepts them in. */
@@ -42,12 +42,31 @@ export function setLayout(next: Partial<Layout>): void {
   current = { ...DEFAULT_LAYOUT, ...next }
 }
 
-/** The first segment, which names the tree a path is in. */
-export function treeOf(path: string): string {
-  return path.split('/')[0] ?? ''
+/** `whereami`'s `wiki.layout` (`OPS/lib/wiki/layout.py`): each a directory with a trailing slash. */
+export interface LayoutAnswer {
+  /** Every tree the index reads, the wiki's own pages among them. */
+  feeds?: string[]
+  pages?: string
+  raw?: string
+  templates?: string
 }
 
-const under = (path: string, trees: string[]) => trees.includes(treeOf(path))
+const dir = (d: string) => d.replace(/\/+$/, '')
+
+/** The CLI's layout in the plugin's terms: a feed is a tree a person accepts in, so the wiki's own pages are not one. */
+export function layoutFrom(a: LayoutAnswer | null | undefined): Partial<Layout> {
+  if (!a) return {}
+  const out: Partial<Layout> = {}
+  const pages = a.pages ? dir(a.pages) : null
+  if (pages) out.wiki = [pages]
+  if (a.feeds) out.feeds = a.feeds.map(dir).filter((d) => d && d !== pages)
+  if (a.raw) out.raw = dir(a.raw)
+  if (a.templates) out.templates = dir(a.templates)
+  return out
+}
+
+/** A tree contains a path when the path is the tree or sits below it; a tree may be nested (`notes/sources`). */
+const under = (path: string, trees: string[]) => trees.some((t) => path === t || path.startsWith(`${t}/`))
 
 export const isFeed = (path: string): boolean => under(path, current.feeds)
 export const isWikiPage = (path: string): boolean => under(path, current.wiki)

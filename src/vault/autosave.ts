@@ -1,8 +1,9 @@
 // Edits made in Obsidian become history when no runner on this machine does
 // it: the CLI's sweep (`git commit`) a couple of minutes after the vault goes
 // quiet, at startup, and on Save now, then `git sync` when the person chose to
-// sync. The sweep holds a page edited inside its settle window; such a page is
-// tried again once the window has passed.
+// sync. The sweep runs under the `editor` origin, so the CLI's settle window
+// does not hold what was typed here; an older CLI still holds a page edited
+// inside it, and such a page is tried again once the window has passed.
 import { Notice, TAbstractFile } from 'obsidian'
 import type LlmWikiPlugin from '../main'
 import { isSwept } from '../wiki/layout'
