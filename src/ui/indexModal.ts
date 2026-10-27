@@ -24,6 +24,11 @@ const LISTED = 40
 const short = (sha: string | null | undefined) => (sha ? sha.slice(0, SHORT) : '')
 const plural = (n: number, one: string) => `${n.toLocaleString()} ${one}${n === 1 ? '' : 's'}`
 
+/** The files `search status` counted as `dirty`, sorted; null from a CLI that sends only the count. */
+export function waitingFiles(s: SearchStatusAnswer | null): string[] | null {
+  return Array.isArray(s?.dirty_paths) ? [...s.dirty_paths].sort() : null
+}
+
 /** What the index owes, in one verdict, and the two passes that pay it. */
 export function openIndexModal(app: App, plugin: LlmWikiPlugin, opts: IndexModalOptions): void {
   new IndexModal(app, plugin, opts).open()
@@ -65,9 +70,17 @@ class IndexModal extends Modal {
       this.problem = e instanceof CliError ? e.short : String(e)
     }
     this.changed = null
-    this.draw()
-    // The files themselves: what moved since the commit the index was built at, under the trees it owes.
     const s = this.status
+    // The files themselves, as the CLI counted them: what the index does not hold at their current bytes.
+    const listed = waitingFiles(s)
+    if (listed) {
+      this.changed = listed
+      this.draw()
+      return
+    }
+    this.draw()
+    // An older CLI names none: what moved since the commit the index was built at, under the trees it owes.
+    // A pass does not move that commit, so this can still hold files a pass already indexed, or withheld as empty.
     const marker = s?.index_as_of?.source_commit
     if (!s?.dirty || !marker || s.marker_known === false) return
     const include = (s.paths ?? []).map((p) => p.pattern)
@@ -129,7 +142,8 @@ class IndexModal extends Modal {
       el.createDiv({ cls: 'llm-wiki-muted llm-wiki-index-facts', text: facts.join(' · ') })
     }
 
-    if (s?.dirty) this.fileList(el, `Waiting to be indexed`, s.dirty, this.changed, s.marker_known === false
+    const exact = waitingFiles(s) !== null
+    if (s?.dirty) this.fileList(el, `Waiting to be indexed`, s.dirty, this.changed, exact, s.marker_known === false && !exact
       ? 'The index names no commit this checkout knows, so every file is offered; the pass skips the ones it already holds.'
       : undefined)
     if (this.opts.stale.length) this.staleList(el)
@@ -138,7 +152,8 @@ class IndexModal extends Modal {
     if (s?.engine_configured) this.choices(el)
   }
 
-  private fileList(parent: HTMLElement, title: string, count: number, files: string[] | null, note?: string): void {
+  /** `exact`: `files` are the CLI's own, so `count` is how many there are even where the list is cut short. */
+  private fileList(parent: HTMLElement, title: string, count: number, files: string[] | null, exact: boolean, note?: string): void {
     const box = parent.createDiv({ cls: 'llm-wiki-index-list' })
     const head = box.createDiv({ cls: 'llm-wiki-index-list-head' })
     head.createSpan({ text: title })
@@ -146,7 +161,8 @@ class IndexModal extends Modal {
     if (note) box.createDiv({ cls: 'llm-wiki-muted', text: note })
     if (files === null && !note) box.createDiv({ cls: 'llm-wiki-muted', text: 'Finding the files…' })
     for (const f of (files ?? []).slice(0, LISTED)) this.fileRow(box, f)
-    if (files && files.length > LISTED) box.createDiv({ cls: 'llm-wiki-muted', text: `and ${(files.length - LISTED).toLocaleString()} more` })
+    const more = files ? (exact ? Math.max(count, files.length) : files.length) - Math.min(files.length, LISTED) : 0
+    if (more > 0) box.createDiv({ cls: 'llm-wiki-muted', text: `and ${more.toLocaleString()} more` })
   }
 
   private staleList(parent: HTMLElement): void {

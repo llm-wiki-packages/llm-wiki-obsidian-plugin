@@ -205,6 +205,8 @@ export interface SearchStatus {
   /** Files the index owes; `dirty` of them it does not hold at their current bytes, null on a grep-only wiki. */
   corpus_files?: number
   dirty?: number | null
+  /** The `dirty` files themselves, the ones a pass would offer. No key at all from an older CLI. */
+  dirty_paths?: string[] | null
   /** False: the index names no commit this clone has, so every file is a candidate. */
   marker_known?: boolean | null
   /** `[search] paths` moved since the last full reindex: pages may sit in the index that no longer belong. */

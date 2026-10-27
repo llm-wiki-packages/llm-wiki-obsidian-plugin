@@ -688,6 +688,7 @@ interface SearchStatus {
   qdrant_auth: string | null; // "read-write"|"read-only"|"open"|"none"|"unauthorized"|null (no engine answered)
   corpus_files: number;
   dirty: number | null;       // files offered but not yet indexed; null on a grep-only wiki
+  dirty_paths?: string[] | null; // those files (llm-wiki-plugins#3711); no key from an older CLI
   marker_known: boolean | null;
   backends: { name: string; configured: boolean; available: boolean; reason: string }[];
 }
@@ -698,6 +699,9 @@ Example (real, grep-only wiki): `serving:"grep"`, `engine_configured:false`,
 `backends:[{name:"grep",configured:true,available:true,reason:""}]`.
 The dashboard reads only `serving`, `realm_ready`, `realm_reason`,
 `corpus_files`.
+The Search index modal lists `dirty_paths` under "Waiting to be indexed"; from
+a CLI without the key it falls back to `git changed --commit <source_commit>`,
+which a pass does not narrow (the marker moves only on a full rebuild).
 
 ### 1.13 `skills ls`
 
