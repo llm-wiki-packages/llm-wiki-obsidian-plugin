@@ -10,6 +10,23 @@ interface Usage {
   output_tokens?: number
 }
 
+interface ToolResult {
+  type?: string
+  tool_use_id?: string
+  content?: unknown
+  is_error?: boolean
+}
+
+/** A tool result's text: a string, or the text blocks of a list (an image is named, not shown). */
+export function resultText(content: unknown): string {
+  if (typeof content === 'string') return content
+  if (!Array.isArray(content)) return ''
+  return (content as { type?: string; text?: unknown }[])
+    .map((b) => (b?.type === 'text' && typeof b.text === 'string' ? b.text : b?.type === 'image' ? '[image]' : ''))
+    .filter(Boolean)
+    .join('\n')
+}
+
 export interface MappedTurn {
   sessionId?: string
   events: ChatEvent[]
@@ -37,7 +54,7 @@ export function mapMessage(m: SDKMessage): MappedTurn {
       for (const block of m.message.content) {
         if (block.type === 'tool_use') {
           const input = (block.input ?? {}) as Record<string, unknown>
-          events.push({ type: 'tool', name: block.name, detail: summarizeTool(block.name, input), input })
+          events.push({ type: 'tool', name: block.name, detail: summarizeTool(block.name, input), input, id: block.id })
         }
       }
       if (m.error) events.push({ type: 'error', message: `assistant: ${m.error}` })
@@ -50,7 +67,9 @@ export function mapMessage(m: SDKMessage): MappedTurn {
       // The harness echoes a tool's result as a user message: the change, if any, has happened by now.
       if (m.parent_tool_use_id) break
       const content = (m.message as { content?: unknown }).content
-      if (Array.isArray(content) && content.some((b: { type?: string }) => b?.type === 'tool_result')) events.push({ type: 'tool-done' })
+      if (Array.isArray(content))
+        for (const b of content as ToolResult[])
+          if (b?.type === 'tool_result') events.push({ type: 'tool-done', id: b.tool_use_id, output: resultText(b.content), error: b.is_error === true })
       break
     }
     case 'result':

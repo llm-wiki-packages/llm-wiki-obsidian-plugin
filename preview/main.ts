@@ -176,18 +176,24 @@ if (q.get('chat') === 'turn') {
   ;(t as any).createDiv({ cls: 'llm-wiki-msg llm-wiki-user', text: 'what’s new in the wiki' })
   const root = '/Users/joe/wikis/personal'
   const a = new AssistantBubble(t, app as any, chat, root)
-  a.take({ type: 'tool', name: 'Skill', input: { skill: 'brain:wiki-report', args: 'what’s new' }, detail: '{"skill":"brain:wiki-report"}' })
-  a.take({ type: 'tool', name: 'Bash', input: { command: 'llm-wiki-ops whereami skill=PLUGIN:wiki-report' }, detail: 'llm-wiki-ops whereami skill=PLUGIN:wiki-report' })
-  void a.ask({ tool: 'Bash', input: {}, summary: 'llm-wiki-ops whereami skill=PLUGIN:wiki-report' })
-  ;(t.querySelector('.llm-wiki-permission .mod-cta') as HTMLElement).click()
-  a.take({ type: 'tool', name: 'Bash', input: { command: 'rm -rf _raw/tmp' }, detail: 'rm -rf _raw/tmp' })
+  const tool = (id: string, name: string, input: any, out?: string, error = false) => {
+    a.take({ type: 'tool', id, name, input, detail: input.command ?? input.file_path ?? '' })
+    if (out !== undefined) a.take({ type: 'tool-done', id, output: out, error })
+  }
+  tool('s1', 'Skill', { skill: 'brain:wiki-report', args: 'what’s new' }, 'Launching skill: brain:wiki-report')
+  tool('b1', 'Bash', { command: 'llm-wiki-ops whereami skill=PLUGIN:wiki-report' }, 'wiki: personal (/Users/joe/wikis/personal)\nsession: attended\nsandbox: none')
+  tool('b2', 'Bash', { command: 'llm-wiki-ops --help 2>&1 | head -80; echo ---; llm-wiki-ops op since --help 2>&1 | head -40', description: 'Read the CLI help' }, 'Usage: llm-wiki-ops [OPTIONS] COMMAND [ARGS]...\n\n  llm-wiki-ops 0.9.0 — the one wiki this CLI is scoped to.\n\nCommands:\n  init   Create the wiki…\n  doctor What is wrong…')
+  tool('b3', 'Bash', { command: 'llm-wiki-ops reference skills/wiki-report/SKILL.md' }, '# wiki-report\n\nReport what changed since the last report…')
+  tool('b4', 'Bash', { command: 'rm -rf _raw/tmp' })
   void a.ask({ tool: 'Bash', input: {}, summary: 'rm -rf _raw/tmp' })
   ;(t.querySelectorAll('.llm-wiki-permission button')[2] as HTMLElement).click()
-  a.take({ type: 'tool', name: 'Read', input: { file_path: `${root}/wiki/log.md` }, detail: `${root}/wiki/log.md` })
-  a.take({ type: 'tool', name: 'Bash', input: { command: 'llm-wiki-ops git log filter=since:7d' }, detail: 'llm-wiki-ops git log filter=since:7d' })
+  a.take({ type: 'tool-done', id: 'b4', output: 'Denied in Obsidian', error: true })
+  a.take({ type: 'text', text: 'Running the wiki-report skill by hand (its preload hook got blocked). Opening the op and fixing the window.' })
+  tool('r1', 'Read', { file_path: `${root}/wiki/log.md` }, '1  # Log\n2  - 2026-10-20 — init')
+  tool('e1', 'Edit', { file_path: `${root}/wiki/topics/plans.md`, old_string: 'status: draft\nowner: joe', new_string: 'status: stable\nowner: joe' }, 'The file has been updated.')
   a.take({ type: 'text', text: '[[wiki/log.md]] has a single entry:\n\n- **2026-10-20** — `init`: wiki initialized (ops 0.7.0)\n\nSo no distill, dream or query has run yet. On your question:\n\n- The log shows nothing new.\n- Git has recent commits (“sweep 2 files”), so you edited pages:\n  - `sources/notes/Some file.md`\n  - `wiki/topics/plans.md`\n- Approve `git log` and I can say what changed.\n\n1. First\n2. Second' })
-  a.take({ type: 'tool', name: 'Edit', input: { file_path: `${root}/wiki/topics/plans.md` }, detail: '' })
-  void a.ask({ tool: 'Edit', input: {}, summary: `${root}/wiki/topics/plans.md` })
+  tool('b5', 'Bash', { command: 'llm-wiki-ops git log filter=since:7d' })
+  ;(t.querySelectorAll('.llm-wiki-tool-line')[1] as HTMLElement).click()
 }
 // The composer's states: ?busy=1 shows Stop, ?ctx=<tokens> fills the ring, ?pop=perm|model|effort|ring opens one, ?slash=<text> types into the box.
 if (q.get('busy') === '1') { (chat as any).running = new AbortController(); (chat as any).showSend() }

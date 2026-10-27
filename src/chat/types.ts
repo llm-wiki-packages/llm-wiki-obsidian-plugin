@@ -13,10 +13,10 @@ export interface WikiTarget {
 export type ChatEvent =
   | { type: 'start'; detail?: string }
   | { type: 'text'; text: string }
-  /** `input` is the call's own arguments, when the harness hands them over; `detail` its one-line summary. */
-  | { type: 'tool'; name: string; detail?: string; input?: Record<string, unknown> }
-  /** A tool finished; the wiki may have changed. */
-  | { type: 'tool-done'; name?: string }
+  /** `input` is the call's own arguments, when the harness hands them over; `detail` its one-line summary; `id` pairs it with its result. */
+  | { type: 'tool'; name: string; detail?: string; input?: Record<string, unknown>; id?: string }
+  /** A tool finished; the wiki may have changed. `output` is what it answered, when the harness says. */
+  | { type: 'tool-done'; name?: string; id?: string; output?: string; error?: boolean }
   | { type: 'status'; text: string }
   | { type: 'result'; ok: boolean; text?: string; detail?: string }
   | { type: 'error'; message: string }

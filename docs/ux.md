@@ -164,12 +164,21 @@ sources/>", "What's new in the wiki?", "Add a YouTube video" (which prefills
 reply opens on click (Cmd-click in a new tab); a finished reply shows a Copy
 button on hover. Every dashboard hand-off lands here prefilled, not sent.
 
-Tool rows: an icon, a verb and what it touched. An llm-wiki command reads in
-words ("Running inbox-joe", "Checking how this session runs"), the command on
-hover; any other command shows as "Run <command>". Read, Write and Edit name
-the file by its vault path, and a markdown page inside the wiki opens on a
-click. A skill reads "Skill brain:wiki-report · what's new". Text the agent
-writes after a tool sits after it.
+Tool rows are quieter than the reply: grey, one line each, an icon, a verb
+and what the call touched. An llm-wiki command reads in words ("Running
+inbox-joe", "Checking how this session runs"); any other command shows as
+"Run <command>". Read, Write and Edit name the file by its vault path, and a
+markdown page inside the wiki opens on a click. A skill reads "Skill
+brain:wiki-report · what's new".
+
+Every row opens on a click (or Enter) to show what ran: the whole command
+under the agent's own description of it, an edit as a red and green diff, a
+write's content, then the output, clipped to 40 lines with the rest counted.
+A row still running pulses. Calls made back to back are one group: from the
+second call a head line counts them ("Ran 3 commands · read 1 file", plus "1
+denied" or "1 failed" in red), and the group folds away when the agent writes
+again, unless you opened or shut it yourself. Text the agent writes after a
+tool sits after it, with space between.
 
 A permission card sits under the row it asks about and repeats only what the
 row does not already say. Answered, it folds away: Allow leaves nothing
@@ -409,3 +418,8 @@ name with a "pages written" row that lands on them.
   longer asks about the wiki's read verbs (#3695 seeds them in the wiki).
   Replies get a chat's rhythm: smaller list indents, tighter paragraphs,
   headings at text size. The empty context ring no longer looks like a spinner.
+- **Cycle 11 (2026-10-27)**: tool calls open. Each row expands to the command,
+  the edit as a diff, and the output (from the SDK's tool results, paired by
+  id); back-to-back calls fold into one grey group that counts what ran and
+  what was denied or failed. The rows are muted and spaced off the reply, so
+  the work and the words no longer blur.

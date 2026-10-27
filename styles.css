@@ -23,10 +23,6 @@
 .llm-wiki-assistant-body > :last-child { margin-bottom: 0; }
 .llm-wiki-note { text-align: center; }
 .llm-wiki-line { margin: var(--size-2-1) 0; white-space: pre-wrap; }
-.llm-wiki-tool { display: flex; align-items: baseline; gap: var(--size-2-2); font-size: var(--font-ui-small); margin: var(--size-2-1) 0; }
-.llm-wiki-tool-icon svg { width: 0.9em; height: 0.9em; }
-.llm-wiki-tool-name { font-weight: var(--font-semibold); }
-.llm-wiki-tool-detail { font-family: var(--font-monospace); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .llm-wiki-permission { border: 1px solid var(--interactive-accent); border-radius: var(--radius-m); padding: var(--size-4-2); margin: var(--size-4-2) 0; }
 .llm-wiki-permission.is-allowed { border-color: var(--color-green); }
 .llm-wiki-permission.is-denied { border-color: var(--color-red); opacity: 0.7; }
@@ -378,16 +374,6 @@ tr:focus-visible, .llm-wiki-row:focus-visible { outline: 2px solid var(--interac
 .llm-wiki-history-foot { display: flex; justify-content: flex-end; border-top: 1px solid var(--background-modifier-border); padding-top: var(--size-4-2); }
 
 /* Chat, cycle 10: tool rows that open their page, cards that fold away, tighter markdown */
-.llm-wiki-tool { align-items: center; color: var(--text-muted); margin: 2px 0; min-width: 0; }
-.llm-wiki-tool + .llm-wiki-assistant-body, .llm-wiki-permission + .llm-wiki-assistant-body { margin-top: var(--size-4-2); }
-.llm-wiki-assistant-body + .llm-wiki-tool { margin-top: var(--size-4-2); }
-.llm-wiki-tool-icon { display: inline-flex; flex: none; }
-.llm-wiki-tool-name { color: var(--text-normal); flex: none; }
-.llm-wiki-tool-detail { font-size: var(--font-ui-smaller); color: var(--text-muted); min-width: 0; }
-a.llm-wiki-tool-file { color: var(--text-accent); text-decoration: none; cursor: pointer; }
-a.llm-wiki-tool-file:hover { text-decoration: underline; }
-.llm-wiki-tool-mark { flex: none; font-size: var(--font-ui-smaller); padding: 0 var(--size-2-2); border-radius: var(--radius-s); background: var(--background-modifier-hover); }
-.llm-wiki-tool-mark.is-denied { color: var(--text-error); }
 .llm-wiki-permission { margin: var(--size-2-2) 0 var(--size-2-2) calc(0.9em + var(--size-2-2)); padding: var(--size-2-3) var(--size-4-2); background: var(--background-primary); }
 .llm-wiki-permission-title { font-size: var(--font-ui-small); margin-bottom: var(--size-2-1); }
 .llm-wiki-permission-summary { font-family: var(--font-monospace); font-size: var(--font-ui-smaller); color: var(--text-muted); }
@@ -413,3 +399,38 @@ a.llm-wiki-tool-file:hover { text-decoration: underline; }
 .llm-wiki-assistant-body blockquote { margin: 0.5em 0; padding-inline-start: var(--size-4-2); }
 .llm-wiki-assistant-body hr { margin: 0.8em 0; }
 .llm-wiki-ring.is-empty { display: none; }
+
+/* Chat, cycle 11: tool calls are quiet grey rows that open, grouped when back to back */
+.llm-wiki-work { margin: var(--size-2-3) 0; font-size: var(--font-ui-small); color: var(--text-muted); }
+.llm-wiki-work + .llm-wiki-assistant-body, .llm-wiki-permission + .llm-wiki-assistant-body { margin-top: var(--size-4-3); }
+.llm-wiki-assistant-body + .llm-wiki-work { margin-top: var(--size-4-3); }
+.llm-wiki-work-head { display: flex; align-items: center; gap: var(--size-2-2); padding: 2px var(--size-2-2); border-radius: var(--radius-s); cursor: pointer; width: fit-content; }
+.llm-wiki-work-head:hover { color: var(--text-normal); background: var(--background-modifier-hover); }
+.llm-wiki-work:not(.is-open) > .llm-wiki-work-list { display: none; }
+.llm-wiki-work.has-head > .llm-wiki-work-list { margin-left: var(--size-4-2); padding-left: var(--size-4-2); border-left: 1px solid var(--background-modifier-border); }
+.llm-wiki-tool-caret { display: inline-flex; flex: none; transition: transform 120ms ease; opacity: 0.7; }
+.llm-wiki-tool-caret svg { width: 0.85em; height: 0.85em; }
+.llm-wiki-work.is-open > .llm-wiki-work-head .llm-wiki-tool-caret, .llm-wiki-tool.is-open > .llm-wiki-tool-line .llm-wiki-tool-caret { transform: rotate(90deg); }
+.llm-wiki-tool { margin: 1px 0; }
+.llm-wiki-tool-line { display: flex; align-items: center; gap: var(--size-2-2); padding: 2px var(--size-2-2); border-radius: var(--radius-s); cursor: pointer; min-width: 0; }
+.llm-wiki-tool-line:hover, .llm-wiki-tool.is-open > .llm-wiki-tool-line { background: var(--background-modifier-hover); color: var(--text-normal); }
+.llm-wiki-tool-line:focus-visible, .llm-wiki-work-head:focus-visible { outline: 1px solid var(--interactive-accent); }
+.llm-wiki-tool-line .llm-wiki-tool-caret { margin-left: auto; opacity: 0; }
+.llm-wiki-tool-line:hover .llm-wiki-tool-caret, .llm-wiki-tool.is-open .llm-wiki-tool-caret { opacity: 0.7; }
+.llm-wiki-tool-icon { display: inline-flex; flex: none; }
+.llm-wiki-tool-icon svg { width: 0.95em; height: 0.95em; }
+.llm-wiki-tool.is-running .llm-wiki-tool-icon { animation: llm-wiki-pulse 1.2s ease-in-out infinite; }
+@keyframes llm-wiki-pulse { 50% { opacity: 0.35; } }
+.llm-wiki-tool-name { flex: none; font-weight: var(--font-normal); }
+.llm-wiki-tool-detail { font-family: var(--font-monospace); font-size: var(--font-ui-smaller); color: var(--text-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+a.llm-wiki-tool-file { color: var(--text-accent); opacity: 0.85; text-decoration: none; }
+a.llm-wiki-tool-file:hover { opacity: 1; text-decoration: underline; }
+.llm-wiki-tool-mark { flex: none; font-size: var(--font-ui-smaller); padding: 0 var(--size-2-2); border-radius: var(--radius-s); background: var(--background-modifier-hover); }
+.llm-wiki-tool-mark.is-denied { color: var(--text-error); }
+.llm-wiki-tool-panel { margin: 2px 0 var(--size-2-3) calc(0.95em + var(--size-2-2) * 2); }
+.llm-wiki-tool-label { font-size: var(--font-ui-smaller); color: var(--text-faint); margin: var(--size-2-2) 0 2px; }
+.llm-wiki-tool-pre { margin: 0; padding: var(--size-2-3) var(--size-4-2); max-height: 22em; overflow: auto; background: var(--background-primary); border: 1px solid var(--background-modifier-border); border-radius: var(--radius-s); font-family: var(--font-monospace); font-size: var(--font-ui-smaller); color: var(--text-muted); white-space: pre-wrap; word-break: break-word; user-select: text; }
+.llm-wiki-tool-pre.is-error { color: var(--text-error); }
+.llm-wiki-tool-pre .is-added { color: var(--color-green); }
+.llm-wiki-tool-pre .is-removed { color: var(--color-red); }
+.llm-wiki-work-head .llm-wiki-tool-mark { margin-left: var(--size-2-3); }

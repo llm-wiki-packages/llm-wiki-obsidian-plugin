@@ -73,3 +73,85 @@ export function describeTool(name: string, input: Record<string, unknown> | unde
       return { icon: 'wrench', label: name, detail }
   }
 }
+
+/** One block of an opened row: the command, an edit, the output. */
+export interface DetailBlock {
+  label: string
+  text: string
+  /** `diff` colors lines by their `+`/`-`. */
+  kind: 'code' | 'diff'
+}
+
+/** Lines an opened row shows of any one block before it says how many it left out. */
+export const DETAIL_LINES = 40
+
+/** `text` cut to `DETAIL_LINES`, saying what was left out. */
+export function clip(text: string, lines = DETAIL_LINES): string {
+  const all = text.replace(/\s+$/, '').split('\n')
+  if (all.length <= lines) return all.join('\n')
+  return `${all.slice(0, lines).join('\n')}\n… ${all.length - lines} more lines`
+}
+
+const diffOf = (before: string, after: string): string =>
+  [...before.split('\n').map((l) => `- ${l}`), ...after.split('\n').map((l) => `+ ${l}`)].join('\n')
+
+/** What an opened row shows about the call itself; the output joins it when the result lands. */
+export function toolDetail(name: string, input: Record<string, unknown> | undefined, detail: string | undefined): DetailBlock[] {
+  const s = (k: string) => (typeof input?.[k] === 'string' ? (input[k]) : undefined)
+  switch (name) {
+    case 'Bash': {
+      const command = s('command') ?? detail
+      const blocks: DetailBlock[] = command ? [{ label: s('description') ?? 'Command', text: command, kind: 'code' }] : []
+      return blocks
+    }
+    case 'Edit': {
+      const before = s('old_string')
+      const after = s('new_string')
+      return before !== undefined && after !== undefined ? [{ label: input?.replace_all ? 'Edit, every match' : 'Edit', text: clip(diffOf(before, after)), kind: 'diff' }] : []
+    }
+    case 'MultiEdit': {
+      const edits = Array.isArray(input?.edits) ? (input.edits as { old_string?: string; new_string?: string }[]) : []
+      return edits.length ? [{ label: `${edits.length} edits`, text: clip(edits.map((e) => diffOf(e.old_string ?? '', e.new_string ?? '')).join('\n…\n')), kind: 'diff' }] : []
+    }
+    case 'Write':
+      return s('content') !== undefined ? [{ label: 'Content', text: clip(s('content')!), kind: 'code' }] : []
+    case 'Read': {
+      const from = input?.offset
+      const n = input?.limit
+      return typeof from === 'number' || typeof n === 'number' ? [{ label: 'Lines', text: `${typeof from === 'number' ? `from ${from}` : 'from the top'}${typeof n === 'number' ? `, ${n} lines` : ''}`, kind: 'code' }] : []
+    }
+    case 'Grep':
+    case 'Glob': {
+      const parts = ['pattern', 'path', 'glob', 'type'].map((k) => (s(k) ? `${k}: ${s(k)}` : '')).filter(Boolean)
+      return parts.length ? [{ label: 'Search', text: parts.join('\n'), kind: 'code' }] : []
+    }
+    case 'Skill':
+      return s('args') ? [{ label: 'Arguments', text: s('args')!, kind: 'code' }] : []
+    default: {
+      const keys = input ? Object.keys(input) : []
+      if (keys.length) return [{ label: 'Input', text: clip(JSON.stringify(input, null, 2)), kind: 'code' }]
+      return detail ? [{ label: 'Input', text: detail, kind: 'code' }] : []
+    }
+  }
+}
+
+/** A group's one line: `Ran 3 commands · read 1 file`. */
+export function groupSummary(names: string[]): string {
+  const count = (pred: (n: string) => boolean) => names.filter(pred).length
+  const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
+  const parts: string[] = []
+  const ran = count((n) => n === 'Bash')
+  const read = count((n) => n === 'Read')
+  const edited = count((n) => n in FILE_TOOLS && n !== 'Read')
+  const searched = count((n) => n === 'Grep' || n === 'Glob' || n === 'WebSearch')
+  const skills = count((n) => n === 'Skill')
+  const rest = names.length - ran - read - edited - searched - skills
+  if (ran) parts.push(`ran ${plural(ran, 'command')}`)
+  if (read) parts.push(`read ${plural(read, 'file')}`)
+  if (edited) parts.push(`changed ${plural(edited, 'file')}`)
+  if (searched) parts.push(`searched ${plural(searched, 'time')}`)
+  if (skills) parts.push(`used ${plural(skills, 'skill')}`)
+  if (rest) parts.push(`used ${plural(rest, 'other tool')}`)
+  const line = parts.join(' · ')
+  return line.charAt(0).toUpperCase() + line.slice(1)
+}
