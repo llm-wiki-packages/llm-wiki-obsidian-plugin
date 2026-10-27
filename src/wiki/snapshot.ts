@@ -4,7 +4,8 @@
 import type { Args, Verb } from './cli'
 import { parseSkill } from '../chat/skills'
 import { slotWords } from './slots'
-import type { AttentionItem, CredentialView, CurationItem, JobView, RecentRun, SearchStatus, SkillView, SlotView, Snapshot, TicketView } from './model'
+import type { AttentionItem, Commit, CredentialView, JobView, MachineView, PageItem, PageState, RecentRun, SearchStatus, SkillView, SlotView, Snapshot, SyncState, TicketView } from './model'
+import { isFeed } from './layout'
 import { slash } from '../chat/skills'
 
 /** What the builder needs of a Cli, so a test can hand it fixtures. */
@@ -68,6 +69,21 @@ export interface PageRow {
   path: string
   status: string | null
   change?: 'new' | 'edited' | 'current' | null
+  /** #3669: a `sources/` page nobody has accepted, held or archived. */
+  curate_candidate?: boolean
+  /** #3669: the two boxes, read through the CLI's one table. */
+  draft?: boolean
+  archive?: boolean
+  unreadable?: boolean
+}
+/** `status --peers`: this clone's git counts, and every joined machine. */
+export interface StatusAnswer {
+  machine?: string | null
+  git?: { dirty?: number | null; untracked?: number | null; unpushed?: number | null; behind?: number; upstream?: string | null }
+  peers?: { machine: string; state: string; last_seen?: string | null; capabilities?: Record<string, string | Record<string, string>>; detail?: string }[] | null
+}
+export interface GitLogAnswer {
+  commits?: { sha: string; at: string; subject: string; op?: string; actor?: string }[]
 }
 export interface OpSinceAnswer {
   runs?: { op: string; outcome: string; when: string; summary: string }[]
@@ -153,7 +169,7 @@ export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now(
   }
   const light = previous !== undefined
   const skip = <T>(): Promise<T | null> => Promise.resolve(null)
-  const [doctor, jobsLs, due, tickets, pages, ops, search, conflicts, runnerLs, skillsLs, skillsDoctor, packagesLs, credentialsLs, bindings] = await Promise.all([
+  const [doctor, jobsLs, due, tickets, pages, ops, search, conflicts, status, gitLog, runnerLs, skillsLs, skillsDoctor, packagesLs, credentialsLs, bindings] = await Promise.all([
     soft<DoctorAnswer>('wiki.doctor'),
     soft<JobsLsAnswer>('wiki.jobs.ls'),
     soft<JobsDueAnswer>('wiki.jobs.due'),
@@ -162,6 +178,8 @@ export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now(
     soft<OpSinceAnswer>('wiki.op.since', { since: '1d' }),
     soft<SearchStatusAnswer>('wiki.search.status'),
     soft<{ pages?: string[] }>('wiki.git.conflicts'),
+    soft<StatusAnswer>('wiki.status'),
+    soft<GitLogAnswer>('wiki.git.log', { since: '7d' }),
     light ? skip<RunnerLsAnswer>() : soft<RunnerLsAnswer>('machine.runner.ls'),
     light ? skip<SkillsLsAnswer>() : soft<SkillsLsAnswer>('wiki.skills.ls'),
     light ? skip<SkillsDoctorAnswer>() : soft<SkillsDoctorAnswer>('wiki.skills.doctor'),
@@ -213,8 +231,6 @@ export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now(
   }
   const runner = previous ? previous.runner : (runnerLs?.wikis ?? []).some((w) => w.wiki_key === wikiKey && w.installed !== null)
   const pageRows = pages?.pages ?? []
-  // An older CLI lists no change state; then the queue is unknowable rather than empty. No pages at all is simply empty.
-  const tellsChange = pages !== null && (pageRows.length === 0 || pageRows.some((p) => 'change' in p))
   const errors_ = attention.filter((a) => a.severity === 'error').length
   const count = errors_ + attention.filter((a) => a.severity === 'warn').length
   // The reads a light pass skipped keep their last verdict, so a known hole does not look healed.
@@ -228,9 +244,13 @@ export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now(
     jobs,
     skills,
     credentials,
-    curation: pageRows.filter((p) => p.status === 'draft').map(curationItem),
-    unadopted: tellsChange ? pageRows.filter((p) => p.change === 'new' && p.path.startsWith('sources/')).map(curationItem) : null,
+    pages: pages === null ? null : pageRows.filter((p) => !p.unreadable).map(pageItem),
+    boxes: pageRows.some((p) => 'curate_candidate' in p),
     recent: (ops?.runs ?? []).map((r) => recentRun(r, jobRows)),
+    activity: (gitLog?.commits ?? []).map(commitOf),
+    machine: status?.machine ?? null,
+    fleet: fleetOf(status),
+    sync: syncOf(status),
     search,
     errors,
   }
@@ -475,9 +495,53 @@ function attentionItems(input: {
   return out.sort((a, b) => rank[a.severity] - rank[b.severity])
 }
 
-function curationItem(p: PageRow): CurationItem {
-  const base = p.path.split('/').pop() ?? p.path
-  return { path: p.path, title: base.replace(/\.md$/, ''), job: p.path.split('/').slice(1, -1).join('/') || undefined }
+/**
+ * A row's state in a person's words. With #3669's fields the CLI decided; an
+ * older CLI's stored `status` is read the old way, where `draft` meant unjudged.
+ */
+export function pageState(p: PageRow): PageState {
+  if ('curate_candidate' in p) {
+    if (p.archive || p.status === 'deprecated') return 'archived'
+    if (p.draft) return 'draft'
+    if (p.status === 'stable') return 'accepted'
+    if (p.curate_candidate || (p.change === 'new' && isFeed(p.path))) return 'new'
+    return 'none'
+  }
+  if (p.status === 'deprecated') return 'archived'
+  if (p.status === 'stable') return 'accepted'
+  if (p.status === 'draft' || (p.change === 'new' && isFeed(p.path))) return 'new'
+  return 'none'
+}
+
+function pageItem(p: PageRow): PageItem {
+  return { path: p.path, state: pageState(p), change: p.change ?? null }
+}
+
+function commitOf(c: NonNullable<GitLogAnswer['commits']>[number]): Commit {
+  return { sha: c.sha, at: c.at, subject: c.subject, op: c.op ?? 'none', actor: c.actor ?? '' }
+}
+
+/** The stages a machine says it takes: every stage word `ready`, and the plugin engines by name. */
+export function rolesOf(capabilities: Record<string, string | Record<string, string>> | undefined): string[] {
+  const roles = new Set<string>()
+  for (const [unit, value] of Object.entries(capabilities ?? {})) {
+    if (typeof value !== 'object') continue
+    const ready = Object.entries(value).filter(([, w]) => w === 'ready').map(([stage]) => stage)
+    if (!ready.length) continue
+    if (unit.startsWith('PLUGIN:')) roles.add(unit.slice('PLUGIN:'.length))
+    else for (const stage of ready) roles.add(stage)
+  }
+  return [...roles].sort()
+}
+
+function fleetOf(s: StatusAnswer | null): MachineView[] {
+  return (s?.peers ?? []).map((p) => ({ name: p.machine, state: p.state, lastSeen: p.last_seen ?? null, roles: rolesOf(p.capabilities), me: p.machine === s?.machine, ...(p.detail ? { detail: p.detail } : {}) }))
+}
+
+function syncOf(s: StatusAnswer | null): SyncState | null {
+  const g = s?.git
+  if (!g) return null
+  return { dirty: g.dirty ?? null, untracked: g.untracked ?? null, unpushed: g.unpushed ?? null, behind: g.behind ?? 0, upstream: g.upstream ?? null }
 }
 
 function recentRun(r: NonNullable<OpSinceAnswer['runs']>[number], jobs: JobRow[]): RecentRun {

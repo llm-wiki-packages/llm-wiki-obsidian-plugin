@@ -99,12 +99,14 @@ export class Actions {
     return bad.length ? { ok: false, message: `${did} ${outs.length - bad.length} of ${outs.length}: ${bad[0]?.message ?? ''}` } : { ok: true, message: `${did} ${outs.length}` }
   }
 
-  async reject(path: string, reason: string): Promise<Outcome> {
+  /** Archive with a reason: `page curate reject=` ticks `Archive` and stamps why. */
+  async reject(paths: string | string[], reason: string): Promise<Outcome> {
+    const list = typeof paths === 'string' ? [paths] : paths
     try {
-      await this.cli.run('wiki.page.curate', { wiki: this.wiki, paths: [path], reason })
-      return { ok: true, message: `rejected ${path}` }
+      await this.cli.run('wiki.page.curate', { wiki: this.wiki, paths: list, reason })
+      return { ok: true, message: list.length === 1 ? `archived ${list[0]}` : `archived ${list.length} pages` }
     } catch (e) {
-      return failed(`could not reject ${path}`, e)
+      return failed(list.length === 1 ? `could not archive ${list[0]}` : 'could not archive', e)
     }
   }
 
@@ -162,6 +164,30 @@ export class Actions {
     }
   }
 
+  /** The sweep: commit every uncommitted change, attributed by author. Pages edited inside the settle window wait for the next one. */
+  async commit(): Promise<Outcome & { settling: string[]; commits: number }> {
+    try {
+      const a = await this.cli.run<CommitAnswer>('wiki.git.commit', { wiki: this.wiki }, { timeoutMs: 120_000 })
+      const commits = a.commits?.length ?? 0
+      const settling = a.settling ?? []
+      const wait = settling.length ? `; ${plural(settling.length, 'page')} still being edited, saved later` : ''
+      return { ok: true, message: commits ? `saved to history${wait}` : `nothing new to save${wait}`, settling, commits }
+    } catch (e) {
+      return { ...failed('could not save to history', e), settling: [], commits: 0 }
+    }
+  }
+
+  /** Pull with rebase, then push. A dirty tree defers the pull, which the note says. */
+  async sync(): Promise<Outcome> {
+    try {
+      const a = await this.cli.run<SyncAnswer>('wiki.git.sync', { wiki: this.wiki }, { timeoutMs: 180_000 })
+      const did = [a.pulled ? 'pulled' : '', a.pushed ? 'pushed' : ''].filter(Boolean).join(' and ')
+      return { ok: a.pulled || a.pushed || !a.note, message: did ? `synced: ${did}` : `not synced: ${a.note || 'nothing to do'}` }
+    } catch (e) {
+      return failed('could not sync', e)
+    }
+  }
+
   /** The additive pass: offer what moved since the last one. A `partial` pass exits 1 with its answer. */
   async index(): Promise<Outcome> {
     try {
@@ -181,6 +207,19 @@ export class Actions {
       return body?.status ? reindexed(body) : failed('could not rebuild the index', e)
     }
   }
+}
+
+/** `git commit`'s answer, `OPS/lib/git/commit.py` `Committed`. */
+interface CommitAnswer {
+  commits?: object[]
+  settling?: string[]
+}
+
+/** `git sync`'s answer, `OPS/lib/git/sync.py` `Synced`. */
+interface SyncAnswer {
+  pulled?: boolean
+  pushed?: boolean
+  note?: string
 }
 
 /** `search index`'s answer, `OPS/search/index.py`. */

@@ -12,23 +12,32 @@ spawns local processes.
 
 One view, **Brain** (the brain icon in the ribbon, the status bar item, or
 *LLM Wiki Brain: Open dashboard*), opened as a tab in the main area; drag it into a
-side split to keep it beside a note. Chat, Search and Overview on the left,
-the everyday tabs; **More** on the far right opens a second row with Jobs,
-Skills, Ingest and Credentials, for running the wiki, and reopens the one
+side split to keep it beside a note. Chat, Search, Overview and Changes on
+the left, the everyday tabs; **More** on the far right opens a second row
+with Jobs, Skills and Credentials, for running the wiki, and reopens the one
 last used. A note opened from the view (a search hit, a
-link in a reply, an Ingest row) opens in a new tab, never in the view's own
+link in a reply, a Changes row) opens in a new tab, never in the view's own
 place; Cmd-click opens a split. The health pill in the header reads `ok` or `N
 need you`, lists what needs you on hover, and opens the Overview from any tab;
 the gear opens the plugin settings.
 
-- **Overview**: one sentence about what is moving; **Needs you**, one row and
-  one button per item (a job that cannot run here until a credential is set,
-  a stopped job whose credential went stale, a parked ticket, a doctor
-  finding with the fix it names, a drifted skill, a conflict, a stale index);
-  **Running and due** cards; pages waiting for curation; **Last day**, the
-  runs in words. A wiki with no jobs gets one card that says what a job and a
-  skill are, with Add a source and Browse skills. Without a runner on this
-  machine, one notice with an Install-the-runner hand-off.
+- **Overview**: one sentence about what is moving, with Search, History and
+  Runner pills; **Needs you**, one row and one button per item (a job that
+  cannot run here until a credential is set, a stopped job whose credential
+  went stale, a parked ticket, a doctor finding with the fix it names, a
+  drifted skill, a conflict, a stale index); the **Fleet**, every machine
+  joined to the wiki around the shared remote, when there is more than one;
+  **Jobs**, running and next up, with Run now; one line about today's
+  content. A wiki with no jobs gets one card that says what a job and a skill
+  are, with Add a source and Browse skills. Without a runner anywhere, one
+  notice with an Install-the-runner hand-off.
+- **Changes**: **New**, the pages a job brought in or you dropped into
+  `sources/` that nobody has judged, grouped by the job or the folder (a
+  big group folds to one row) with **Accept** (into the wiki, through `page
+  curate`), **Draft** (hold it; ticks the `Draft` box) and **Archive…**
+  (`page curate reject=`); **Drafts**, every page you are holding, beside a
+  live preview; **Activity**, the week's commits by who made them. A strip
+  on top says what edits here are not in history yet, with **Save now**.
 - **Jobs**: grouped by state (needs you, running, due, scheduled, manual,
   paused), each row with its schedule, last run (a failure shows its reason)
   and what it is waiting on in plain words, one primary button (Set or
@@ -46,12 +55,6 @@ the gear opens the plugin settings.
   it, one button (Set or Replace credential, Run job, Enable, Add). Click a
   row for the **inspector**: what it needs on this machine, the jobs using it,
   SKILL.md and its enable and usage notes rendered, Add a source with it.
-- **Ingest**: the intake pipeline top to bottom. **New under sources/**:
-  files the wiki has not taken up, with **Adopt** (`page adopt`). Then
-  **Awaiting curation**: drafts grouped by the folder they landed in, Accept
-  all per folder; click opens the note; **Accept** and **Reject…** go through
-  `page curate`; one button hands the queue to the agent with
-  `/brain:curate`.
 - **Credentials**: every credential the CLI holds for this wiki, by name,
   kind and state, never a value, with who uses it; Replace, Remove, Log in,
   Add. Below, what an enabled skill still needs, with **Set credential**.
@@ -126,7 +129,17 @@ has installed, with what each does and what it takes, and turns the pick into
 a chat turn such as `/brain:research <goal>`. The wiki's own skill units
 live on the dashboard's Skills tab.
 
-**Commands**: Open dashboard, Open chat, Open search, Run a job… (a fuzzy list;
+**Every note** gets a history icon in its header, beside Obsidian's own: a
+dot while it has edits not yet in history; a click shows when and by whom it
+was last saved, the last ten commits, **Save now**, and **Local snapshots…**.
+A blank note made in Obsidian starts from the wiki's template for its folder
+(`page template`), the same frontmatter a page the agent makes gets. Without
+a runner on this machine, edits are saved to history two quiet minutes after
+the last one (the CLI's sweep, `git commit`), and with **Save and sync**
+pulled and pushed too; a runner does that itself, and the plugin stands back.
+
+**Commands**: Open dashboard, Open chat, Open search, Open changes, Save
+edits to history now, Apply the wiki's template to this page, Run a job… (a fuzzy list;
 the fastest Run there is), Open a job…, Add a source…, Set a credential…, Run a
 skill…, Ask the agent about this note, Refresh the dashboard, Re-detect wiki
 and binaries. Every row takes focus and opens on Enter.
@@ -194,6 +207,9 @@ Add `LLM_WIKI_E2E_SANDBOX=<sandbox>` to also hold a real sandboxed chat: a few h
 | `src/wiki/model.ts` | what the dashboard shows: `Snapshot`, jobs with a plain-words `next`, attention items with one action |
 | `src/wiki/snapshot.ts` | CLI answers into a `Snapshot`; the one place that knows the answers' field names |
 | `src/wiki/actions.ts` | the writes a click makes, each one verb, each answering one sentence |
+| `src/wiki/layout.ts` | where things live in a wiki (feeds, wiki, research, templates, raw) and the two box names; the only place a tree is spelled |
+| `src/vault/` | what Obsidian knows of a page, the Draft and Archive boxes, grouping, saving edits to history, templates on new notes |
+| `src/ui/pageHistory.ts` | the history icon in every note's header |
 | `src/views/dashboard/` | the one view: `index.ts` (header, tabs, action routing), one file per data tab |
 | `src/views/chat.ts`, `src/views/search.ts` | the Chat and Search panes the view hosts |
 | `src/ui/` | DOM helpers, the prompt and confirm modals, the credential dialog, the skill inspector |
@@ -211,8 +227,9 @@ plus one case in `main.ts`'s `backend()`.
 - **Read floor by default.** Every CLI call runs with `LLM_WIKI_PERMISSIONS=read`
   and `llm-wiki-cli wiki --read-only`, except the writes a click asks for,
   listed in one place (`WRITES` in `src/wiki/cli.ts`): run, pause and resume a
-  job, retry a ticket, accept or reject a page, adopt a page, reindex, and
-  `harness run`.
+  job, retry a ticket, accept or archive a page, adopt a page, save to
+  history and sync (`git commit`, `git sync`), reindex, and `harness run`.
+  The Draft and Archive boxes are ticked through Obsidian, as a person would.
 - **Nothing on screen says running or due that the ticket store does not.**
   Run is optimistic for one poll; the row's state comes from `tickets ls`.
 - **The agent is attended.** The session carries `LLM_WIKI_SESSION_ATTENDED=1`

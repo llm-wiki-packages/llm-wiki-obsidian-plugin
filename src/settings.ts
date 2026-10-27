@@ -2,10 +2,13 @@ import { PluginSettingTab, Setting, type App, type SettingDefinitionItem } from 
 import type LlmWikiPlugin from './main'
 import { PLUGIN_NAMESPACE } from './chat/skills'
 import type { SearchFilter } from './wiki/cli'
+import type { GroupBy } from './vault/groups'
 
 /** The Agent SDK's permission modes a person picks between; `plan` and `dontAsk` are not offered. */
 export type PermissionMode = 'default' | 'acceptEdits' | 'auto' | 'bypassPermissions'
 export type Effort = '' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+/** What happens to edits made in this vault when no runner sweeps them. */
+export type SaveHistory = 'off' | 'commit' | 'sync'
 
 export interface LlmWikiSettings {
   /** Absolute path of `llm-wiki-cli`; empty means search the login shell's PATH. */
@@ -39,6 +42,13 @@ export interface LlmWikiSettings {
   searchK: number
   /** The search pane's filters, kept across searches and restarts. */
   searchFilters: SearchFilter[]
+  /** Commit edits made here (and push them) when no runner on this machine does. */
+  saveHistory: SaveHistory
+  /** A note made in Obsidian starts from the wiki's template for its folder. */
+  applyTemplates: boolean
+  /** How the Changes tab groups what came in, and past how many a group folds to one row. */
+  changesGroup: GroupBy
+  changesCollapse: number
   debug: boolean
 }
 
@@ -60,8 +70,14 @@ export const DEFAULT_SETTINGS: LlmWikiSettings = {
   slashComplete: true,
   searchK: 20,
   searchFilters: [],
+  saveHistory: 'commit',
+  applyTemplates: true,
+  changesGroup: 'source',
+  changesCollapse: 5,
   debug: false,
 }
+
+export const SAVE_HISTORY_NAMES: Record<SaveHistory, string> = { off: 'Off', commit: 'Save on this machine', sync: 'Save and sync to other machines' }
 
 export const PERMISSION_NAMES: Record<PermissionMode, string> = {
   default: 'Ask first',
@@ -120,6 +136,12 @@ export class LlmWikiSettingTab extends PluginSettingTab {
         { name: 'Effort', control: { type: 'dropdown', key: 'effort', options: EFFORT_NAMES } },
         { name: 'Default skill', desc: `A new chat’s box starts with this skill typed in, e.g. ${PLUGIN_NAMESPACE}:search, so you see what runs and can delete it. Empty starts blank.`, control: { type: 'text', key: 'defaultSkill', placeholder: 'None' } },
         { name: 'Skill completion', desc: 'Typing / at the start of a line lists the skills.', control: { type: 'toggle', key: 'slashComplete' } },
+      ] },
+      { type: 'group', heading: 'Edits', items: [
+        { name: 'Save edits to history', desc: p.snapshot?.runner
+          ? 'A runner on this machine commits and syncs this wiki; this setting waits until it is uninstalled.'
+          : 'Commits what you edit here a couple of minutes after you stop, so it shows in Changes and page history. Sync also pulls and pushes, so your other machines see it; it is refused while Obsidian Sync or iCloud syncs this vault.', control: { type: 'dropdown', key: 'saveHistory', options: SAVE_HISTORY_NAMES } },
+        { name: 'Apply the wiki’s template to new notes', desc: 'A note made in Obsidian starts with the properties the wiki’s template for that folder gives, as a page the agent makes does. Turn it off if Templater fills new notes.', control: { type: 'toggle', key: 'applyTemplates' } },
       ] },
       { type: 'group', heading: 'Search', items: [
         { name: 'Results per search', control: { type: 'slider', key: 'searchK', min: 5, max: 100, step: 5 } },

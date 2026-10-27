@@ -53,6 +53,8 @@ function reader(answers: Partial<Record<Verb, unknown>>): Reader {
 }
 
 const EMPTY_UNITS: Partial<Record<Verb, unknown>> = {
+  'wiki.status': { machine: 'mac', git: { dirty: 0, untracked: 0, unpushed: 0, behind: 0 }, peers: [] },
+  'wiki.git.log': { commits: [] },
   'wiki.skills.ls': { skills: [] },
   'wiki.skills.doctor': { findings: [] },
   'wiki.packages.ls': { this_wiki: [] },
@@ -81,6 +83,8 @@ const GMAIL: Partial<Record<Verb, unknown>> = {
   'wiki.packages.show': { shown: '0.5.0', manifest: { artifacts: [{ type: 'skill', name: 'channel-gmail' }, { type: 'skill', name: 'channel-youtube' }, { type: 'skill', name: 'web-page' }] } },
   'wiki.credentials.ls': { rows: [{ name: 'claude_login', kind: 'harness', login: 'hand', state: 'unverified', verified: null }, { name: 'gmail_token', kind: 'value', login: 'none', state: 'unverified', verified: null }] },
   'wiki.credentials.bindings': { skills: [], jobs: [] },
+  'wiki.status': { machine: 'mac', git: { dirty: 0, untracked: 0, unpushed: 0, behind: 0 }, peers: [] },
+  'wiki.git.log': { commits: [] },
 }
 
 describe('takeSnapshot: skills and credentials', () => {
@@ -203,8 +207,9 @@ describe('takeSnapshot', () => {
     expect(snap.attention[1]?.action).toEqual({ kind: 'retry', ticket: 'p1', slug: 'gmail' })
     expect(snap.health).toEqual({ tone: 'warn', count: 3 })
     expect(snap.runner).toBe(false)
-    expect(snap.curation).toEqual([{ path: 'sources/web/a.md', title: 'a', job: 'web' }])
-    expect(snap.unadopted).toEqual([{ path: 'sources/notes/dropped.md', title: 'dropped', job: 'notes' }])
+    // An older CLI: stored `draft` meant unjudged, and a new file under a feed is new too.
+    expect(snap.boxes).toBe(false)
+    expect(snap.pages?.map((p) => [p.path, p.state])).toEqual([['sources/web/a.md', 'new'], ['wiki/n.md', 'none'], ['sources/web/b.md', 'accepted'], ['sources/notes/dropped.md', 'new']])
     expect(snap.recent[0]).toMatchObject({ op: 'pass', outcome: 'ok', summary: '' })
     expect(snap.errors).toEqual({})
   })
@@ -213,7 +218,9 @@ describe('takeSnapshot', () => {
     expect(snap.health).toEqual({ tone: 'ok', count: 0 })
     expect(Object.keys(snap.errors)).toContain('wiki.jobs.ls')
     expect(snap.errors['wiki.jobs.ls']).toBe('refused')
-    expect(snap.unadopted).toBeNull()
+    expect(snap.pages).toBeNull()
+    expect(snap.fleet).toEqual([])
+    expect(snap.sync).toBeNull()
   })
 
   it('does not count an info item as needing you, nor a queued ticket as due', async () => {
@@ -237,6 +244,34 @@ describe('takeSnapshot', () => {
     expect(snap.attention.map((a) => a.severity)).toEqual(['info'])
     expect(snap.jobs[0]?.next.kind).toBe('queued')
     expect(snap.runner).toBe(true)
-    expect(snap.unadopted).toBeNull()
+    expect(snap.pages?.[0]?.state).toBe('accepted')
+  })
+
+  it('reads #3669 rows, the fleet, the clone and the week of commits', async () => {
+    const snap = await takeSnapshot(
+      reader({
+        'wiki.page.ls': { pages: [
+          { path: 'sources/web/a.md', status: null, change: 'current', curate_candidate: true, draft: false, archive: false },
+          { path: 'sources/web/b.md', status: 'draft', change: 'edited', curate_candidate: false, draft: true, archive: false },
+          { path: 'sources/web/c.md', status: 'stable', change: 'edited', curate_candidate: false, draft: false, archive: false },
+          { path: 'sources/web/d.md', status: 'deprecated', change: 'current', curate_candidate: false, draft: false, archive: true },
+          { path: 'wiki/w.md', status: null, change: 'new', curate_candidate: false, draft: false, archive: false },
+          { path: 'sources/web/x.md', status: null, change: null, unreadable: true, curate_candidate: false },
+        ] },
+        'wiki.status': { machine: 'mac', git: { dirty: 2, untracked: 1, unpushed: 3, behind: 0, upstream: 'origin/main' }, peers: [
+          { machine: 'mac', state: 'no-cadence', last_seen: '2026-10-23T11:00:00Z', capabilities: {} },
+          { machine: 'mini', state: 'healthy', last_seen: '2026-10-23T11:58:00Z', capabilities: { 'channel-youtube': { harvest: 'ready', process: 'ready' }, 'PLUGIN:index': { index: 'ready' }, 'channel-gmail': 'disabled' } },
+        ] },
+        'wiki.git.log': { commits: [{ sha: 'abc1234', at: '2026-10-23T11:30:00Z', subject: 'sweep 2 files', op: 'none', actor: 'user@mac' }] },
+      }),
+      'kb',
+      NOW,
+    )
+    expect(snap.boxes).toBe(true)
+    expect(snap.pages?.map((p) => p.state)).toEqual(['new', 'draft', 'accepted', 'archived', 'none'])
+    expect(snap.machine).toBe('mac')
+    expect(snap.fleet.map((m) => [m.name, m.me, m.roles])).toEqual([['mac', true, []], ['mini', false, ['harvest', 'index', 'process']]])
+    expect(snap.sync).toEqual({ dirty: 2, untracked: 1, unpushed: 3, behind: 0, upstream: 'origin/main' })
+    expect(snap.activity).toEqual([{ sha: 'abc1234', at: '2026-10-23T11:30:00Z', subject: 'sweep 2 files', op: 'none', actor: 'user@mac' }])
   })
 })
