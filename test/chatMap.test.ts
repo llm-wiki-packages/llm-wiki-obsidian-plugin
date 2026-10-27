@@ -25,7 +25,7 @@ describe('Agent SDK frames into chat events', () => {
 
   it('turns a tool_use block into a tool row with its command', () => {
     const m = { type: 'assistant', parent_tool_use_id: null, message: { content: [{ type: 'tool_use', name: 'Bash', input: { command: 'llm-wiki-ops jobs due' } }] } } as unknown as SDKMessage
-    expect(mapMessage(m).events).toEqual([{ type: 'tool', name: 'Bash', detail: 'llm-wiki-ops jobs due' }])
+    expect(mapMessage(m).events).toEqual([{ type: 'tool', name: 'Bash', detail: 'llm-wiki-ops jobs due', input: { command: 'llm-wiki-ops jobs due' } }])
   })
 
   it('maps success and error results', () => {

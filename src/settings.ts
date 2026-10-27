@@ -127,7 +127,7 @@ export class LlmWikiSettingTab extends PluginSettingTab {
       ] },
       { type: 'group', heading: 'Chat', items: [
         { name: 'New chats start with these', desc: 'The controls under the chat box change the same settings.' },
-        { name: 'Permissions', desc: 'When the agent asks before a tool. Ask first asks before each command and edit; Auto lets a classifier approve routine ones; Full access never asks.', control: { type: 'dropdown', key: 'permissionMode', options: PERMISSION_NAMES } },
+        { name: 'Permissions', desc: 'When the agent asks before a tool. Ask first asks before edits and commands that change something, and runs the wiki’s lookups without asking; Auto lets a classifier approve routine ones; Full access never asks.', control: { type: 'dropdown', key: 'permissionMode', options: PERMISSION_NAMES } },
         { name: 'Read-only', desc: 'The wiki’s commands refuse every write, and the agent gets no file-editing tools. A shell command can still write a file, so pair it with Ask first.', control: { type: 'toggle', key: 'readOnly' } },
         { name: 'Sandbox', desc: 'The chat runs jailed in the named sandbox, which must be enabled in the wiki. It never asks, and it keeps the conversation until it closes. The sandbox decides whether it may write.', control: { type: 'toggle', key: 'sandboxed' } },
         { name: 'Sandbox name', desc: 'Which of the wiki’s sandboxes a sandboxed chat runs in.', control: { type: 'text', key: 'sandbox', placeholder: DEFAULT_SETTINGS.sandbox } },

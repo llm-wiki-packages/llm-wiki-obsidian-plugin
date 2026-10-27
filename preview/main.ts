@@ -1,4 +1,5 @@
 // Renders the dashboard and chat with fixture data in a browser, for screenshots. Not shipped.
+import { AssistantBubble } from '../src/views/chat'
 /* eslint-disable */
 import { App, TFile, WorkspaceLeaf } from 'obsidian'
 import { DashboardView, type Tab } from '../src/views/dashboard/index'
@@ -167,21 +168,26 @@ if (q.get('many') === '1') {
 }
 if (q.get('modal') === 'replace') plugin.credentialModal({ name: 'yt-cookies', kind: 'dir', skill: 'channel-youtube', slot: 'dir', retry: 't9', job: 'yt-subs' })
 if (q.get('chat') === 'turn') {
-  // A fabricated transcript, to see the bubbles.
+  // A fabricated turn, through the real bubble.
   dash.goTo('chat')
-  const t = dash.contentEl.querySelector('.llm-wiki-transcript')!
-  ;(t as any).createDiv({ cls: 'llm-wiki-msg llm-wiki-user', text: 'Check my inbox now and tell me what needs a reply' })
-  const a = (t as any).createDiv({ cls: 'llm-wiki-msg llm-wiki-assistant' })
-  const tool = a.createDiv({ cls: 'llm-wiki-tool' })
-  tool.createSpan({ cls: 'llm-wiki-tool-name', text: 'Bash' })
-  tool.createSpan({ cls: 'llm-wiki-tool-detail llm-wiki-muted', text: 'llm-wiki-ops jobs request inbox-joe wait=60s --json' })
-  const card = a.createDiv({ cls: 'llm-wiki-permission' })
-  card.createDiv({ cls: 'llm-wiki-permission-title', text: 'Run this?' })
-  card.createEl('pre', { cls: 'llm-wiki-permission-summary', text: 'llm-wiki-ops jobs request inbox-joe wait=60s --json' })
-  const b = card.createDiv({ cls: 'llm-wiki-permission-buttons' })
-  b.createEl('button', { text: 'Allow', cls: 'mod-cta' })
-  b.createEl('button', { text: 'Deny' })
-  a.createDiv({ cls: 'llm-wiki-assistant-body' }).innerHTML = '<p>The harvest landed 14 new messages. Three look like they need a reply:</p><ul><li><strong>Dana</strong> about the Q4 budget review</li><li><strong>Acme support</strong> ticket 4471</li><li><strong>Sam</strong> asking for the meeting notes</li></ul>'
+  const t = dash.contentEl.querySelector('.llm-wiki-transcript') as HTMLElement
+  t.querySelector('.llm-wiki-hint')?.remove()
+  dash.contentEl.querySelector('.llm-wiki-chips')?.empty()
+  ;(t as any).createDiv({ cls: 'llm-wiki-msg llm-wiki-user', text: 'what’s new in the wiki' })
+  const root = '/Users/joe/wikis/personal'
+  const a = new AssistantBubble(t, app as any, chat, root)
+  a.take({ type: 'tool', name: 'Skill', input: { skill: 'brain:wiki-report', args: 'what’s new' }, detail: '{"skill":"brain:wiki-report"}' })
+  a.take({ type: 'tool', name: 'Bash', input: { command: 'llm-wiki-ops whereami skill=PLUGIN:wiki-report' }, detail: 'llm-wiki-ops whereami skill=PLUGIN:wiki-report' })
+  void a.ask({ tool: 'Bash', input: {}, summary: 'llm-wiki-ops whereami skill=PLUGIN:wiki-report' })
+  ;(t.querySelector('.llm-wiki-permission .mod-cta') as HTMLElement).click()
+  a.take({ type: 'tool', name: 'Bash', input: { command: 'rm -rf _raw/tmp' }, detail: 'rm -rf _raw/tmp' })
+  void a.ask({ tool: 'Bash', input: {}, summary: 'rm -rf _raw/tmp' })
+  ;(t.querySelectorAll('.llm-wiki-permission button')[2] as HTMLElement).click()
+  a.take({ type: 'tool', name: 'Read', input: { file_path: `${root}/wiki/log.md` }, detail: `${root}/wiki/log.md` })
+  a.take({ type: 'tool', name: 'Bash', input: { command: 'llm-wiki-ops git log filter=since:7d' }, detail: 'llm-wiki-ops git log filter=since:7d' })
+  a.take({ type: 'text', text: '[[wiki/log.md]] has a single entry:\n\n- **2026-10-20** — `init`: wiki initialized (ops 0.7.0)\n\nSo no distill, dream or query has run yet. On your question:\n\n- The log shows nothing new.\n- Git has recent commits (“sweep 2 files”), so you edited pages:\n  - `sources/notes/Some file.md`\n  - `wiki/topics/plans.md`\n- Approve `git log` and I can say what changed.\n\n1. First\n2. Second' })
+  a.take({ type: 'tool', name: 'Edit', input: { file_path: `${root}/wiki/topics/plans.md` }, detail: '' })
+  void a.ask({ tool: 'Edit', input: {}, summary: `${root}/wiki/topics/plans.md` })
 }
 // The composer's states: ?busy=1 shows Stop, ?ctx=<tokens> fills the ring, ?pop=perm|model|effort|ring opens one, ?slash=<text> types into the box.
 if (q.get('busy') === '1') { (chat as any).running = new AbortController(); (chat as any).showSend() }
