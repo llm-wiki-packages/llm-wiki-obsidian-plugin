@@ -295,6 +295,8 @@ export default class LlmWikiPlugin extends Plugin {
   async pickSkill(): Promise<void> {
     // `skills ls` is read again, and on an older CLI the plugin cache, so a skill enabled or installed since shows; the `/` list follows it.
     this.skillList = null
+    // A read already running began before the click, and a poll is light and keeps the old palette: wait it out, then read in full.
+    while (this.refreshing) await this.refreshing
     await this.refreshSnapshot()
     const skills = await this.chatSkills()
     if (!skills.length) {
