@@ -1,5 +1,7 @@
 // Enough of `obsidian` for the modules under test; the views are not unit-tested.
-export class Plugin {}
+export class Plugin {
+  constructor(readonly app: unknown, readonly manifest: unknown) {}
+}
 export class ItemView {}
 export class PluginSettingTab {}
 export class Setting {}

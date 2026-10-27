@@ -43,6 +43,14 @@ const snapshot: Snapshot = {
     { name: 'daily-report', state: 'installed', description: 'A morning digest of what every channel landed yesterday, as one page.', venue: null, version: '0.1.0', from: 'llm-wiki-packages/llm-wiki-skills@v0.5.0', usage: null, drifted: false, outdated: false, warnings: [], slots: [], jobs: [], inputs: [], notes: { skill: 'SKILL.md' }, dir: '.llm-wiki/skills/daily-report' },
     ...[['channel-circle', 'Circle community spaces: courses and lessons, with assets.'], ['channel-github', 'GitHub issues and pull requests for the repositories you follow.'], ['channel-notion-tasks', 'A Notion task database, one page per task.'], ['channel-spotify', 'Podcast episodes from Spotify shows, transcribed.'], ['channel-substack', 'Substack newsletters, post by post.'], ['channel-frameio', 'Frame.io review comments on your video projects.']].map(([name, description]) => ({ name: name!, state: 'available' as const, description: description!, venue: null, version: null, from: 'llm-wiki-packages/llm-wiki-skills@0.5.0', usage: null, drifted: false, outdated: false, warnings: [], slots: [], jobs: [], inputs: [], notes: { skill: 'SKILL.md' }, dir: null })),
   ],
+  pipeline: [
+    { name: 'PLUGIN:curate', plugin: true, description: 'Reviews draft pages and research dispositions and accepts them into the wiki; by hand on a path, or as a routine on a ticket.', stages: ['routine'], ready: true, next: null, jobs: [] },
+    { name: 'PLUGIN:dream', plugin: true, description: 'The nightly pass: merges curated content into the wiki’s knowledge, resolves contradictions, refreshes stale facts.', stages: ['routine'], ready: true, next: null, jobs: [] },
+    { name: 'PLUGIN:wiki-report', plugin: true, description: 'Writes the wiki’s digest of what its ops did since the last report, as a page under research/reports.', stages: ['routine'], ready: false, next: 'llm-wiki-ops skills enable PLUGIN:wiki-report', jobs: [] },
+    { name: 'channel-gmail', plugin: false, description: 'Gmail capture for this wiki: one watch per mailbox, daily ledgers under research/channels.', stages: ['harvest', 'process'], ready: true, next: null, jobs: ['inbox-joe'] },
+    { name: 'channel-youtube', plugin: false, description: 'YouTube capture and note building for this wiki: yt-dlp ground truth, deterministic notes.', stages: ['harvest', 'process'], ready: true, next: null, jobs: ['yt-subs'] },
+    { name: 'web-page', plugin: false, description: 'Fetch a web page or a site section into sources/, deterministic, no model session.', stages: ['harvest'], ready: true, next: null, jobs: ['blog-acme'] },
+  ],
   credentials: [
     { name: 'claude_login', kind: 'harness', state: 'verified', verified: ago(60), uses: [] },
     { name: 'yt-cookies', kind: 'dir', state: 'unverified', verified: null, uses: [{ skill: 'channel-youtube', slot: 'dir', problem: 'stale' }] },

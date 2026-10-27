@@ -2,11 +2,11 @@ import { Menu } from 'obsidian'
 import { button, clockTime, empty, pill, relativeTime, section, table } from '../../ui/dom'
 import { slotWords } from '../../wiki/slots'
 import { openJobModal } from '../../ui/jobModal'
-import type { Action, JobView, NextKind } from '../../wiki/model'
+import type { Action, JobView, NextKind, PipelineView } from '../../wiki/model'
 import type { TabContext } from './index'
 import { slash } from '../../chat/skills'
 
-/** The jobs, what each is waiting on, and the one button that matters on each row. */
+/** The jobs, what each is waiting on, and the one button that matters on each row; then what a job can run. */
 export function renderJobs(root: HTMLElement, ctx: TabContext): void {
   const { snapshot } = ctx
   const actions = ctx.plugin.actions
@@ -26,10 +26,13 @@ export function renderJobs(root: HTMLElement, ctx: TabContext): void {
       }, { icon: 'ellipsis', title: 'More' })
     },
   })
-  if (!snapshot.jobs.length) {
-    empty(body, 'No jobs yet.', 'Add one to start capturing: a URL, a mailbox, or a task in plain words.')
-    return
-  }
+  if (!snapshot.jobs.length) empty(body, 'No jobs yet.', 'Add one to start capturing: a URL, a mailbox, or a task in plain words.')
+  else jobList(body, ctx)
+  renderPipeline(root, ctx)
+}
+
+function jobList(body: HTMLElement, ctx: TabContext): void {
+  const { snapshot } = ctx
   const jobs = sorted(snapshot.jobs)
   // Kept on the view, so a poll's redraw does not wipe what the reader typed or opened.
   const memo = ctx.memo as { jobsFilter?: string; jobsExpanded?: boolean }
@@ -80,6 +83,48 @@ export function renderJobs(root: HTMLElement, ctx: TabContext): void {
   }
   const list = body.createDiv()
   draw()
+}
+
+/** The skills a job can name: the plugin's routines, then the units with a stage. A skill a person runs too is also in the chat's `/` list. */
+function renderPipeline(root: HTMLElement, ctx: TabContext): void {
+  const list = ctx.snapshot.pipeline
+  if (!list.length) return
+  const body = section(root, 'What a job can run', { count: list.length })
+  for (const p of list) pipelineRow(body, p, ctx)
+}
+
+function pipelineRow(parent: HTMLElement, p: PipelineView, ctx: TabContext): void {
+  const row = parent.createDiv({ cls: 'llm-wiki-row' })
+  // A unit opens its inspector; a plugin routine has nothing more to show.
+  if (!p.plugin) {
+    const inspect = () => void ctx.act({ kind: 'inspect', skill: p.name })
+    row.addClass('is-link')
+    row.tabIndex = 0
+    row.addEventListener('click', inspect)
+    row.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') inspect()
+    })
+  }
+  const main = row.createDiv({ cls: 'llm-wiki-row-main' })
+  const title = main.createDiv({ cls: 'llm-wiki-row-title' })
+  title.createSpan({ text: pipelineName(p) })
+  if (p.stages.length) title.createSpan({ cls: 'llm-wiki-muted', text: ` · ${p.stages.join(', ')}` })
+  const words = pipelinePill(p)
+  if (words) pill(title, words, 'info')
+  const detail = [p.description, p.jobs.length ? `${p.jobs.length === 1 ? 'Job' : 'Jobs'}: ${p.jobs.join(', ')}` : ''].filter(Boolean).join(' · ')
+  if (detail) main.createDiv({ cls: 'llm-wiki-row-detail', text: detail })
+  const bar = row.createDiv({ cls: 'llm-wiki-row-actions' })
+  if (!p.ready) button(bar, 'Enable', () => ctx.act({ kind: 'ask', prompt: slash('enable', p.name) }), { icon: 'power', ...(p.next ? { title: p.next } : {}) })
+}
+
+/** The pill where it would not run here: a stale routine says why, in the CLI's own words, since Enable asks again. */
+export function pipelinePill(p: Pick<PipelineView, 'ready' | 'stale'>): string | null {
+  return p.ready ? null : p.stale ? 'reach grew since enable' : 'not enabled here'
+}
+
+/** A plugin routine by its own name, without the record form's `PLUGIN:`. */
+export function pipelineName(p: Pick<PipelineView, 'name' | 'plugin'>): string {
+  return p.plugin ? p.name.replace(/^PLUGIN:/, '') : p.name
 }
 
 /** Needs you, running, due, scheduled soonest first, manual, paused last. */

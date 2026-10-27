@@ -46,7 +46,10 @@ the gear opens the plugin settings.
   machine, its last runs with Retry, Ask the agent with the failure attached.
   **Add a source…** asks one question and hands it to the agent in chat as
   `/brain:add …`. Run all due; Pause all / Resume all. The row's state is
-  read back from the tickets, never assumed from the click.
+  read back from the tickets, never assumed from the click. Below, **What a
+  job can run**: the skills whose mode includes `pipeline` (the plugin's
+  routines and the units with a stage), each with its stages, the jobs naming
+  it and **Enable** where it is not enabled here.
 - **Skills**: the units the wiki holds and this machine loads, which Obsidian
   hides under `.llm-wiki/skills` and `.agents/skills`: enabled here, in the
   wiki but not enabled here, available from the package (with each unit's
@@ -128,10 +131,13 @@ hits seen, and two passes: **Update index** (`search index`, additive) and
 asks first). The one marked recommended is the one the verdict calls for.
 
 **Chat skills**: *Run a skill…* (a command, and the **Skills…** button in chat)
-lists the same `/brain:` slash skills, read from the brain plugin Claude Code
-has installed, with what each does and what it takes, and turns the pick into
-a chat turn such as `/brain:research <goal>`. The wiki's own skill units
-live on the dashboard's Skills tab.
+lists the same slash skills: every `skills ls` row whose mode includes
+`session`, the plugin's as `/brain:<name>` and an enabled unit as `/<name>`,
+with what each does and what it takes, and turns the pick into a chat turn
+such as `/brain:research <goal>`. A pipeline-only skill such as `wiki-report`
+is not listed and can still be typed. From a CLI older than the skill
+manifests, whose rows say no mode, the list is read from the brain plugin
+Claude Code has installed, as before.
 
 **Every note** gets a history icon in its header, beside Obsidian's own: a
 dot while it has edits not yet in history; a click shows when and by whom it
@@ -207,7 +213,7 @@ Add `LLM_WIKI_E2E_SANDBOX=<sandbox>` to also hold a real sandboxed chat: a few h
 | `src/chat/claudeSdk.ts` | the chat backend on `@anthropic-ai/claude-agent-sdk`, driving the user's own `claude` |
 | `src/chat/harnessRun.ts` | the sandboxed chat backend on `harness run --stream --conversation` |
 | `src/views/composer.ts` | the row under the chat box: permission panel, model and effort lists, context ring, `/` list |
-| `src/chat/skills.ts` | the `/brain:` slash skills, read from the installed Claude Code plugin's `skills/*/SKILL.md` |
+| `src/chat/skills.ts` | the slash skills: the `skills ls` rows whose mode includes `session`, or, from an older CLI, the installed Claude Code plugin's `skills/*/SKILL.md` |
 | `src/wiki/model.ts` | what the dashboard shows: `Snapshot`, jobs with a plain-words `next`, attention items with one action |
 | `src/wiki/snapshot.ts` | CLI answers into a `Snapshot`; the one place that knows the answers' field names |
 | `src/wiki/actions.ts` | the writes a click makes, each one verb, each answering one sentence |

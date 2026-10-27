@@ -2,7 +2,7 @@
 // effort lists, the context ring, and the `/` skill list. The pure helpers
 // at the top are what the tests read.
 import { setIcon } from 'obsidian'
-import { PLUGIN_NAMESPACE, slash, slashCommand, type SkillEntry } from '../chat/skills'
+import { PLUGIN_NAMESPACE, slashCommand, type SkillEntry } from '../chat/skills'
 import { PERMISSION_NAMES, type LlmWikiSettings } from '../settings'
 
 /** The word after a `/` that opens a line, when the caret sits at its end; null otherwise. */
@@ -278,7 +278,7 @@ export class SlashMenu {
     this.items.forEach((s, i) => {
       const row = this.el.createDiv({ cls: 'llm-wiki-slash-row' })
       row.toggleClass('is-selected', i === this.index)
-      row.createSpan({ cls: 'llm-wiki-slash-name', text: slash(s.name) })
+      row.createSpan({ cls: 'llm-wiki-slash-name', text: slashCommand(s) })
       row.createSpan({ cls: 'llm-wiki-slash-desc', text: s.args ? `${s.args} — ${s.description}` : s.description })
       // mousedown, not click: a click would blur the box first.
       row.addEventListener('mousedown', (e) => {
