@@ -1,4 +1,5 @@
-// The chat slash skills the installed `brain` plugins ship, read from where Claude Code keeps them.
+// The chat slash skills: the session skills `skills ls` lists, or, from a CLI older than the skill
+// manifests, what the installed `brain` plugins ship, read from where Claude Code keeps them.
 // Obsidian hides none of this on purpose; it just lives outside the vault.
 import { readdir, readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
@@ -24,10 +25,50 @@ export function slash(name: string, args = ''): string {
 
 export interface SkillEntry {
   name: string
-  /** The first sentence of the skill's description. */
+  /** The first sentence of the skill's description; the manifest's whole one from `skills ls`. */
   description: string
-  /** What to type after it, from the frontmatter's `argument-hint`, or empty. */
+  /** What to type after it, from the frontmatter's `argument-hint` or the manifest's `argument_hint`, or empty. */
   args: string
+  /** A wiki unit, typed `/<name>`; a plugin skill is typed `/brain:<name>`. */
+  unit?: boolean
+}
+
+/** The fields of a `skills ls` row the palette reads; `mode` is absent on a CLI older than the skill manifests. */
+export interface SkillsLsRow {
+  name: string
+  state: string | null
+  from?: string | null
+  mode?: string[] | null
+  description?: string | null
+  argument_hint?: string | null
+}
+
+/** The record form of a plugin skill's name, as `skills ls` lists it. */
+export const PLUGIN_PREFIX = 'PLUGIN:'
+
+/** Whether this machine loads a copy of a unit in this `skills ls` state, so `/<name>` resolves; the Skills tab's "enabled here". */
+export function loadsHere(state: string | null): boolean {
+  return state === 'enabled' || state === 'drifted' || state === 'linked'
+}
+
+/** Whether a `skills ls` answer comes from a CLI that reads skill manifests: some row carries a `mode` key, even a null one. */
+export function hasModes(rows: SkillsLsRow[]): boolean {
+  return rows.some((r) => 'mode' in r)
+}
+
+/**
+ * The palette from `skills ls`: every row whose mode includes `session`, plugin skills first. A unit counts only where
+ * it is enabled, since only then does `/<name>` load. Null for an older CLI, whose rows say no mode: read the plugin cache.
+ */
+export function paletteOf(rows: SkillsLsRow[]): SkillEntry[] | null {
+  if (!hasModes(rows)) return null
+  const session = rows.filter((r) => r.mode?.includes('session'))
+  const plugin = session.filter((r) => r.name.startsWith(PLUGIN_PREFIX))
+  const units = session.filter((r) => !r.name.startsWith(PLUGIN_PREFIX) && loadsHere(r.state))
+  return [
+    ...plugin.map((r) => ({ name: r.name.slice(PLUGIN_PREFIX.length), description: r.description ?? '', args: r.argument_hint ?? '' })),
+    ...units.map((r) => ({ name: r.name, description: r.description ?? '', args: r.argument_hint ?? '', unit: true })),
+  ]
 }
 
 interface InstalledPlugins {
@@ -91,5 +132,5 @@ export function parseSkill(name: string, md: string): SkillEntry {
 }
 
 export function slashCommand(skill: SkillEntry, args = ''): string {
-  return slash(skill.name, args)
+  return skill.unit ? `/${skill.name}${args.trim() ? ` ${args.trim()}` : ''}` : slash(skill.name, args)
 }

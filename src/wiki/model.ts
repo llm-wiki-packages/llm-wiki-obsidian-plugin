@@ -1,5 +1,6 @@
 // What the dashboard shows. Built from CLI answers by snapshot.ts; the views
 // read only this, and format every time at render.
+import type { SkillEntry } from '../chat/skills'
 
 export type Severity = 'error' | 'warn' | 'info'
 
@@ -79,8 +80,14 @@ export type SkillState = 'enabled' | 'installed' | 'available'
 export interface SkillView {
   name: string
   state: SkillState
-  /** The first sentence of its SKILL.md description, when readable. */
+  /** The manifest's description from `skills ls`; from an older CLI, the first sentence of its SKILL.md's, when readable. */
   description: string
+  /** `pipeline` (a job can name it), `session` (a person runs it), or both; null on a copy the author has not filled; absent from an older CLI. */
+  mode?: string[] | null
+  /** What to type after `/<name>`, from the manifest; null when it says none. */
+  argumentHint: string | null
+  /** The stages it declares (`harvest`, `process`…); a unit with one is what a job can run. */
+  stages: string[]
   venue: string | null
   version: string | null
   /** The package and version it came from. */
@@ -101,6 +108,23 @@ export interface SkillView {
   notes: { skill: string; enable?: string; usage?: string }
   /** Where the unit's files are: under the wiki for a held unit, in the package cache for an available one; null when unknown. */
   dir: string | null
+}
+
+/** A skill a job can name: a unit with a stage, or one of the `brain` plugin's routines. */
+export interface PipelineView {
+  /** As `skills ls` names it: `channel-gmail`, or `PLUGIN:curate` for a plugin routine. */
+  name: string
+  plugin: boolean
+  description: string
+  stages: string[]
+  /** Whether it runs on this machine: a unit enabled here, a routine whose sandbox is accepted (or that ships none). */
+  ready: boolean
+  /** A routine the operator accepted whose reach has grown since, so it waits on a fresh yes. */
+  stale: boolean
+  /** The CLI's next step when it is not ready; shown, never run. */
+  next: string | null
+  /** The slugs of the jobs naming it as their skill. */
+  jobs: string[]
 }
 
 export interface CredentialView {
@@ -194,6 +218,10 @@ export interface Snapshot {
   runner: boolean
   jobs: JobView[]
   skills: SkillView[]
+  /** What a job can run, from each row's mode; from an older CLI, the units with a stage and no plugin routines. */
+  pipeline: PipelineView[]
+  /** The chat `/` list, from the same `skills ls` read; null from an older CLI, whose rows say no mode, or when the read failed. */
+  palette: SkillEntry[] | null
   credentials: CredentialView[]
   /** Every lifecycle page; null when the page list could not be read. */
   pages: PageItem[] | null

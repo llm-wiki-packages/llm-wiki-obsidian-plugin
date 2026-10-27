@@ -64,7 +64,7 @@ export default class LlmWikiPlugin extends Plugin {
     this.addCommand({ id: 'add-job', name: 'Add a source…', callback: () => void this.addJob() })
     this.addCommand({ id: 'open-job', name: 'Open a job…', callback: () => this.pickJob() })
     this.addCommand({ id: 'set-credential', name: 'Set a credential…', callback: () => this.pickSlot() })
-    this.addCommand({ id: 'run-skill', name: 'Run a skill…', callback: () => this.pickSkill() })
+    this.addCommand({ id: 'run-skill', name: 'Run a skill…', callback: () => void this.pickSkill() })
     this.addCommand({ id: 'ask-about-note', name: 'Ask the agent about this note', checkCallback: (checking) => {
       const file = this.app.workspace.getActiveFile()
       if (!file) return false
@@ -148,6 +148,8 @@ export default class LlmWikiPlugin extends Plugin {
     this.problem = null
     this.wiki = null
     this.snapshot = null
+    // Another wiki, or another CLI, may answer from the plugin cache.
+    this.skillList = null
     try {
       const path = await effectivePath()
       this.cliBin = await findBinary('llm-wiki-cli', this.settings.cliPath)
@@ -308,23 +310,25 @@ export default class LlmWikiPlugin extends Plugin {
     })
   }
 
-  /** The chat slash skills the installed plugins ship, as a fuzzy list; the chosen one becomes a chat turn. */
-  pickSkill(): void {
-    // The palette reads the disk again, so a skill installed since launch shows; the `/` list follows it.
+  /** The chat slash skills as a fuzzy list; the chosen one becomes a chat turn. */
+  async pickSkill(): Promise<void> {
+    // `skills ls` is read again, and on an older CLI the plugin cache, so a skill enabled or installed since shows; the `/` list follows it.
     this.skillList = null
-    void this.chatSkills().then((skills) => {
-      if (!skills.length) {
-        new Notice(noSkillsMessage())
-        return
-      }
-      this.pickFrom(skills)
-    })
+    // A read already running began before the click, and a poll is light and keeps the old palette: wait it out, then read in full.
+    while (this.refreshing) await this.refreshing
+    await this.refreshSnapshot()
+    const skills = await this.chatSkills()
+    if (!skills.length) {
+      new Notice(noSkillsMessage())
+      return
+    }
+    this.pickFrom(skills)
   }
 
   private pickFrom(skills: SkillEntry[]): void {
     const start = (skill: SkillEntry) =>
       void (async () => {
-        const args = skill.args ? await promptText(this.app, { title: slash(skill.name), description: skill.description, placeholder: skill.args, cta: 'Start' }) : ''
+        const args = skill.args ? await promptText(this.app, { title: slashCommand(skill), description: skill.description, placeholder: skill.args, cta: 'Start' }) : ''
         if (args !== null) await this.openChat(slashCommand(skill, args))
       })()
     const modal = new (class extends FuzzySuggestModal<SkillEntry> {
@@ -332,7 +336,7 @@ export default class LlmWikiPlugin extends Plugin {
       getItemText = (s: SkillEntry) => `${s.name} ${s.description}`
       onChooseItem = (s: SkillEntry) => start(s)
       renderSuggestion = (item: { item: SkillEntry }, el: HTMLElement) => {
-        el.createDiv({ text: slash(item.item.name, item.item.args) })
+        el.createDiv({ text: slashCommand(item.item, item.item.args) })
         el.createDiv({ cls: 'llm-wiki-muted', text: item.item.description })
       }
     })(this.app)
@@ -413,9 +417,15 @@ export default class LlmWikiPlugin extends Plugin {
   /** The models the harness offered on the first turn of this run; empty before it. */
   models: ModelChoice[] = []
 
-  /** The chat slash skills, read once per run; New chat does not re-read the disk. */
+  /** The plugin cache's skills, read once per run; New chat does not re-read them. */
   private skillList: Promise<SkillEntry[]> | null = null
+  /**
+   * The chat slash skills: the last full read's `skills ls`, so a unit enabled in chat shows once the turn's refresh
+   * lands, as it does on the Skills tab. The plugin cache before the first read, and from an older CLI.
+   */
   chatSkills(): Promise<SkillEntry[]> {
+    const palette = this.snapshot?.palette
+    if (palette) return Promise.resolve(palette)
     this.skillList ??= pluginDirs().then(listSkills).catch(() => [])
     return this.skillList
   }

@@ -71,6 +71,17 @@ agent. Clicking a row opens the job's detail dialog. "Add a source…" asks one
 line in plain words and hands it to chat as `/brain:add <text>`. Nothing
 on screen says running or due that the ticket store does not.
 
+*What a job can run*, under the table (and under "No jobs yet"): every skill
+whose mode includes `pipeline`, the plugin's routines first (curate, dream,
+wiki-report…), then the units with a stage. Name · stages, a `not enabled here`
+pill where it would not run on this machine (`reach grew since enable` on a
+routine whose reach grew since the operator's yes), then its description and the
+jobs naming it. One button, **Enable** (chat `/brain:enable <name>`, or
+`/brain:enable PLUGIN:<name>` for a routine; the CLI's own line on hover),
+only where it is not enabled. A unit's row opens the inspector. A skill
+with both modes is here and in the chat's `/` list.
+From an older CLI the list is the units with a stage, and no routines.
+
 ### Job detail dialog
 Name; slug · kind · schedule · skill. The Next state in words with the
 verdict's reasons. *What it needs on this machine*: each credential slot with
@@ -84,12 +95,15 @@ the state, the reason and the last failure), Close.
   missing` / `credential stale` › `differs from the wiki` › `update
   available`), the jobs using it. One button: **Set credential** or **Replace
   credential** when a slot is empty or broken; else **Run job** (one job) /
-  **Jobs** (several) / **Run** (a skill with a typable usage line). Clicking
-  the row opens the inspector.
+  **Jobs** (several) / **Run** (a skill whose mode includes `session`; from an
+  older CLI, one whose usage line wants no ticket). Clicking the row opens the
+  inspector.
 - *In the wiki, not enabled here*: the unit's description; **Enable** → chat
   `/brain:enable <name>`.
-- *Available from the package*: rows with the unit's description (read from
-  the package cache's SKILL.md); **Add** → chat `/brain:enable <name>`.
+- *Available from the package*: rows with the unit's description (the
+  package manifest's, else its SKILL.md's); **Add** → chat `/brain:enable <name>`.
+  A held unit's description is its `skills ls` row's; from an older CLI, its
+  SKILL.md's first sentence.
 **Credentials** — *Stored on this machine*: every credential by name, kind
 (secret / folder / login) and state pill (verified · failed · stale · empty ·
 not verified yet), who uses it; Replace… (the accent only when it is broken
@@ -153,8 +167,11 @@ right. The ring and Send stay together when the row wraps.
   shows "Context window · 33% · 331k/1m" and a bar. Sandboxed, it follows the jailed session.
 - Send: one button. While a turn runs it is red, spins, and says Stop.
 - `/` at the start of a line opens a list of skills above the box (name,
-  arguments, first sentence); arrows move, Enter or Tab takes, Escape shuts.
-  A setting turns it off.
+  arguments, description); arrows move, Enter or Tab takes, Escape shuts.
+  A setting turns it off. The list is the `skills ls` rows whose mode
+  includes `session`: the plugin's typed `/brain:<name>`, an enabled unit's
+  `/<name>`. A pipeline-only skill (`/brain:wiki-report`) is not offered and
+  can still be typed. From an older CLI, the plugin's skills as installed.
 
 Every control writes the settings, so the next chat starts the same way. The
 **Default skill** setting types `/<skill> ` into each new chat's box.
@@ -424,7 +441,14 @@ name with a "pages written" row that lands on them.
   id); back-to-back calls fold into one grey group that counts what ran and
   what was denied or failed. The rows are muted and spaced off the reply, so
   the work and the words no longer blur.
-- **Cycle 12 (2026-10-27)**: the plugin side of llm-wiki-plugins #3675 and
+- **Cycle 12 (2026-10-27)**: skill modes (llm-wiki-plugins #3702). The `/`
+  list and Skills… read `skills ls` and offer the skills whose mode includes
+  `session`, so `wiki-report` leaves autocomplete; the Jobs tab lists what a
+  job can run (mode `pipeline`, plugin routines included); a skill with both
+  is in both. Descriptions come from the manifest, and Run on the Skills tab
+  reads the mode. An older CLI, whose rows carry no `mode`, gets the old
+  behaviour.
+- **Cycle 13 (2026-10-27)**: the plugin side of llm-wiki-plugins #3675 and
   #3687.
   - **Clicks lift the settle window.** Accept, Archive and Save now run under
     the `editor` origin, so a page ticked a moment ago is accepted at once.

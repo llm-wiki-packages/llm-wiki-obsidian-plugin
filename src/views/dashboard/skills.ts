@@ -39,11 +39,16 @@ export function skillAction(s: SkillView): { label: string; icon: string; cta: b
   if (s.state === 'enabled' && slot) return { label: slot.credential ? 'Replace credential' : 'Set credential', icon: 'key-round', cta: true, action: { kind: 'credential', skill: s.name, slot: slot.name, ...(slot.credential ? { name: slot.credential } : {}) } }
   if (s.state === 'enabled' && s.jobs.length === 1) return { label: 'Run job', icon: 'play', cta: false, action: { kind: 'run-job', slug: s.jobs[0]! } }
   if (s.state === 'enabled' && s.jobs.length > 1) return { label: 'Jobs', icon: 'list', cta: false, action: { kind: 'jobs' } }
-  // A channel skill's usage wants a ticket only the runner has; a person runs it through a job.
-  if (s.state === 'enabled' && s.usage && !/ticket=/.test(s.usage)) return { label: 'Run', icon: 'play', cta: false, action: { kind: 'ask', prompt: s.usage } }
+  // A pipeline-only skill wants a ticket only the runner has; a person runs it through a job.
+  if (s.state === 'enabled' && s.usage && byHand(s)) return { label: 'Run', icon: 'play', cta: false, action: { kind: 'ask', prompt: s.usage } }
   if (s.state === 'installed') return { label: 'Enable', icon: 'power', cta: true, action: { kind: 'ask', prompt: slash('enable', s.name) } }
   if (s.state === 'available') return { label: 'Add', icon: 'plus', cta: false, action: { kind: 'ask', prompt: slash('enable', s.name) } }
   return null
+}
+
+/** Whether a person can run it: its mode says `session`; from an older CLI, its usage line wants no ticket. */
+export function byHand(s: Pick<SkillView, 'mode' | 'usage'>): boolean {
+  return s.mode === undefined ? !/ticket=/.test(s.usage ?? '') : (s.mode?.includes('session') ?? false)
 }
 
 export function runSkillAction(a: NonNullable<ReturnType<typeof skillAction>>['action'], ctx: TabContext): Promise<void> {

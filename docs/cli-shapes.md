@@ -723,6 +723,11 @@ interface SkillRow {
   warnings: string[];
   mapped: string | null;      // "filled/total" credential bindings, e.g. "1/2"; null if not loaded here
   approve: string | null;     // trust file verdict (e.g. "manual"/"auto"); null if trust unreadable
+  // From the build that reads skill manifests (llm-wiki-plugins #3702, spec 2026-10-27-skill-manifest-modes § 5);
+  // an older build's rows carry none of the three keys, and the plugin falls back on that one test.
+  mode?: ("pipeline" | "session")[] | null; // null = a committed copy the author has not filled
+  description?: string | null;              // the manifest's display prose; replaces reading SKILL.md
+  argument_hint?: string | null;            // what follows the slash name, in argument-hint brackets
   changes?: object;           // with --diff
   // exact-name call (<glob> equals a unit name) also adds: manifest, enable_notes, customize_notes,
   // usage_notes, bins[], stage_sandboxes
@@ -731,6 +736,13 @@ interface SkillRow {
 
 Enabled-first ordering. A fresh `init`ed wiki lists none (`total:0`, `trust:null`,
 real). Rows composed from code - [unverified against a populated wiki].
+
+On the #3702 build, after the units, one row per `brain` plugin skill: `name: "PLUGIN:<name>"`
+(typed `/brain:<name>`), `source` and `from` both `"plugin"`, `state` the routine's sandbox
+standing (`accepted` / `unaccepted` / `stale`) or `null` for a skill shipping no sandbox, `stages`
+its sandbox's stage names, `next` the enable line when unaccepted or stale, `customized`,
+`drifted`, `outdated`, `mapped` all `null`. The answer gains `plugin: string | null`, why no plugin
+rows are listed. [spec only, until #3702 lands]
 
 ### 1.14 `skills search <task>`
 

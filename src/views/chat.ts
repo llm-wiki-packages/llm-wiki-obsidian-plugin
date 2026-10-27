@@ -98,7 +98,7 @@ export class ChatPane extends Component {
 
     const row = composer.createDiv({ cls: 'llm-wiki-composer-row' })
     const skillsBtn = row.createEl('button', { text: 'Skills…', attr: { 'aria-label': skillsButtonLabel() } })
-    this.registerDomEvent(skillsBtn, 'click', () => this.plugin.pickSkill())
+    this.registerDomEvent(skillsBtn, 'click', () => void this.plugin.pickSkill())
     this.permBtn = row.createEl('button', { cls: 'llm-wiki-control' })
     this.registerDomEvent(this.permBtn, 'click', () => this.openPermissions())
     this.modelBtn = row.createEl('button', { cls: 'llm-wiki-control' })
