@@ -111,6 +111,21 @@ and used), Remove (confirm names who loses it), Log in for a harness login;
 "Add a credential…". *Needed by an enabled skill*: each empty required slot
 with **Set credential**.
 
+**Config** — the wiki's own settings as this machine reads them, by section:
+Wiki, New page templates, Search, Jobs, Edits, Transcription, This machine
+runs at once, Logging, Machinery. Each row says what applies (or the default,
+in grey) and a pill for where it is set: *wiki* (`.llm-wiki.toml`, every
+machine), *this machine* (`.llm-wiki.local.toml`) or *default*. The pencil
+opens a one-field dialog that names the file before Save; a change goes back
+to the file the value is set in now, so there is no committed toggle, and a
+key set nowhere goes where it usually lives. Template rules are rows of folder
+→ template, with **Add a rule…** (folder suggestions, a template picker).
+Search shows the backends, searched and unindexed folders, and indexed
+properties from `search status`; **Change search setup** and **Set up
+transcription** hand the change to the agent with what applies now, since
+each takes more than one key. **Plugin settings** opens the plugin's tab,
+which links back with **Open config**.
+
 ### Inspect (skill dialog)
 Header: state · version · package, then the unit's description sentence. *What it needs on this machine*: each slot
 (required/optional, bound credential or "not set") with **Set credential**.
@@ -296,7 +311,8 @@ one Notice naming the wiki and the binary; settings say what a missing
 `claude` costs (Agent chat).
 
 ### Settings
-Paths to `llm-wiki-cli` and `claude` (login shell PATH by default), wiki key
+A *Wiki config* row first says these are the plugin's, kept in this vault, and
+**Open config** goes to More › Config for the wiki's own. Paths to `llm-wiki-cli` and `claude` (login shell PATH by default), wiki key
 override, default chat mode, model, Ask sandbox and skill, save edits to
 history (off, on this machine, and sync), apply templates to new notes,
 search k, debug. The Changes tab's grouping and fold threshold are kept too.
@@ -320,7 +336,7 @@ search k, debug. The Changes tab's grouping and fold threshold are kept too.
 ## How to look at it without Obsidian
 
 `node preview/build.mjs`, serve the repo (`python3 -m http.server 8765`), open
-`preview/index.html` in a browser with `?tab=jobs|skills|pages`,
+`preview/index.html` in a browser with `?tab=jobs|skills|pages|config`,
 `&modal=credential|skill|replace|diff` (`&commit=1` for a commit's diff),
 `&tab=changes&sub=activity`, `&chat=turn`, `&theme=dark`, `&pane=search`.
 It renders the real views over fixture data with a stand-in for Obsidian's API.
@@ -461,3 +477,12 @@ name with a "pages written" row that lands on them.
     trees is read right.
   - **Identity.** A copy made in Obsidian gets its own id. A rename sets
     `title:`. Both rely on the identity work.
+- **Cycle 14 (2026-10-27)**: More › Config, the wiki's own settings beside
+  the plugin's, each linking to the other. Values come from `config get`, one
+  key at a time, from a list kept in the plugin (`KNOBS` in
+  `src/wiki/config.ts`) that stands in for a `config ls` the CLI does not have
+  yet. A change keeps to the file the value is in, so a person never chooses
+  between committed and local. A key a single `config set` changes (name,
+  template rules, job defaults, settle window, inbox archive, run caps,
+  logging) is edited in place. Search and transcription are shown and handed
+  to the agent, since each takes more than one key.

@@ -73,6 +73,7 @@ export default class LlmWikiPlugin extends Plugin {
     } })
     this.addCommand({ id: 'refresh', name: 'Refresh the dashboard', callback: () => void this.refreshSnapshot() })
     this.addCommand({ id: 'open-changes', name: 'Open changes', callback: () => void this.openDashboard('changes') })
+    this.addCommand({ id: 'open-config', name: 'Open the wiki’s config', callback: () => void this.openDashboard('config') })
     this.addCommand({ id: 'accept-draft', name: 'Accept this page into the wiki', checkCallback: (checking) => this.draftCommand(checking, (a, path) => a.accept([path])) })
     this.addCommand({ id: 'reject-draft', name: 'Archive this page…', checkCallback: (checking) => this.draftCommand(checking, async (a, path) => {
       const reason = await promptText(this.app, { title: `Archive ${path}`, placeholder: 'Why? One line; it is stamped on the page.', cta: 'Archive' })
@@ -141,6 +142,12 @@ export default class LlmWikiPlugin extends Plugin {
     const setting = (this.app as unknown as { setting: { open(): void; openTabById(id: string): void } }).setting
     setting.open()
     setting.openTabById(this.manifest.id)
+  }
+
+  /** The wiki's own config, on the dashboard; from the settings window, which closes so it shows. */
+  openConfig(): void {
+    ;(this.app as unknown as { setting: { close(): void } }).setting.close()
+    void this.openDashboard('config')
   }
 
   /** Finds the binaries and the wiki; every view reads the outcome off the plugin. */

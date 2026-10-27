@@ -919,6 +919,19 @@ no host entry on this machine: scratch - nothing fires them", fix
   status: added|modified|deleted|untracked }], upstream, unpushed, behind }`,
   for the swept trees only.
 
+### 1.26 `config get <key>`
+
+- argv: `wiki --read-only <key> config get <dotted key> --json`. Answer
+  `OPS/commands/config/config.py` `ConfigValue`: `{ key, found, value,
+  source }`. `source` is `.llm-wiki.toml`, `.llm-wiki.local.toml`, both joined
+  by ` + ` for a whole table both files carry, or null when neither sets it.
+  `value` keeps its TOML type (a number, a boolean, a table as an object).
+  Real: `{"key":"runner.caps.enrich","found":true,"value":2,"source":".llm-wiki.local.toml"}`.
+- A key is TOML's dotted spelling; a segment that is not a bare word is
+  double-quoted (`page.templates."sources/journal"`).
+- Refused (rc 2): any `search.*` key ("is read by search, not by `config`";
+  `search status` answers it), and the `machine.*` namespace.
+
 ### 1.21 `page template <path>`
 
 - argv: `wiki --read-only <key> page template <path> --json`. Answer
@@ -1165,6 +1178,26 @@ Refusals: read-only; a search config the reader refuses.
   - With `--force`, the copy answers `actions: ["reminted"]` and a new
     `document_id`, and the original is left untouched.
   - rc 0 throughout.
+
+### 2.13 `config set|unset <key> [<value>] [--committed]`
+
+- argv: `wiki <key> config set [--committed] <dotted key> <value> --json`, and
+  `config unset [--committed] <dotted key>`. Without `--committed` the write
+  lands in this machine's `.llm-wiki.local.toml`; with it, in `.llm-wiki.toml`,
+  committed in the same step. Answer `ConfigWritten`: `{ key, value, file,
+  removed, effective_source, commits: [{ sha, subject, paths, ... }],
+  carried_uncommitted, warnings }`. `removed` is set for `unset` only;
+  `effective_source` names the file that answers the key afterwards.
+- A value is written as a TOML integer when it is all digits, a boolean for
+  `true`/`false`, else a string. No arrays or tables.
+- Refused (rc 2), real: `jobs.request_gap_seconds is committed-only — it is a
+  property of the wiki, not of this machine; pass --committed to write
+  .llm-wiki.toml`; `templates/Missing.md is not a file in this wiki — create
+  the template first, then map it`; `config set writes, and this session is
+  read-only`. Committed-only: `page`, `harness`, `schedule`,
+  `jobs.request_gap_seconds`, `inboxes.archive`, `jobs.handoffs`; local-only:
+  `runner`; written by no `config` verb: `wiki_id`, `schema_version`,
+  `packages`, `ops.major`, `ops.dir`.
 
 ### 2.8 `git sync`
 

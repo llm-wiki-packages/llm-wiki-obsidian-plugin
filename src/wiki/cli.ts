@@ -46,6 +46,11 @@ export interface Args {
   path?: string
   /** `page fix`: re-mint a copy's shared id, which the CLI asks a person for. */
   force?: boolean
+  /** `config get|set|unset`: a TOML dotted key, and for `set` its value. */
+  configKey?: string
+  value?: string
+  /** `config set|unset`: the committed `.llm-wiki.toml`, which the write then commits, not this machine's file. */
+  committed?: boolean
 }
 
 /** The `filter=` kinds `search query` takes (`OPS/commands/search/query.py`), each a string. */
@@ -104,6 +109,9 @@ const COMMIT = /^[0-9a-f]{7,64}$/
 const TREE = /^[a-z][a-z0-9_-]{0,63}$/
 const DAY = /^\d{4}-\d{2}-\d{2}$/
 const DOCUMENT_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/
+// A config key is TOML's dotted spelling (`configkey.parse`): bare segments, or double-quoted ones with no escapes.
+const CONFIG_SEGMENT = '(?:[A-Za-z0-9_][A-Za-z0-9_-]{0,63}|"[^"\\\\\\x00-\\x1f]{1,200}")'
+const CONFIG_KEY = new RegExp(`^${CONFIG_SEGMENT}(?:\\.${CONFIG_SEGMENT}){0,7}$`)
 // The range bounds take one value and no negation: the CLI refuses either by name.
 const RANGE_KINDS: ReadonlySet<string> = new Set(['captured_from', 'captured_to'])
 
@@ -207,6 +215,18 @@ function documentId(v: string | undefined): string {
   return v
 }
 
+function configKey(v: string | undefined): string {
+  if (!v || !CONFIG_KEY.test(v)) throw new CliError(`bad config key: ${String(v)}`, 'args')
+  return v
+}
+
+/** A config value is one line, never dash-led, which the CLI would read as a flag. */
+function configValue(v: string | undefined): string {
+  // eslint-disable-next-line no-control-regex -- rejecting control characters is the point
+  if (!v || v.length > 200 || /[\x00-\x1f]/.test(v) || v.startsWith('-')) throw new CliError('a config value is one line of 1–200 characters', 'args')
+  return v
+}
+
 function trees(v: string[] | undefined): string[] {
   return (v ?? []).map((d) => {
     if (!TREE.test(d)) throw new CliError(`bad tree: ${d}`, 'args')
@@ -268,6 +288,8 @@ export const VERBS = {
   'wiki.git.status': (a: Args) => wiki(a, 'git', 'status'),
   /** The frontmatter and body a template would add to a page; writes nothing. */
   'wiki.page.template': (a: Args) => wiki(a, 'page', 'template', rel(a.path ?? '')),
+  /** One config key's value and the file that answered it. */
+  'wiki.config.get': (a: Args) => wiki(a, 'config', 'get', configKey(a.configKey)),
   'wiki.skills.ls': (a: Args) => wiki(a, 'skills', 'ls'),
   // An exact name carries the manifest: what the unit needs and how it is used.
   'wiki.skills.show': (a: Args) => wiki(a, 'skills', 'ls', unit(a.name)),
@@ -301,6 +323,9 @@ export const VERBS = {
   /** The sweep: every uncommitted change under the wiki's trees, adopted, observed and committed by author. */
   'wiki.git.commit': (a: Args) => write(a, 'git', 'commit'),
   'wiki.git.sync': (a: Args) => write(a, 'git', 'sync'),
+  // This machine's file, or with `committed` the wiki's, which the CLI commits with the change.
+  'wiki.config.set': (a: Args) => write(a, 'config', 'set', ...(a.committed ? ['--committed'] : []), configKey(a.configKey), configValue(a.value)),
+  'wiki.config.unset': (a: Args) => write(a, 'config', 'unset', ...(a.committed ? ['--committed'] : []), configKey(a.configKey)),
   // The text goes after `--`, so a query starting with a dash is never read as a flag.
   'wiki.search.query': (a: Args) => [
     'wiki', '--read-only', key(a.wiki), 'search', 'query', topK(a), ...searchFilters(a.filters), '--json', '--', text(a.text),
@@ -332,7 +357,7 @@ const EDITOR: ReadonlySet<Verb> = new Set<Verb>(['wiki.page.curate', 'wiki.page.
 
 const WRITES: ReadonlySet<Verb> = new Set<Verb>([
   'wiki.harness.run', 'wiki.jobs.request', 'wiki.jobs.pause', 'wiki.jobs.resume', 'wiki.tickets.retry', 'wiki.git.sync', 'wiki.search.index', 'wiki.search.reindex',
-  'wiki.credentials.ls', 'wiki.credentials.bindings', ...ATTENDED, ...EDITOR,
+  'wiki.config.set', 'wiki.config.unset', 'wiki.credentials.ls', 'wiki.credentials.bindings', ...ATTENDED, ...EDITOR,
 ])
 
 /** The child's environment: the read floor unless the verb writes, the attendance mark on a protected write, and the editor origin on a page write. */

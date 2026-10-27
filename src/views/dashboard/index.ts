@@ -2,6 +2,7 @@ import { ItemView, Notice, type WorkspaceLeaf } from 'obsidian'
 import type LlmWikiPlugin from '../../main'
 import { button, icon } from '../../ui/dom'
 import type { Action, Snapshot } from '../../wiki/model'
+import { renderConfig } from './config'
 import { renderCredentials } from './credentials'
 import { renderChanges } from './changes'
 import { renderJobs } from './jobs'
@@ -16,7 +17,7 @@ import type { JobView } from '../../wiki/model'
 
 export const VIEW_DASHBOARD = 'llm-wiki-dashboard'
 
-export type Tab = 'overview' | 'changes' | 'jobs' | 'skills' | 'credentials' | 'search' | 'chat'
+export type Tab = 'overview' | 'changes' | 'jobs' | 'skills' | 'credentials' | 'config' | 'search' | 'chat'
 /** What a person reaches for every day, in the first row. */
 const TABS: { id: Tab; label: string }[] = [
   { id: 'chat', label: 'Chat' },
@@ -29,6 +30,7 @@ const MORE: { id: Tab; label: string }[] = [
   { id: 'jobs', label: 'Jobs' },
   { id: 'skills', label: 'Skills' },
   { id: 'credentials', label: 'Credentials' },
+  { id: 'config', label: 'Config' },
 ]
 /** Panes that keep their own state and never redraw on a snapshot. */
 const PANES: Tab[] = ['search', 'chat']
@@ -245,6 +247,9 @@ export class DashboardView extends ItemView {
         break
       case 'changes':
         renderChanges(this.panel, ctx)
+        break
+      case 'config':
+        renderConfig(this.panel, ctx)
         break
       case 'search':
       case 'chat':

@@ -55,6 +55,10 @@ export class TFile extends TAbstractFile {
   constructor(path: string, public fm: Record<string, unknown> = {}, public body = '', mtime = Date.now()) { super(); this.path = path; this.stat = { mtime, ctime: mtime, size: body.length } }
 }
 
+export class TFolder extends TAbstractFile {
+  constructor(path: string) { super(); this.path = path }
+}
+
 export class App {
   workspace: any
   vault: any
@@ -80,6 +84,12 @@ export class App {
       getAbstractFileByPath: (p: string) => files()[p] ?? null,
       getFileByPath: (p: string) => files()[p] ?? null,
       getMarkdownFiles: () => Object.values(files()),
+      // Every note, then each folder above one: what Obsidian's loaded tree would hold.
+      getAllLoadedFiles: () => {
+        const notes = Object.values(files())
+        const folders = new Set(notes.flatMap((f) => f.path.split('/').slice(0, -1).map((_, i, a) => a.slice(0, i + 1).join('/'))))
+        return [...notes, ...[...folders].map((p) => new TFolder(p))]
+      },
       cachedRead: async (f: TFile) => f.body,
       read: async (f: TFile) => f.body,
     }

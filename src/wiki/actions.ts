@@ -1,6 +1,7 @@
 // The writes a click asks for, each one verb, each answering one sentence for a Notice.
 import type { Cli } from './cli'
 import { CliError } from './cli'
+import { placeWords, type ConfigWritten, type Place } from './config'
 
 export interface Outcome {
   ok: boolean
@@ -246,6 +247,33 @@ export class Actions {
       return body?.status ? reindexed(body) : failed('could not rebuild the index', e)
     }
   }
+
+  /** One config key, written to the file named; a committed write lands as its own commit. */
+  async setConfig(key: string, value: string, place: Place, name = key): Promise<Outcome> {
+    try {
+      const a = await this.cli.run<ConfigWritten>('wiki.config.set', { wiki: this.wiki, configKey: key, value, committed: place === 'committed' })
+      return configured(`${name} is ${value} for ${placeWords(place)}`, a)
+    } catch (e) {
+      return failed(`could not change ${name}`, e)
+    }
+  }
+
+  /** Remove a key from one file; the other file's value, or the default, applies after. */
+  async unsetConfig(key: string, place: Place, name = key): Promise<Outcome> {
+    try {
+      const a = await this.cli.run<ConfigWritten>('wiki.config.unset', { wiki: this.wiki, configKey: key, committed: place === 'committed' })
+      if (a.removed === false) return { ok: true, message: `${name} was not set for ${placeWords(place)}` }
+      const after = a.effective_source === '.llm-wiki.toml' ? '; the wiki’s value applies now' : a.effective_source ? '' : '; the default applies now'
+      return configured(`${name} removed for ${placeWords(place)}${after}`, a)
+    } catch (e) {
+      return failed(`could not remove ${name}`, e)
+    }
+  }
+}
+
+/** A config write's sentence, with what the CLI warned of: a local table that now hides committed keys. */
+function configured(did: string, a: ConfigWritten): Outcome {
+  return { ok: true, message: [did, ...(a.warnings ?? [])].join('. ') }
 }
 
 /** `git commit`'s answer, `OPS/lib/git/commit.py` `Committed`. */

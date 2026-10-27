@@ -120,6 +120,9 @@ export class LlmWikiSettingTab extends PluginSettingTab {
         { name: 'Status', desc: p.statusText(), render: (setting) => {
           setting.addButton((b) => b.setButtonText('Re-detect').onClick(() => void p.detect().then(() => setting.setDesc(p.statusText()))))
         } },
+        { name: 'Wiki config', desc: 'These settings are this plugin’s, kept in this vault. The wiki’s own (templates, search, jobs, transcription) are on the dashboard under More › Config.', render: (setting) => {
+          setting.addButton((b) => b.setButtonText('Open config').onClick(() => p.openConfig()))
+        } },
       ] },
       { type: 'group', heading: 'Binaries', items: [
         { name: 'Path to llm-wiki-cli', desc: `Empty searches the login shell PATH. Found: ${p.cliBin ?? 'not found'}`, control: { type: 'text', key: 'cliPath', placeholder: 'Auto' } },
