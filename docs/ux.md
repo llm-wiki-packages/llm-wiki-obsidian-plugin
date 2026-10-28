@@ -315,7 +315,7 @@ A *Wiki config* row first says these are the plugin's, kept in this vault, and
 **Open config** goes to More › Config for the wiki's own. Paths to `llm-wiki-cli` and `claude` (login shell PATH by default), wiki key
 override, default chat mode, model, Ask sandbox and skill, save edits to
 history (off, on this machine, and sync), apply templates to new notes,
-search k, debug. The Changes tab's grouping and fold threshold are kept too.
+fold the bookkeeping properties behind More, search k, debug. The Changes tab's grouping and fold threshold are kept too.
 
 ## Flows the design is judged on
 

@@ -489,3 +489,12 @@ a.llm-wiki-file-path:hover, a.llm-wiki-file-path:focus-visible { color: var(--te
 .llm-wiki-config-lands { font-size: var(--font-ui-smaller); }
 .llm-wiki-config-source.is-local { color: var(--color-cyan); background: color-mix(in srgb, var(--color-cyan) 12%, transparent); }
 .llm-wiki-config-source.is-committed { background: color-mix(in srgb, var(--text-accent) 12%, transparent); }
+
+/* A page's Properties: the wiki's bookkeeping keys last, folded behind More (src/vault/properties.ts).
+   Scoped under the body class the setting sets, since the panel is Obsidian's, not under .llm-wiki. */
+body.llm-wiki-tidy-props .metadata-properties { display: flex; flex-direction: column; }
+body.llm-wiki-tidy-props .metadata-property[data-property-key="type"] .metadata-property-key-input { text-transform: capitalize; }
+body.llm-wiki-tidy-props .metadata-property.is-llm-wiki-bookkeeping { opacity: 0.6; }
+body.llm-wiki-tidy-props .metadata-container:not(.is-llm-wiki-open) .metadata-property.is-llm-wiki-bookkeeping { display: none; }
+.llm-wiki-props-more { cursor: pointer; padding: var(--size-4-1) var(--size-4-2); font-size: var(--font-ui-smaller); color: var(--text-faint); border-radius: var(--radius-s); width: fit-content; }
+.llm-wiki-props-more:hover, .llm-wiki-props-more:focus-visible { color: var(--text-muted); background: var(--background-modifier-hover); }

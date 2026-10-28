@@ -46,6 +46,8 @@ export interface LlmWikiSettings {
   saveHistory: SaveHistory
   /** A note made in Obsidian starts from the wiki's template for its folder. */
   applyTemplates: boolean
+  /** A page's Properties panel leads with the keys a person writes and folds the wiki's bookkeeping behind More. */
+  tidyProperties: boolean
   /** How the Changes tab groups what came in, and past how many a group folds to one row. */
   changesGroup: GroupBy
   changesCollapse: number
@@ -72,6 +74,7 @@ export const DEFAULT_SETTINGS: LlmWikiSettings = {
   searchFilters: [],
   saveHistory: 'commit',
   applyTemplates: true,
+  tidyProperties: true,
   changesGroup: 'source',
   changesCollapse: 5,
   debug: false,
@@ -145,6 +148,7 @@ export class LlmWikiSettingTab extends PluginSettingTab {
           ? 'A runner on this machine commits and syncs this wiki; this setting waits until it is uninstalled.'
           : 'Commits what you edit here a couple of minutes after you stop, so it shows in Changes and page history. Sync also pulls and pushes, so your other machines see it; it is refused while Obsidian Sync or iCloud syncs this vault.', control: { type: 'dropdown', key: 'saveHistory', options: SAVE_HISTORY_NAMES } },
         { name: 'Apply the wiki’s template to new notes', desc: 'A note made in Obsidian starts with the properties the wiki’s template for that folder gives, as a page the agent makes does. Turn it off if Templater fills new notes.', control: { type: 'toggle', key: 'applyTemplates' } },
+        { name: 'Fold the wiki’s bookkeeping properties', desc: 'A page’s Properties lead with title, type, description and tags; the keys the wiki keeps for itself (document_id, its revision, when it was made and checked) go last, behind a More row. Nothing in the file changes.', control: { type: 'toggle', key: 'tidyProperties' } },
       ] },
       { type: 'group', heading: 'Search', items: [
         { name: 'Results per search', control: { type: 'slider', key: 'searchK', min: 5, max: 100, step: 5 } },
@@ -162,6 +166,7 @@ export class LlmWikiSettingTab extends PluginSettingTab {
   setControlValue(key: string, value: unknown): Promise<void> {
     const clean = CLEAN[key as Key]
     ;(this.plugin.settings as unknown as Record<string, unknown>)[key] = clean ? clean(value) : value
+    if (key === 'tidyProperties') this.plugin.properties.apply()
     return this.plugin.saveSettings()
   }
 

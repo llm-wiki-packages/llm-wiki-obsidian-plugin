@@ -155,6 +155,10 @@ diff`): properties listed apart from the body, with Older and Newer. History
 follows a rename. Renaming a page in Obsidian sets its `title:` to the new
 name. A copy made in Obsidian gets its own `document_id` (`page fix
 --force`), so the wiki never counts two pages as one.
+A page's Properties lead with title, type, description and tags, and the
+wiki's bookkeeping (`document_id`, `document_revision`, `generated`,
+`verified` and the rest) goes last, folded behind a **More** row that stays
+open across notes until closed; the file is not touched (a setting turns it off).
 A blank note made in Obsidian starts from the wiki's template for its folder
 (`page template`), the same frontmatter a page the agent makes gets. Without
 a runner on this machine, edits are saved to history two quiet minutes after

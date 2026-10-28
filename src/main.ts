@@ -20,6 +20,7 @@ import { AutoSave } from './vault/autosave'
 import { NewNoteTemplates } from './vault/templates'
 import { CopyWatch } from './vault/copies'
 import { TitleFollowsName } from './vault/titles'
+import { TidyProperties } from './vault/properties'
 import { DEFAULT_LAYOUT, layoutFrom, setLayout, type LayoutAnswer } from './wiki/layout'
 import { PageHistory } from './ui/pageHistory'
 
@@ -50,6 +51,7 @@ export default class LlmWikiPlugin extends Plugin {
   private readonly history = new PageHistory(this)
   private readonly copies = new CopyWatch(this)
   private readonly titles = new TitleFollowsName(this)
+  readonly properties = new TidyProperties(this)
 
   async onload(): Promise<void> {
     await this.loadSettings()
@@ -90,6 +92,7 @@ export default class LlmWikiPlugin extends Plugin {
     this.history.register()
     this.copies.register()
     this.titles.register()
+    this.properties.register()
     this.registerEvent(this.app.workspace.on('llm-wiki:saved' as 'layout-change', () => this.showStatus()))
     this.addCommand({ id: 'redetect', name: 'Re-detect wiki and binaries', callback: () => void this.detect(true) })
     this.statusBar = this.addStatusBarItem()
