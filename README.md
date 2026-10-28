@@ -14,7 +14,7 @@ One view, **Brain** (the brain icon in the ribbon, the status bar item, or
 *LLM Wiki Brain: Open dashboard*), opened as a tab in the main area; drag it into a
 side split to keep it beside a note. Chat, Search, Overview and Changes on
 the left, the everyday tabs; **More** on the far right opens a second row
-with Jobs, Skills and Credentials, for running the wiki, and reopens the one
+with Jobs, Skills, Credentials and Config, for running the wiki, and reopens the one
 last used. A note opened from the view (a search hit, a
 link in a reply, a Changes row) opens in a new tab, never in the view's own
 place; Cmd-click opens a split. The health pill in the header reads `ok` or `N
@@ -65,6 +65,14 @@ the gear opens the plugin settings.
   The credential dialog says in words what is needed, pipes the secret to the
   CLI's stdin, binds it to the skill (or one job), and then retries a stopped
   job or runs a due one, in the same step.
+- **Config**: the wiki's own settings (`.llm-wiki.toml` and this machine's
+  `.llm-wiki.local.toml`), apart from the plugin's, which link to each other.
+  One `config get` reads every row; each value says which layer sets it, and
+  a change is written back to that layer through `config set --wiki|--local`.
+  Template rules, searched and unindexed folders, indexed properties, job
+  defaults, the settle window, run caps and logging are edited in place.
+  Search backends and transcription are shown, and **Change search setup** or
+  **Set up transcription** hands the change to the agent.
   That queue needs a CLI that reports page change state; an older one says so.
 
 The dashboard polls every 10 s while something is running, every minute while
@@ -148,6 +156,10 @@ diff`): properties listed apart from the body, with Older and Newer. History
 follows a rename. Renaming a page in Obsidian sets its `title:` to the new
 name. A copy made in Obsidian gets its own `document_id` (`page fix
 --force`), so the wiki never counts two pages as one.
+A page's Properties lead with title, type, description and tags, and the
+wiki's bookkeeping (`document_id`, `document_revision`, `generated`,
+`verified` and the rest) goes last, folded behind a **More** row that stays
+open across notes until closed; the file is not touched (a setting turns it off).
 A blank note made in Obsidian starts from the wiki's template for its folder
 (`page template`), the same frontmatter a page the agent makes gets. Without
 a runner on this machine, edits are saved to history two quiet minutes after
@@ -227,6 +239,7 @@ Add `LLM_WIKI_E2E_SANDBOX=<sandbox>` to also hold a real sandboxed chat: a few h
 | `src/vault/` | what Obsidian knows of a page, the Draft and Archive boxes, grouping, saving edits to history, templates on new notes |
 | `src/ui/pageHistory.ts` | the history icon in every note's header |
 | `src/ui/diffModal.ts`, `src/wiki/diff.ts` | one page's change, from `page diff` |
+| `src/wiki/config.ts`, `src/ui/configModal.ts` | the `config` contract's row shapes and the keys the Config tab shows, named and grouped; the dialogs that change a value, a list, a template rule, an indexed property |
 | `src/views/dashboard/` | the one view: `index.ts` (header, tabs, action routing), one file per data tab |
 | `src/views/chat.ts`, `src/views/search.ts` | the Chat and Search panes the view hosts |
 | `src/ui/` | DOM helpers, the prompt and confirm modals, the credential dialog, the skill inspector |
@@ -245,7 +258,8 @@ plus one case in `main.ts`'s `backend()`.
   and `llm-wiki-cli wiki --read-only`, except the writes a click asks for,
   listed in one place (`WRITES` in `src/wiki/cli.ts`): run, pause and resume a
   job, retry a ticket, accept or archive a page, adopt a page, save to
-  history and sync (`git commit`, `git sync`), reindex, and `harness run`.
+  history and sync (`git commit`, `git sync`), reindex, `config set` and
+  `config unset`, and `harness run`.
   The Draft and Archive boxes are ticked through Obsidian, as a person would.
 - **The editor's page writes say so.** Accept, Archive, adopt, a copy's
   repair and the sweep run with `LLM_WIKI_SESSION_ORIGIN=editor` (`EDITOR` in

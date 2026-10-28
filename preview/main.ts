@@ -1,4 +1,5 @@
 // Renders the dashboard and chat with fixture data in a browser, for screenshots. Not shipped.
+import configAnswer from '../test/mocks/config-get.json'
 import { AssistantBubble } from '../src/views/chat'
 /* eslint-disable */
 import { App, TFile, WorkspaceLeaf } from 'obsidian'
@@ -81,7 +82,9 @@ const snapshot: Snapshot = {
     { name: 'linux-box', state: 'stuck', lastSeen: ago(2900), roles: ['transcribe'], me: false, detail: 'push rejected since Sunday' },
   ],
   sync: { dirty: 2, untracked: 1, unpushed: 2, behind: 0, upstream: 'origin/main', files: [{ path: 'wiki/topics/retrieval-evals.md', status: 'modified' }, { path: 'sources/web/acme/pricing-teardown.md', status: 'modified' }, { path: 'sources/notes/mine.md', status: 'untracked' }] },
-  search: { engine_configured: true, realm_ready: true, serving: 'search_server', corpus_files: 1284, dirty: 4, marker_known: true, reindex_required: false, index_as_of: { source_commit: '9f3c2a1e7b' }, paths: [{ pattern: 'wiki/' }, { pattern: 'sources/' }], _cmd_: { head: 'c41d07be22' } },
+  search: { engine_configured: true, realm_ready: true, serving: 'search_server', corpus_files: 1284, dirty: 4, marker_known: true, reindex_required: false, index_as_of: { source_commit: '9f3c2a1e7b' }, paths: [{ pattern: 'wiki/', origin: 'committed' }, { pattern: 'sources/', origin: 'committed' }, { pattern: 'research/*/reports/', origin: 'local' }], not_indexed: [{ pattern: '_raw/', origin: 'local' }],
+    backends: [{ name: 'search_server', configured: true, available: true }, { name: 'grep', configured: true, available: true }],
+    properties: [{ key: 'Draft', type: 'checkbox', match: 'exact' }, { key: 'Archive', type: 'checkbox', match: 'exact' }, { key: 'project', type: 'text', match: 'prefix' }], _cmd_: { head: 'c41d07be22' } },
   recent: [
     { op: 'pass', outcome: 'ok', at: ago(20), summary: '' },
     { op: 'pass', job: 'yt-subs', outcome: 'failed', at: ago(400), summary: 'cookies expired' },
@@ -111,8 +114,11 @@ const hits = [
   { rank: 2, score: 0.91, title: 'Pricing tiers', source_path: 'sources/web/acme/pricing-tiers.md', snippet: 'Three tiers: starter, growth and a usage-based tier that bills per API call, so pricing tracks the value a customer gets out of the product each month.' },
   { rank: 3, score: 0.84, title: 'Old offer notes', source_path: 'wiki/notes/old-offer.md', snippet: 'An early draft of the grand slam offer: stack the bonuses until the price looks small against the value of the whole package.' },
 ]
+// `config get`: a real answer from a scratch wiki, trimmed to the rows the tab reads.
+for (const t of ['Note', 'Journal', 'Clip', 'Meeting']) note(`templates/${t}.md`, {}, '', 9000)
 const fakeCli = {
   run: async (verb: string) => {
+    if (verb === 'wiki.config.get') return configAnswer
     if (verb === 'wiki.search.query') return { backend: 'search_server', quality_mode: 'hybrid_rerank', count: hits.length, hits, backend_metadata: { index_as_of: { source_commit: '9f3c2a1e7b' } }, _cmd_: { head: 'c41d07be22' } }
     if (verb === 'wiki.search.status') return snapshot.search
     // A real `page diff` answer, captured from a scratch wiki and trimmed.

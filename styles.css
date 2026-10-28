@@ -474,3 +474,30 @@ a.llm-wiki-file-path:hover, a.llm-wiki-file-path:focus-visible { color: var(--te
 .llm-wiki-diff-line.is-removed .llm-wiki-diff-sign { color: var(--color-red); }
 .llm-wiki-diff-text { white-space: pre-wrap; overflow-wrap: anywhere; padding-inline-end: var(--size-4-2); }
 .llm-wiki-diff-foot { justify-content: flex-end; margin-top: var(--size-4-3); }
+
+/* More > Config: each value on the right, with the file that sets it. */
+.llm-wiki-config-intro { display: flex; align-items: flex-start; gap: var(--size-4-3); margin-bottom: var(--size-4-3); }
+.llm-wiki-config-intro > .llm-wiki-muted { flex: 1; }
+.llm-wiki-config-desc { margin-bottom: var(--size-4-1); }
+.llm-wiki-config-side { display: flex; align-items: center; gap: var(--size-4-2); flex-shrink: 0; max-width: 55%; }
+.llm-wiki-config-value { font-family: var(--font-monospace); font-size: var(--font-ui-smaller); text-align: right; overflow-wrap: anywhere; }
+.llm-wiki-config-value.is-unset { font-family: inherit; color: var(--text-faint); font-style: italic; }
+.llm-wiki-config-source { flex-shrink: 0; }
+.llm-wiki-config-key { font-family: var(--font-monospace); font-size: var(--font-ui-smaller); color: var(--text-muted); }
+.llm-wiki-config-error { color: var(--text-error); min-height: 1em; }
+.llm-wiki-config-error:empty { display: none; }
+.llm-wiki-config-lands { font-size: var(--font-ui-smaller); }
+.llm-wiki-config-row.is-sub { padding-left: var(--size-4-4); }
+.llm-wiki-config-row.is-sub .llm-wiki-row-title { font-family: var(--font-monospace); font-size: var(--font-ui-small); }
+.llm-wiki-config-list textarea { width: 100%; font-family: var(--font-monospace); }
+.llm-wiki-config-source.is-local { color: var(--color-cyan); background: color-mix(in srgb, var(--color-cyan) 12%, transparent); }
+.llm-wiki-config-source.is-committed { background: color-mix(in srgb, var(--text-accent) 12%, transparent); }
+
+/* A page's Properties: the wiki's bookkeeping keys last, folded behind More (src/vault/properties.ts).
+   Scoped under the body class the setting sets, since the panel is Obsidian's, not under .llm-wiki. */
+body.llm-wiki-tidy-props .metadata-properties { display: flex; flex-direction: column; }
+body.llm-wiki-tidy-props .metadata-property[data-property-key="type"] .metadata-property-key-input { text-transform: capitalize; }
+body.llm-wiki-tidy-props .metadata-property.is-llm-wiki-bookkeeping { opacity: 0.6; }
+body.llm-wiki-tidy-props .metadata-container:not(.is-llm-wiki-open) .metadata-property.is-llm-wiki-bookkeeping { display: none; }
+.llm-wiki-props-more { cursor: pointer; padding: var(--size-4-1) var(--size-4-2); font-size: var(--font-ui-smaller); color: var(--text-faint); border-radius: var(--radius-s); width: fit-content; }
+.llm-wiki-props-more:hover, .llm-wiki-props-more:focus-visible { color: var(--text-muted); background: var(--background-modifier-hover); }

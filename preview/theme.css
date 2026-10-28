@@ -6,7 +6,7 @@
   --font-normal: 400; --font-medium: 500; --font-semibold: 600; --font-bold: 700;
   --size-2-1: 2px; --size-2-2: 4px; --size-2-3: 6px; --size-4-1: 4px; --size-4-2: 8px; --size-4-3: 12px; --size-4-4: 16px; --size-4-6: 24px; --size-4-8: 32px;
   --radius-s: 4px; --radius-m: 8px; --radius-l: 12px;
-  --color-red: #e93147; --color-orange: #ec7500; --color-green: #08b94e; --color-yellow: #e0ac00; --color-blue: #086ddd; --color-purple: #7852ee;
+  --color-red: #e93147; --color-orange: #ec7500; --color-green: #08b94e; --color-yellow: #e0ac00; --color-blue: #086ddd; --color-purple: #7852ee; --color-cyan: #00bfbc;
 }
 body.theme-light {
   --background-primary: #ffffff; --background-primary-alt: #f5f6f8; --background-secondary: #f2f3f5; --background-secondary-alt: #e3e5e8;

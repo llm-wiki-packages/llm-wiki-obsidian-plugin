@@ -260,5 +260,9 @@ export interface SearchStatus {
   reindex_required?: boolean
   paths?: { pattern: string; origin?: string }[]
   not_indexed?: { pattern: string; origin?: string }[]
+  /** The chain, in order, and whether each can answer on this machine. */
+  backends?: { name: string; configured?: boolean; available?: boolean; reason?: string }[]
+  /** `[search.properties]`: frontmatter the engine stores, typed with Obsidian's names. */
+  properties?: { key: string; type: string; match?: string }[]
   _cmd_?: { head?: string | null }
 }

@@ -46,6 +46,8 @@ export interface LlmWikiSettings {
   saveHistory: SaveHistory
   /** A note made in Obsidian starts from the wiki's template for its folder. */
   applyTemplates: boolean
+  /** A page's Properties panel leads with the keys a person writes and folds the wiki's bookkeeping behind More. */
+  tidyProperties: boolean
   /** How the Changes tab groups what came in, and past how many a group folds to one row. */
   changesGroup: GroupBy
   changesCollapse: number
@@ -72,6 +74,7 @@ export const DEFAULT_SETTINGS: LlmWikiSettings = {
   searchFilters: [],
   saveHistory: 'commit',
   applyTemplates: true,
+  tidyProperties: true,
   changesGroup: 'source',
   changesCollapse: 5,
   debug: false,
@@ -87,6 +90,14 @@ export const PERMISSION_NAMES: Record<PermissionMode, string> = {
 }
 
 export const EFFORT_NAMES: Record<Effort, string> = { '': 'Default', low: 'Low', medium: 'Medium', high: 'High', xhigh: 'Extra high', max: 'Max' }
+
+function cliWords(p: LlmWikiPlugin): string {
+  return `Empty searches the login shell PATH. Found: ${p.cliBin ?? (p.problem ? 'not found' : 'still looking…')}`
+}
+
+function claudeWords(p: LlmWikiPlugin): string {
+  return `Empty searches the login shell PATH. ${p.claudeBin ? `Found: ${p.claudeBin}` : p.problem || p.wiki ? 'Not found: chat needs it unless it runs in the sandbox; the dashboard works without it.' : 'Still looking…'}`
+}
 
 /** A key a setting control writes, and how a typed value is cleaned before it is kept. */
 type Key = keyof LlmWikiSettings
@@ -104,11 +115,27 @@ const CLEAN: Partial<Record<Key, (v: unknown) => unknown>> = {
 }
 
 export class LlmWikiSettingTab extends PluginSettingTab {
+  /** Rows whose description is what detection found, redrawn when it finishes; a row no longer on screen drops out. */
+  private readonly following = new Set<{ setting: Setting; text: () => string }>()
+
   constructor(
     app: App,
     private readonly plugin: LlmWikiPlugin,
   ) {
     super(app, plugin)
+    // The tab can be drawn before detection finishes (at launch, or on Re-detect), and its words would stay "detecting…".
+    plugin.registerEvent(app.workspace.on('llm-wiki:detected' as 'layout-change', () => {
+      for (const f of this.following) {
+        if (f.setting.settingEl.isConnected) f.setting.setDesc(f.text())
+        else this.following.delete(f)
+      }
+    }))
+  }
+
+  /** Keep a row's description current with detection. */
+  private follow(setting: Setting, text: () => string): void {
+    setting.setDesc(text())
+    this.following.add({ setting, text })
   }
 
   /** The settings, declared once: Obsidian 1.13+ renders and indexes them for search; `display` draws them before that. */
@@ -118,12 +145,16 @@ export class LlmWikiSettingTab extends PluginSettingTab {
       { type: 'group', heading: 'Wiki', items: [
         { name: 'Wiki key', desc: 'Leave empty to match the vault against the machine registry. Set it when the vault is reached through a symlink or is not the wiki root.', control: { type: 'text', key: 'wikiKey', placeholder: 'Auto' } },
         { name: 'Status', desc: p.statusText(), render: (setting) => {
-          setting.addButton((b) => b.setButtonText('Re-detect').onClick(() => void p.detect().then(() => setting.setDesc(p.statusText()))))
+          this.follow(setting, () => p.statusText())
+          setting.addButton((b) => b.setButtonText('Re-detect').onClick(() => void p.detect()))
+        } },
+        { name: 'Wiki config', desc: 'These settings are this plugin’s, kept in this vault. The wiki’s own (templates, search, jobs, transcription) are on the dashboard under More › Config.', render: (setting) => {
+          setting.addButton((b) => b.setButtonText('Open config').onClick(() => p.openConfig()))
         } },
       ] },
       { type: 'group', heading: 'Binaries', items: [
-        { name: 'Path to llm-wiki-cli', desc: `Empty searches the login shell PATH. Found: ${p.cliBin ?? 'not found'}`, control: { type: 'text', key: 'cliPath', placeholder: 'Auto' } },
-        { name: 'Path to Claude', desc: `Empty searches the login shell PATH. ${p.claudeBin ? `Found: ${p.claudeBin}` : 'Not found: chat needs it unless it runs in the sandbox; the dashboard works without it.'}`, control: { type: 'text', key: 'claudePath', placeholder: 'Auto' } },
+        { name: 'Path to llm-wiki-cli', desc: cliWords(p), control: { type: 'text', key: 'cliPath', placeholder: 'Auto' } },
+        { name: 'Path to Claude', desc: claudeWords(p), control: { type: 'text', key: 'claudePath', placeholder: 'Auto' } },
       ] },
       { type: 'group', heading: 'Chat', items: [
         { name: 'New chats start with these', desc: 'The controls under the chat box change the same settings.' },
@@ -142,6 +173,7 @@ export class LlmWikiSettingTab extends PluginSettingTab {
           ? 'A runner on this machine commits and syncs this wiki; this setting waits until it is uninstalled.'
           : 'Commits what you edit here a couple of minutes after you stop, so it shows in Changes and page history. Sync also pulls and pushes, so your other machines see it; it is refused while Obsidian Sync or iCloud syncs this vault.', control: { type: 'dropdown', key: 'saveHistory', options: SAVE_HISTORY_NAMES } },
         { name: 'Apply the wiki’s template to new notes', desc: 'A note made in Obsidian starts with the properties the wiki’s template for that folder gives, as a page the agent makes does. Turn it off if Templater fills new notes.', control: { type: 'toggle', key: 'applyTemplates' } },
+        { name: 'Fold the wiki’s bookkeeping properties', desc: 'A page’s Properties lead with title, type, description and tags; the keys the wiki keeps for itself (document_id, its revision, when it was made and checked) go last, behind a More row. Nothing in the file changes.', control: { type: 'toggle', key: 'tidyProperties' } },
       ] },
       { type: 'group', heading: 'Search', items: [
         { name: 'Results per search', control: { type: 'slider', key: 'searchK', min: 5, max: 100, step: 5 } },
@@ -159,6 +191,7 @@ export class LlmWikiSettingTab extends PluginSettingTab {
   setControlValue(key: string, value: unknown): Promise<void> {
     const clean = CLEAN[key as Key]
     ;(this.plugin.settings as unknown as Record<string, unknown>)[key] = clean ? clean(value) : value
+    if (key === 'tidyProperties') this.plugin.properties.apply()
     return this.plugin.saveSettings()
   }
 
