@@ -2,14 +2,15 @@
 // an agent drew, any standalone page in the vault. Obsidian opens none of
 // these by itself.
 //
-// The page runs in a sandboxed frame: its own scripts run (tabs, panels),
-// but it is cut off from Obsidian, the vault and Node, and its policy
-// (`framed`) fetches nothing, so what an agent wrote cannot load or send
-// anything by itself. A link it shows is followed here: a vault path opens in
-// Obsidian, a web address in the browser. A brief in `wiki/reports/` steps to
-// the one before and after it, and to its markdown record.
+// The page may have been scraped off the web, so it runs in a sandboxed frame
+// cut off from Obsidian, the vault and Node, under a policy that fetches
+// nothing, localhost and `file:` included (`framed` says how). Its own scripts
+// run only for a brief in `wiki/reports/`, or when a person turns them on for
+// the page in hand. A link it shows is followed here: a vault path opens in
+// Obsidian, a web address in the browser. A brief steps to the one before and
+// after it, and to its markdown record.
 import { FileView, Notice, type TFile, type WorkspaceLeaf } from 'obsidian'
-import { FRAME_MESSAGE, FRAME_POLICY, HTML_EXTENSIONS, REPORTS_DIR, collectReports, framed, joinPath, seriesOf, vaultRows } from '../vault/reports'
+import { FRAME_MESSAGE, HTML_EXTENSIONS, REPORTS_DIR, collectReports, framePolicy, framed, joinPath, nonce, seriesOf, trustsScripts, vaultRows } from '../vault/reports'
 
 export const VIEW_HTML = 'llm-wiki-html'
 
@@ -22,6 +23,9 @@ export class HtmlView extends FileView {
   private newer!: HTMLElement
   private record!: HTMLElement
   private series: ReturnType<typeof seriesOf> = null
+  /** Whether this page's own scripts run: null until a person chooses, then their choice for this file. */
+  private scripts: boolean | null = null
+  private scriptsAction!: HTMLElement
 
   constructor(leaf: WorkspaceLeaf) {
     super(leaf)
@@ -44,6 +48,10 @@ export class HtmlView extends FileView {
     // Each action is placed before the last, so they are added right to left.
     if ((this.app as unknown as WithDefaultApp).openWithDefaultApp)
       this.addAction('external-link', 'Open in the default app', () => this.file && (this.app as unknown as WithDefaultApp).openWithDefaultApp?.(this.file.path))
+    this.scriptsAction = this.addAction('code', '', () => {
+      this.scripts = !this.runsScripts()
+      void this.show()
+    })
     this.record = this.addAction('file-text', 'Read the report’s record', () => this.go(this.series?.record))
     this.newer = this.addAction('chevron-right', 'Newer report', () => this.go(this.series?.newer))
     this.older = this.addAction('chevron-left', 'Older report', () => this.go(this.series?.older))
@@ -52,7 +60,12 @@ export class HtmlView extends FileView {
     await super.onOpen()
   }
 
+  private runsScripts(): boolean {
+    return this.scripts ?? (this.file ? trustsScripts(this.file.path) : false)
+  }
+
   async onLoadFile(file: TFile): Promise<void> {
+    this.scripts = null
     await super.onLoadFile(file)
     await this.show()
   }
@@ -69,13 +82,18 @@ export class HtmlView extends FileView {
     const text = await this.app.vault.read(file)
     if (file !== this.file) return
     this.contentEl.empty()
+    const scripts = this.runsScripts()
+    const once = nonce()
     const frame = this.contentEl.createEl('iframe', { cls: 'llm-wiki-html-frame' })
     // Scripts, and nothing else: no same origin, so no reach into Obsidian; no popups, forms or top navigation.
+    // With the page's own scripts off, the policy lets only the bridge run.
     frame.setAttribute('sandbox', 'allow-scripts')
-    frame.setAttribute('csp', FRAME_POLICY)
+    frame.setAttribute('csp', framePolicy(scripts ? null : once))
     frame.setAttribute('referrerpolicy', 'no-referrer')
     frame.setAttribute('title', file.basename)
-    frame.srcdoc = framed(text)
+    frame.srcdoc = framed(text, { scripts, nonce: once })
+    this.scriptsAction.toggleClass('is-active', scripts)
+    this.scriptsAction.setAttribute('aria-label', scripts ? 'The page’s own scripts run; click to stop them' : 'The page’s own scripts are off; click to run them')
     // The frame may still send itself elsewhere (`location = …`, a meta refresh), which neither the sandbox nor the
     // policy stops. Any load after the first is that: the page is put back, and the person told.
     let loads = 0

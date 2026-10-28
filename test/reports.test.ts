@@ -1,7 +1,7 @@
 // The reports and HTML artifacts: pairing a record with its brief, the order
 // they read in, and what a brief is given before it is shown.
 import { describe, expect, it } from 'vitest'
-import { FRAME_POLICY, briefOf, collectReports, framed, joinPath, otherHtml, seriesOf, type FileRow } from '../src/vault/reports'
+import { briefOf, collectReports, framePolicy, joinPath, nonce, otherHtml, seriesOf, trustsScripts, type FileRow } from '../src/vault/reports'
 
 const rows: FileRow[] = [
   { path: 'wiki/reports/2026-10-27.md', mtime: 2, fm: { title: '2026-10-27', date: '2026-10-27', dashboard: '2026-10-27.html', lede: 'Renewals are the theme.', attention: '[{"title":"Reply to Acme"},{"detail":"no title"}]' } },
@@ -62,21 +62,25 @@ describe('a record’s dashboard link', () => {
   })
 })
 
-describe('a framed artifact', () => {
-  const policy = `<meta http-equiv="Content-Security-Policy" content="${FRAME_POLICY}">`
-  it('gets the policy and the bridge first in its head', () => {
-    const out = framed('<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8"><title>x</title></head><body></body></html>')
-    expect(out.indexOf(policy)).toBe(out.indexOf('<head>') + '<head>'.length)
-    expect(out).toContain("from = 'llm-wiki-frame'")
+// `framed` parses with DOMParser, which Node lacks; it is checked in a browser against probe pages (PR #15).
+describe('the frame’s policy', () => {
+  it('fetches nothing: no source but inline and data, so not the web, localhost or file:', () => {
+    for (const p of [framePolicy(null), framePolicy('abc')]) {
+      expect(p).toMatch(/default-src 'none'/)
+      expect(p).not.toMatch(/https?:|file:|\*|'self'/)
+      expect(p).toMatch(/form-action 'none'/)
+    }
   })
-  it('even with no head, and never inside a comment that names one', () => {
-    expect(framed('<p>hi</p>').startsWith(policy)).toBe(true)
-    const out = framed('<!doctype html><!-- copy <head> here --><html><head></head></html>')
-    expect(out.indexOf(policy)).toBeGreaterThan(out.indexOf('<html><head>'))
-    expect(framed('<!doctype html><p>x</p>').indexOf(policy)).toBe('<!doctype html>'.length)
+  it('lets only the bridge run when the page’s own scripts are off', () => {
+    expect(framePolicy('abc')).toMatch(/script-src 'nonce-abc'(;|$)/)
+    expect(framePolicy('abc')).not.toMatch(/script-src[^;]*unsafe-inline/)
+    expect(framePolicy(null)).toMatch(/script-src 'unsafe-inline'/)
+    expect(nonce()).toMatch(/^[0-9a-f]{32}$/)
+    expect(nonce()).not.toBe(nonce())
   })
-  it('fetches nothing: no source but inline and data', () => {
-    expect(FRAME_POLICY).toMatch(/default-src 'none'/)
-    expect(FRAME_POLICY).not.toMatch(/https?:|\*/)
+  it('runs a page’s own scripts only for a brief in wiki/reports/', () => {
+    expect(trustsScripts('wiki/reports/2026-10-28.html')).toBe(true)
+    expect(trustsScripts('sources/web/acme/page.html')).toBe(false)
+    expect(trustsScripts('research/charts/usage.html')).toBe(false)
   })
 })

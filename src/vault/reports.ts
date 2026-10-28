@@ -139,34 +139,55 @@ export function vaultRows(app: App): FileRow[] {
 }
 
 /**
- * What an artifact's page is given before it is shown, at the top of its head:
- * - a policy that lets its own inline styles and scripts run and fetches
- *   nothing, since what an agent wrote may carry a tracking pixel;
- * - a bridge that hands a clicked link, and a copy a click asked for, to
- *   Obsidian, since the frame itself can neither navigate nor reach the clipboard.
+ * How an HTML file is shown. The page may be anything: a capture scraped off
+ * the web, or a brief an agent wrote after reading scraped text. Two layers
+ * keep it from reading this machine or reaching it:
+ * - the frame's sandbox, `allow-scripts` and nothing else: an opaque origin,
+ *   so no reach into Obsidian, its storage, the vault or Node; no popups,
+ *   forms or navigating Obsidian itself;
+ * - a policy, the first thing in its head, that fetches nothing: not the
+ *   web, not localhost, not `file:`. Only inline styles and `data:` images.
+ *
+ * A page's own scripts are off unless it is trusted to run them (a brief in
+ * `wiki/reports/`, or a person saying so for one page). Off, only the bridge
+ * runs, by a nonce the page cannot know. That matters because two things
+ * get past any policy, and both need a script, or a meta refresh, which is
+ * removed before the page is shown:
+ * - navigating the frame (`location = …`): one GET to any address,
+ *   localhost included. It cannot read the answer, and the view puts the
+ *   page back, but the request has gone. (The Navigation API cannot cancel
+ *   it: its events are off in an opaque origin.);
+ * - WebRTC, whose STUN and TURN packets no policy covers. With scripts on,
+ *   the bridge removes its constructors first.
  */
-export const FRAME_POLICY = [
-  "default-src 'none'",
-  "script-src 'unsafe-inline'",
-  "style-src 'unsafe-inline' data:",
-  'img-src data: blob:',
-  'font-src data:',
-  'media-src data: blob:',
-  "form-action 'none'",
-  "base-uri 'none'",
-].join('; ')
+export function framePolicy(nonce: string | null): string {
+  return [
+    "default-src 'none'",
+    nonce ? `script-src 'nonce-${nonce}'` : "script-src 'unsafe-inline'",
+    "style-src 'unsafe-inline' data:",
+    'img-src data: blob:',
+    'font-src data:',
+    'media-src data: blob:',
+    "form-action 'none'",
+    "base-uri 'none'",
+  ].join('; ')
+}
 
 export const FRAME_MESSAGE = 'llm-wiki-frame'
 
+/** What hands a clicked link, and a copy a click asked for, to Obsidian: the frame can neither navigate nor reach the clipboard. */
 const BRIDGE = `(function () {
+  ['RTCPeerConnection', 'webkitRTCPeerConnection', 'RTCDataChannel', 'RTCIceCandidate', 'RTCSessionDescription', 'RTCRtpSender', 'RTCRtpReceiver'].forEach(function (n) {
+    try { Object.defineProperty(window, n, { value: undefined, writable: false, configurable: false }) } catch (e) {}
+  })
   function send(m) { m.from = '${FRAME_MESSAGE}'; parent.postMessage(m, '*') }
   document.addEventListener('click', function (e) {
     if (e.defaultPrevented || !e.target || !e.target.closest) return
-    var a = e.target.closest('a[href]')
+    var a = e.target.closest('a[href], area[href]')
     if (!a) return
     var href = a.getAttribute('href') || ''
-    if (!href || /^javascript:/i.test(href)) return
     e.preventDefault()
+    if (!href || /^javascript:/i.test(href)) return
     // A page shown from srcdoc has its host's address, so '#x' would load the host in the frame: scroll instead.
     if (href.charAt(0) === '#') {
       var id = href.slice(1)
@@ -176,7 +197,7 @@ const BRIDGE = `(function () {
       return
     }
     send({ kind: 'open', href: href, newTab: !!(e.metaKey || e.ctrlKey) })
-  })
+  }, true)
   function copy(text) {
     if (navigator.userActivation && !navigator.userActivation.isActive) return Promise.reject(new Error('A copy needs a click.'))
     send({ kind: 'copy', text: String(text) })
@@ -185,13 +206,40 @@ const BRIDGE = `(function () {
   try { Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: copy } }) } catch (e) {}
 })()`
 
-export function framed(html: string): string {
-  const head = `<meta http-equiv="Content-Security-Policy" content="${FRAME_POLICY}"><script>${BRIDGE}</script>`
-  // A tag named inside a comment is not the tag; the policy would land in the comment and do nothing.
-  const bare = html.replace(/<!--[\s\S]*?(?:-->|$)/g, (c) => ' '.repeat(c.length))
-  for (const tag of [/<head\b[^>]*>/i, /<html\b[^>]*>/i, /<!doctype[^>]*>/i]) {
-    const m = tag.exec(bare)
-    if (m) return html.slice(0, m.index + m[0].length) + head + html.slice(m.index + m[0].length)
+/** A nonce for one showing. */
+export function nonce(): string {
+  const bytes = new Uint8Array(16)
+  crypto.getRandomValues(bytes)
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+/**
+ * The page as the frame is given it. Parsed with DOMParser, which runs no
+ * script and loads nothing, so the policy lands first in the real head
+ * however the page is written, and what the page says is read as a browser
+ * would read it, not by a pattern.
+ */
+export function framed(html: string, opts: { scripts: boolean; nonce: string }): string {
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  // A meta refresh navigates with no script at all.
+  for (const m of Array.from(doc.querySelectorAll('meta[http-equiv]'))) if (/^\s*refresh\s*$/i.test(m.getAttribute('http-equiv') ?? '')) m.remove()
+  if (!opts.scripts) {
+    // Its scripts will not run, so what it says to show instead is shown.
+    for (const n of Array.from(doc.querySelectorAll('noscript'))) n.replaceWith(...Array.from(n.childNodes))
   }
-  return head + html
+  // What goes first in its head, parsed the same way and moved across. Every value is fixed text or the hex nonce.
+  const lead = new DOMParser().parseFromString(
+    `<meta http-equiv="Content-Security-Policy" content="${framePolicy(opts.scripts ? null : opts.nonce)}">` +
+      '<meta http-equiv="x-dns-prefetch-control" content="off"><meta name="referrer" content="no-referrer">' +
+      `<script nonce="${opts.nonce}">${BRIDGE}</script>`,
+    'text/html',
+  ).head
+  // Copied first: adopting a node takes it out of the live list being walked.
+  doc.head.prepend(...Array.from(lead.childNodes).map((n) => doc.adoptNode(n)))
+  return `${doc.doctype ? `<!DOCTYPE ${doc.doctype.name}>` : ''}${doc.documentElement.outerHTML}`
+}
+
+/** Whether a file's own scripts run unless a person says otherwise: a brief the wiki's reports job wrote. */
+export function trustsScripts(path: string): boolean {
+  return path.startsWith(`${REPORTS_DIR}/`)
 }

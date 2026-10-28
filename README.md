@@ -184,21 +184,41 @@ and binaries. Every row takes focus and opens on Enter.
 ### HTML files
 
 Obsidian opens no `.html` file by itself; the plugin does, in a tab of its own,
-as a browser would show it. The page's own scripts run (a brief's tabs and
-panels work), in a sandboxed frame that cannot reach Obsidian, the vault or
-Node, under a policy that fetches nothing: no remote stylesheet, font, image
-or request, since what an agent wrote may carry a tracking pixel. A
-self-contained page loses nothing. A link it shows is followed here: a vault
-path opens in Obsidian (Cmd-click for a new tab), a web or mail address in the
-browser; **Copy** in a brief reaches the clipboard after a click, never
-without one. A brief in `wiki/reports/` has **‹** and **›** in its header for
-the day before and after, and a button for its record. Commands: *Open
-reports*, *Open the latest report*, and *Open this report's brief* from a
-record. If another plugin claimed `.html` first, its view opens them instead.
+as a browser would show it. Any such file may have been scraped off the web,
+so it is shown in a frame that cannot reach this machine:
 
-One gap the frame cannot close: a page can send its own frame to a web address
-(a script setting `location`, a meta refresh). The view notices, puts the page
-back and says so, but that one request has left by then.
+- **A sandboxed frame** (`sandbox="allow-scripts"`, no same origin): no reach
+  into Obsidian, its storage, the vault or Node; no popups, forms, or
+  navigating Obsidian itself.
+- **A policy that fetches nothing**, placed first in the page's head (the page
+  is parsed with `DOMParser`, which runs and loads nothing, to place it): no
+  request to the web, to `localhost` or to `file:`, by fetch, XHR, WebSocket,
+  beacon, worker, image, stylesheet or frame. Inline styles and `data:`
+  images only. A meta refresh is removed before the page is shown.
+- **The page's own scripts are off**, except for a brief in `wiki/reports/`,
+  whose tabs and panels need them. Off, only the plugin's bridge runs, by a
+  nonce the page cannot know. **</>** in the tab header turns a page's
+  scripts on or off for as long as it is open.
+
+The bridge follows a clicked link: a vault path opens in Obsidian
+(Cmd-click for a new tab), a web or mail address in your browser. **Copy** in
+a brief reaches the clipboard after a click, never without one. A brief has
+**‹** and **›** in its header for the day before and after, and a button for
+its record. Commands: *Open reports*, *Open the latest report*, and *Open this
+report's brief* from a record. If another plugin claimed `.html` first, its
+view opens them instead.
+
+What remains with a page's scripts **on**: the page can send its own frame to
+an address (`location = …`), which is one GET, localhost included. It cannot
+read the answer, and the view puts the page back and says so, but the request
+has gone; neither the sandbox, the policy nor the Navigation API (off in an
+opaque origin) can stop it, and Obsidian gives a plugin no hold on the
+network. WebRTC, which no policy covers, has its constructors removed first.
+The frame is not a separate OS process: Obsidian's window runs Node, and a
+subframe shares its renderer, so a browser exploit in a page would reach as
+far as Obsidian does. Scripts off narrows that too.
+
+`docs/html-probe.html` checks all of this inside Obsidian; its comment says how.
 
 ## Requirements
 

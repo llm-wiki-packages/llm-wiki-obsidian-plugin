@@ -1,0 +1,47 @@
+<!doctype html>
+<!--
+  A probe for the plugin's HTML view, to run inside Obsidian.
+
+  1. In a terminal: python3 -m http.server 9911 --bind 127.0.0.1
+  2. Copy this file into the vault twice:
+       wiki/reports/_probe.html   scripts ON, as a brief's are
+       sources/_probe.html        scripts OFF, as any other file's are; the
+                                  </> button in the tab header turns them on
+     (The underscore keeps the first out of the Reports list.)
+  3. Open each. The page lists what it tried. Every line should say blocked,
+     undefined or refused, and the terminal should log NO request, for ten
+     seconds after opening and after any click.
+  With scripts off, nothing below runs: the page shows only this text and
+  the noscript line, which is the point.
+-->
+<html><head><title>HTML view probe</title>
+<meta http-equiv="refresh" content="5;url=http://127.0.0.1:9911/meta-refresh">
+<link rel="stylesheet" href="http://127.0.0.1:9911/stylesheet">
+</head><body style="font: 14px system-ui; padding: 1em">
+<h1>HTML view probe</h1>
+<noscript><p><b>Scripts are off.</b> Nothing ran. The terminal should show no request.</p></noscript>
+<img src="http://127.0.0.1:9911/image" alt="">
+<p><a href="http://127.0.0.1:9911/clicked-link">A link to localhost</a> opens in your browser, not here (that request is yours).</p>
+<pre id="out"></pre>
+<script>
+var out = document.getElementById('out')
+function say(s) { out.textContent += s + '\n' }
+function t(name, run) {
+  try { Promise.resolve(run()).then(function (v) { say(name + ': REACHED ' + String(v).slice(0, 60)) }, function () { say(name + ': blocked') }) }
+  catch (e) { say(name + ': refused (' + e.message.slice(0, 60) + ')') }
+}
+say('origin: ' + location.origin + ', base: ' + document.baseURI)
+say('require: ' + typeof require + ', process: ' + typeof process + ', module: ' + typeof module)
+t('parent.document', function () { return parent.document.title })
+t('localStorage', function () { return localStorage.length })
+t('fetch localhost', function () { return fetch('http://127.0.0.1:9911/fetch').then(function (r) { return r.text() }) })
+t('fetch file:', function () { return fetch('file:///etc/hosts').then(function (r) { return r.text() }) })
+t('fetch Obsidian app:', function () { return fetch(document.baseURI).then(function (r) { return r.text() }) })
+t('websocket', function () { return new Promise(function (ok, no) { var w = new WebSocket('ws://127.0.0.1:9911/ws'); w.onopen = ok; w.onerror = no }) })
+t('beacon (it says queued even when blocked; the terminal decides)', function () { return navigator.sendBeacon('http://127.0.0.1:9911/beacon', 'x') ? Promise.reject() : 'not queued' })
+t('webrtc', function () { var pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:127.0.0.1:9911' }] }); return 'constructed' })
+t('window.open', function () { var w = window.open('http://127.0.0.1:9911/popup'); if (!w) throw new Error('null'); return 'opened' })
+say('In 8 seconds this page sends its frame to localhost; with scripts on, that one request gets through and the view puts the page back.')
+setTimeout(function () { location.href = 'http://127.0.0.1:9911/location-navigation' }, 8000)
+</script>
+</body></html>
