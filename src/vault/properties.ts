@@ -41,7 +41,7 @@ export class TidyProperties {
       this.apply()
       // Obsidian redraws the panel on every note opened and every key added, renamed or removed.
       this.observer = new MutationObserver(() => this.queue())
-      this.observer.observe(p.app.workspace.containerEl, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-property-key'] })
+      this.watch()
       p.register(() => this.observer?.disconnect())
     })
     p.register(() => {
@@ -65,8 +65,22 @@ export class TidyProperties {
     })
   }
 
-  /** Every panel on screen: rows sorted and marked, the More row added where it is missing and kept counting. */
+  private watch(): void {
+    this.observer?.observe(this.plugin.app.workspace.containerEl, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-property-key'] })
+  }
+
+  /** One pass, unwatched: what it changes itself must not wake it again. */
   private pass(): void {
+    this.observer?.disconnect()
+    try {
+      this.draw()
+    } finally {
+      this.watch()
+    }
+  }
+
+  /** Every panel on screen: rows sorted and marked, the More row added where it is missing and kept counting. */
+  private draw(): void {
     const on = this.plugin.settings.tidyProperties
     for (const box of Array.from(this.plugin.app.workspace.containerEl.querySelectorAll<HTMLElement>('.metadata-container'))) {
       const list = box.querySelector<HTMLElement>('.metadata-properties')
@@ -99,7 +113,8 @@ export class TidyProperties {
       }
       const text = moreText(hidden, this.open)
       if (more.getText() !== text) more.setText(text)
-      more.title = this.open ? 'Hide the wiki’s bookkeeping properties' : `Show the wiki’s bookkeeping properties: ${BOOKKEEPING_KEYS.join(', ')}`
+      const title = this.open ? 'Hide the wiki’s bookkeeping properties' : `Show the wiki’s bookkeeping properties: ${BOOKKEEPING_KEYS.join(', ')}`
+      if (more.title !== title) more.title = title
     }
   }
 

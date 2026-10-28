@@ -91,6 +91,14 @@ export const PERMISSION_NAMES: Record<PermissionMode, string> = {
 
 export const EFFORT_NAMES: Record<Effort, string> = { '': 'Default', low: 'Low', medium: 'Medium', high: 'High', xhigh: 'Extra high', max: 'Max' }
 
+function cliWords(p: LlmWikiPlugin): string {
+  return `Empty searches the login shell PATH. Found: ${p.cliBin ?? (p.problem ? 'not found' : 'still looking…')}`
+}
+
+function claudeWords(p: LlmWikiPlugin): string {
+  return `Empty searches the login shell PATH. ${p.claudeBin ? `Found: ${p.claudeBin}` : p.problem || p.wiki ? 'Not found: chat needs it unless it runs in the sandbox; the dashboard works without it.' : 'Still looking…'}`
+}
+
 /** A key a setting control writes, and how a typed value is cleaned before it is kept. */
 type Key = keyof LlmWikiSettings
 const CLEAN: Partial<Record<Key, (v: unknown) => unknown>> = {
@@ -107,11 +115,27 @@ const CLEAN: Partial<Record<Key, (v: unknown) => unknown>> = {
 }
 
 export class LlmWikiSettingTab extends PluginSettingTab {
+  /** Rows whose description is what detection found, redrawn when it finishes; a row no longer on screen drops out. */
+  private readonly following = new Set<{ setting: Setting; text: () => string }>()
+
   constructor(
     app: App,
     private readonly plugin: LlmWikiPlugin,
   ) {
     super(app, plugin)
+    // The tab can be drawn before detection finishes (at launch, or on Re-detect), and its words would stay "detecting…".
+    plugin.registerEvent(app.workspace.on('llm-wiki:detected' as 'layout-change', () => {
+      for (const f of this.following) {
+        if (f.setting.settingEl.isConnected) f.setting.setDesc(f.text())
+        else this.following.delete(f)
+      }
+    }))
+  }
+
+  /** Keep a row's description current with detection. */
+  private follow(setting: Setting, text: () => string): void {
+    setting.setDesc(text())
+    this.following.add({ setting, text })
   }
 
   /** The settings, declared once: Obsidian 1.13+ renders and indexes them for search; `display` draws them before that. */
@@ -121,15 +145,16 @@ export class LlmWikiSettingTab extends PluginSettingTab {
       { type: 'group', heading: 'Wiki', items: [
         { name: 'Wiki key', desc: 'Leave empty to match the vault against the machine registry. Set it when the vault is reached through a symlink or is not the wiki root.', control: { type: 'text', key: 'wikiKey', placeholder: 'Auto' } },
         { name: 'Status', desc: p.statusText(), render: (setting) => {
-          setting.addButton((b) => b.setButtonText('Re-detect').onClick(() => void p.detect().then(() => setting.setDesc(p.statusText()))))
+          this.follow(setting, () => p.statusText())
+          setting.addButton((b) => b.setButtonText('Re-detect').onClick(() => void p.detect()))
         } },
         { name: 'Wiki config', desc: 'These settings are this plugin’s, kept in this vault. The wiki’s own (templates, search, jobs, transcription) are on the dashboard under More › Config.', render: (setting) => {
           setting.addButton((b) => b.setButtonText('Open config').onClick(() => p.openConfig()))
         } },
       ] },
       { type: 'group', heading: 'Binaries', items: [
-        { name: 'Path to llm-wiki-cli', desc: `Empty searches the login shell PATH. Found: ${p.cliBin ?? 'not found'}`, control: { type: 'text', key: 'cliPath', placeholder: 'Auto' } },
-        { name: 'Path to Claude', desc: `Empty searches the login shell PATH. ${p.claudeBin ? `Found: ${p.claudeBin}` : 'Not found: chat needs it unless it runs in the sandbox; the dashboard works without it.'}`, control: { type: 'text', key: 'claudePath', placeholder: 'Auto' } },
+        { name: 'Path to llm-wiki-cli', desc: cliWords(p), control: { type: 'text', key: 'cliPath', placeholder: 'Auto' } },
+        { name: 'Path to Claude', desc: claudeWords(p), control: { type: 'text', key: 'claudePath', placeholder: 'Auto' } },
       ] },
       { type: 'group', heading: 'Chat', items: [
         { name: 'New chats start with these', desc: 'The controls under the chat box change the same settings.' },
