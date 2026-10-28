@@ -7,6 +7,7 @@ import { renderCredentials } from './credentials'
 import { renderChanges } from './changes'
 import { renderJobs } from './jobs'
 import { renderOverview } from './overview'
+import { renderReports } from './reports'
 import { PLUGIN_NAMESPACE } from '../../chat/skills'
 import { renderSkills } from './skills'
 import { ChatPane } from '../chat'
@@ -17,12 +18,13 @@ import type { JobView } from '../../wiki/model'
 
 export const VIEW_DASHBOARD = 'llm-wiki-dashboard'
 
-export type Tab = 'overview' | 'changes' | 'jobs' | 'skills' | 'credentials' | 'config' | 'search' | 'chat'
+export type Tab = 'overview' | 'reports' | 'changes' | 'jobs' | 'skills' | 'credentials' | 'config' | 'search' | 'chat'
 /** What a person reaches for every day, in the first row. */
 const TABS: { id: Tab; label: string }[] = [
   { id: 'chat', label: 'Chat' },
   { id: 'search', label: 'Search' },
   { id: 'overview', label: 'Overview' },
+  { id: 'reports', label: 'Reports' },
   { id: 'changes', label: 'Changes' },
 ]
 /** Under More, on a second row: running the wiki, which is less often. */
@@ -141,7 +143,11 @@ export class DashboardView extends ItemView {
     this.registerEvent(this.app.workspace.on('llm-wiki:snapshot' as 'layout-change', () => this.render()))
     // A box ticked in a note, or a save, changes what Changes shows before the next read.
     this.registerEvent(this.app.workspace.on('llm-wiki:saved' as 'layout-change', () => this.renderIf('changes', 'overview')))
-    this.registerEvent(this.app.metadataCache.on('changed', () => this.renderIf('changes')))
+    this.registerEvent(this.app.metadataCache.on('changed', () => this.renderIf('changes', 'reports')))
+    // A brief is HTML, which the metadata cache never reads; its arrival is a file event.
+    this.registerEvent(this.app.vault.on('create', () => this.renderIf('reports')))
+    this.registerEvent(this.app.vault.on('delete', () => this.renderIf('reports')))
+    this.registerEvent(this.app.vault.on('rename', () => this.renderIf('reports')))
     this.registerEvent(this.app.workspace.on('llm-wiki:detected' as 'layout-change', () => void this.refresh()))
     this.render()
     void this.refresh()
@@ -247,6 +253,9 @@ export class DashboardView extends ItemView {
         break
       case 'changes':
         renderChanges(this.panel, ctx)
+        break
+      case 'reports':
+        renderReports(this.panel, ctx)
         break
       case 'config':
         renderConfig(this.panel, ctx)

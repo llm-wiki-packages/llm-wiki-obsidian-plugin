@@ -3,6 +3,7 @@ export class Plugin {
   constructor(readonly app: unknown, readonly manifest: unknown) {}
 }
 export class ItemView {}
+export class FileView extends ItemView {}
 export class PluginSettingTab {}
 export class Setting {}
 export class Component {}

@@ -23,6 +23,8 @@ import { TitleFollowsName } from './vault/titles'
 import { TidyProperties } from './vault/properties'
 import { DEFAULT_LAYOUT, layoutFrom, setLayout, type LayoutAnswer } from './wiki/layout'
 import { PageHistory } from './ui/pageHistory'
+import { HtmlView, VIEW_HTML } from './views/html'
+import { HTML_EXTENSIONS, briefOf, collectReports, vaultRows } from './vault/reports'
 
 export default class LlmWikiPlugin extends Plugin {
   settings: LlmWikiSettings = DEFAULT_SETTINGS
@@ -58,6 +60,13 @@ export default class LlmWikiPlugin extends Plugin {
     log.setDebug(this.settings.debug)
     this.addSettingTab(new LlmWikiSettingTab(this.app, this))
     this.registerView(VIEW_DASHBOARD, (leaf) => new DashboardView(leaf, this))
+    this.registerView(VIEW_HTML, (leaf) => new HtmlView(leaf))
+    // Another plugin may have claimed .html first; then its view opens them, and the Reports tab still lists them.
+    try {
+      this.registerExtensions(HTML_EXTENSIONS, VIEW_HTML)
+    } catch (e) {
+      log.warn('HTML files open in another plugin’s view:', e)
+    }
     this.addRibbonIcon('brain', 'Open Brain', () => void this.openDashboard())
     this.addCommand({ id: 'open-dashboard', name: 'Open dashboard', callback: () => void this.openDashboard() })
     this.addCommand({ id: 'open-chat', name: 'Open chat', callback: () => void this.openDashboard('chat') })
@@ -75,6 +84,16 @@ export default class LlmWikiPlugin extends Plugin {
     } })
     this.addCommand({ id: 'refresh', name: 'Refresh the dashboard', callback: () => void this.refreshSnapshot() })
     this.addCommand({ id: 'open-changes', name: 'Open changes', callback: () => void this.openDashboard('changes') })
+    this.addCommand({ id: 'open-reports', name: 'Open reports', callback: () => void this.openDashboard('reports') })
+    this.addCommand({ id: 'open-latest-report', name: 'Open the latest report', callback: () => this.openLatestReport() })
+    this.addCommand({ id: 'open-report-brief', name: 'Open this report’s brief', checkCallback: (checking) => {
+      const file = this.app.workspace.getActiveFile()
+      const path = file?.extension === 'md' ? briefOf(file.path, this.app.metadataCache.getFileCache(file)?.frontmatter?.dashboard) : null
+      const brief = path ? this.app.vault.getFileByPath(path) : null
+      if (!brief) return false
+      if (!checking) void this.app.workspace.getLeaf(false).openFile(brief)
+      return true
+    } })
     this.addCommand({ id: 'open-config', name: 'Open the wiki’s config', callback: () => void this.openDashboard('config') })
     this.addCommand({ id: 'accept-draft', name: 'Accept this page into the wiki', checkCallback: (checking) => this.draftCommand(checking, (a, path) => a.accept([path])) })
     this.addCommand({ id: 'reject-draft', name: 'Archive this page…', checkCallback: (checking) => this.draftCommand(checking, async (a, path) => {
@@ -99,6 +118,14 @@ export default class LlmWikiPlugin extends Plugin {
     this.statusBar.addClass('mod-clickable')
     this.registerDomEvent(this.statusBar, 'click', () => void this.openDashboard())
     this.app.workspace.onLayoutReady(() => void this.detect())
+  }
+
+  /** The newest report: its brief when it has one, else its record. */
+  private openLatestReport(): void {
+    const r = collectReports(vaultRows(this.app))[0]
+    const file = r ? this.app.vault.getFileByPath(r.brief ?? r.record ?? '') : null
+    if (file) void this.app.workspace.getLeaf('tab').openFile(file)
+    else new Notice('No reports yet: nothing in wiki/reports/.')
   }
 
   /** Accept or archive the page in the active editor, without going back to the Changes tab. */
