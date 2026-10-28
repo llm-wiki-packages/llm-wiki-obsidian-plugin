@@ -919,18 +919,27 @@ no host entry on this machine: scratch - nothing fires them", fix
   status: added|modified|deleted|untracked }], upstream, unpushed, behind }`,
   for the swept trees only.
 
-### 1.26 `config get <key>`
+### 1.26 `config get`
 
-- argv: `wiki --read-only <key> config get <dotted key> --json`. Answer
-  `OPS/commands/config/config.py` `ConfigValue`: `{ key, found, value,
-  source }`. `source` is `.llm-wiki.toml`, `.llm-wiki.local.toml`, both joined
-  by ` + ` for a whole table both files carry, or null when neither sets it.
-  `value` keeps its TOML type (a number, a boolean, a table as an object).
-  Real: `{"key":"runner.caps.enrich","found":true,"value":2,"source":".llm-wiki.local.toml"}`.
-- A key is TOML's dotted spelling; a segment that is not a bare word is
-  double-quoted (`page.templates."sources/journal"`).
-- Refused (rc 2): any `search.*` key ("is read by search, not by `config`";
-  `search status` answers it), and the `machine.*` namespace.
+- argv: `wiki --read-only <key> config get --json`, bare: every row the CLI
+  knows, in one answer (about 0.2 s). The `config` contract, schema 1
+  (simple10/llm-wiki-plugins#3715, PR 3718): `{ schema: 1, rows: { "<key>":
+  row }, problems: { wiki: null | string, local: null | string } }`. A row is
+  `{ value, in: { wiki?, local? }, writable_in: ("wiki"|"local")[], combine,
+  type, default, doc, values?, why? }`: `value` is what applies, `in` each
+  layer's own value as written (an absent layer is absent), `combine` one of
+  `override`, `union`, `replace_table`, `wiki_only`, `local_only`, `realm`,
+  `machine_only`; `type` one of `int`, `float`, `bool`, `str`, `enum` (with
+  `values`), `list<str>`, `map`, `table`, `list<table>`; `why` says why no
+  command writes it when `writable_in` is empty. A table has a row of its own
+  beside its leaves, and a map's entries are rows keyed by their real key
+  (`page.templates."sources/journal"`). No file names anywhere: layers are
+  `wiki` and `local`. `search.*` is answered as declared; `search status`
+  still answers what runs. Real, trimmed: `test/mocks/config-get.json`.
+- A `problems` layer did not parse, and adds nothing to the rows.
+- Quirk, real at 0419d2077: `runner.caps.high` comes back twice, once as an
+  `int` row from the `runner.caps.*` pattern and once as `runner.caps.high (2)`,
+  the table. The tab reads neither.
 
 ### 1.21 `page template <path>`
 
@@ -1179,25 +1188,29 @@ Refusals: read-only; a search config the reader refuses.
     `document_id`, and the original is left untouched.
   - rc 0 throughout.
 
-### 2.13 `config set|unset <key> [<value>] [--committed]`
+### 2.13 `config set|unset --wiki|--local`
 
-- argv: `wiki <key> config set [--committed] <dotted key> <value> --json`, and
-  `config unset [--committed] <dotted key>`. Without `--committed` the write
-  lands in this machine's `.llm-wiki.local.toml`; with it, in `.llm-wiki.toml`,
-  committed in the same step. Answer `ConfigWritten`: `{ key, value, file,
-  removed, effective_source, commits: [{ sha, subject, paths, ... }],
-  carried_uncommitted, warnings }`. `removed` is set for `unset` only;
-  `effective_source` names the file that answers the key afterwards.
-- A value is written as a TOML integer when it is all digits, a boolean for
-  `true`/`false`, else a string. No arrays or tables.
-- Refused (rc 2), real: `jobs.request_gap_seconds is committed-only — it is a
-  property of the wiki, not of this machine; pass --committed to write
-  .llm-wiki.toml`; `templates/Missing.md is not a file in this wiki — create
-  the template first, then map it`; `config set writes, and this session is
-  read-only`. Committed-only: `page`, `harness`, `schedule`,
-  `jobs.request_gap_seconds`, `inboxes.archive`, `jobs.handoffs`; local-only:
-  `runner`; written by no `config` verb: `wiki_id`, `schema_version`,
-  `packages`, `ops.major`, `ops.dir`.
+- argv, the layer always named and everything after `--` positional:
+  `wiki <key> config set --<layer> --json -- <dotted key> <value>`; a list or
+  table as a JSON Merge Patch (RFC 7396) against that layer, `wiki <key>
+  config set --<layer> --json -- '<json object>'` (objects merge, lists
+  replace, `null` removes); `wiki <key> config unset --<layer> --json --
+  <dotted key>`. `--wiki` (was `--committed`) writes `.llm-wiki.toml` and
+  commits it in the same step; `--local` this machine's file, the CLI's
+  default, which the plugin never leans on.
+- The value is parsed by the row's type, so `2026` on a `str` row stays text.
+  A `list<str>`, `map` or `table` row refuses the single-value form and names
+  the payload form.
+- Answer `ConfigWritten`: `{ schema: 1, wrote, changed: string[], rows: {
+  "<key>": row after the write }, commit: sha | null, carried_uncommitted,
+  warnings }`. A write that changes nothing answers `changed: []`; so does an
+  `unset` of a key that layer did not set.
+- Refused (rc 2), real: `search.properties.X.type is written in the wiki
+  layer only — pass --wiki — writing nothing`; `search.paths is a list<str>,
+  which takes the payload form: …`; `search.properties in .llm-wiki.toml:
+  rating: boost is for checkbox properties, not number — writing nothing`;
+  `templates/Journal.md is not a file in this wiki — create the template
+  first, then map it`. A payload is refused whole when any leaf fails.
 
 ### 2.8 `git sync`
 

@@ -1,0 +1,656 @@
+{
+ "schema": 1,
+ "rows": {
+  "ops.major": {
+   "value": 1,
+   "in": {
+    "wiki": 1
+   },
+   "writable_in": [],
+   "combine": "wiki_only",
+   "type": "int",
+   "default": null,
+   "doc": "The ops major this wiki runs on.",
+   "why": "decides which machinery runs this wiki; edit it by hand, deliberately"
+  },
+  "ops.requires": {
+   "value": ">=0.10",
+   "in": {
+    "wiki": ">=0.10"
+   },
+   "writable_in": [
+    "wiki"
+   ],
+   "combine": "wiki_only",
+   "type": "str",
+   "default": null,
+   "doc": "The minimum ops version of that major, a `>=X.Y[.Z]` floor."
+  },
+  "wiki.name": {
+   "value": "w4",
+   "in": {
+    "wiki": "w4"
+   },
+   "writable_in": [
+    "wiki",
+    "local"
+   ],
+   "combine": "override",
+   "type": "str",
+   "default": null,
+   "doc": "The display label, shown in logs and prompts."
+  },
+  "logging.level": {
+   "value": "info",
+   "in": {
+    "wiki": "info"
+   },
+   "writable_in": [
+    "wiki",
+    "local"
+   ],
+   "combine": "override",
+   "type": "enum",
+   "values": [
+    "off",
+    "error",
+    "info",
+    "debug"
+   ],
+   "default": "error",
+   "doc": "How much the ops log keeps."
+  },
+  "logging.retention_days": {
+   "value": 14,
+   "in": {
+    "wiki": 14
+   },
+   "writable_in": [
+    "wiki",
+    "local"
+   ],
+   "combine": "override",
+   "type": "int",
+   "default": 14,
+   "doc": "Days of ops log `tick` keeps; 0 keeps everything."
+  },
+  "page.templates": {
+   "value": {
+    "*": "templates/Note.md",
+    "sources/journal": "templates/Journal.md"
+   },
+   "in": {
+    "wiki": {
+     "*": "templates/Note.md",
+     "sources/journal": "templates/Journal.md"
+    }
+   },
+   "writable_in": [
+    "wiki"
+   ],
+   "combine": "wiki_only",
+   "type": "map",
+   "default": null,
+   "doc": "Directory pattern to the template a new page there starts from."
+  },
+  "page.templates.\"*\"": {
+   "value": "templates/Note.md",
+   "in": {
+    "wiki": "templates/Note.md"
+   },
+   "writable_in": [
+    "wiki"
+   ],
+   "combine": "wiki_only",
+   "type": "str",
+   "default": null,
+   "doc": "A template file under templates/."
+  },
+  "page.templates.\"sources/journal\"": {
+   "value": "templates/Journal.md",
+   "in": {
+    "wiki": "templates/Journal.md"
+   },
+   "writable_in": [
+    "wiki"
+   ],
+   "combine": "wiki_only",
+   "type": "str",
+   "default": null,
+   "doc": "A template file under templates/."
+  },
+  "harness.run_cap_seconds": {
+   "value": null,
+   "in": {},
+   "writable_in": [
+    "wiki"
+   ],
+   "combine": "wiki_only",
+   "type": "int",
+   "default": null,
+   "doc": "Seconds one harness run may last; the lower of this and the machine's applies."
+  },
+  "jobs.request_gap_seconds": {
+   "value": 90,
+   "in": {
+    "wiki": 90
+   },
+   "writable_in": [
+    "wiki"
+   ],
+   "combine": "wiki_only",
+   "type": "int",
+   "default": null,
+   "doc": "How soon after a landing `jobs request` may run the same job again."
+  },
+  "jobs.defaults": {
+   "value": {
+    "model": "sonnet"
+   },
+   "in": {
+    "local": {
+     "model": "sonnet"
+    }
+   },
+   "writable_in": [
+    "wiki",
+    "local"
+   ],
+   "combine": "replace_table",
+   "type": "table",
+   "default": null,
+   "doc": "The model and effort every unit gets that declares none."
+  },
+  "jobs.defaults.model": {
+   "value": "sonnet",
+   "in": {
+    "local": "sonnet"
+   },
+   "writable_in": [
+    "wiki",
+    "local"
+   ],
+   "combine": "replace_table",
+   "type": "str",
+   "default": null,
+   "doc": "The model request; `|`-separated alternatives, each one token."
+  },
+  "jobs.defaults.effort": {
+   "value": null,
+   "in": {},
+   "writable_in": [
+    "wiki",
+    "local"
+   ],
+   "combine": "replace_table",
+   "type": "str",
+   "default": null,
+   "doc": "The effort token."
+  },
+  "inboxes.archive": {
+   "value": true,
+   "in": {
+    "wiki": true
+   },
+   "writable_in": [
+    "wiki"
+   ],
+   "combine": "wiki_only",
+   "type": "bool",
+   "default": false,
+   "doc": "Keep what `inboxes rm` takes under the inbox's `_archive/`."
+  },
+  "edits.settle_seconds": {
+   "value": 300,
+   "in": {
+    "local": 300
+   },
+   "writable_in": [
+    "wiki",
+    "local"
+   ],
+   "combine": "override",
+   "type": "int",
+   "default": 600,
+   "doc": "Seconds a touched page sits unchanged before the pipeline writes it."
+  },
+  "runner.caps.harvest": {
+   "value": 1,
+   "in": {
+    "local": 1
+   },
+   "writable_in": [
+    "local"
+   ],
+   "combine": "local_only",
+   "type": "int",
+   "default": null,
+   "doc": "Slices of this stage at once."
+  },
+  "runner.caps.transcribe": {
+   "value": 1,
+   "in": {
+    "local": 1
+   },
+   "writable_in": [
+    "local"
+   ],
+   "combine": "local_only",
+   "type": "int",
+   "default": null,
+   "doc": "Slices of this stage at once."
+  },
+  "runner.caps.enrich": {
+   "value": 2,
+   "in": {
+    "local": 2
+   },
+   "writable_in": [
+    "local"
+   ],
+   "combine": "local_only",
+   "type": "int",
+   "default": null,
+   "doc": "Slices of this stage at once."
+  },
+  "runner.caps.process": {
+   "value": 2,
+   "in": {
+    "local": 2
+   },
+   "writable_in": [
+    "local"
+   ],
+   "combine": "local_only",
+   "type": "int",
+   "default": null,
+   "doc": "Slices of this stage at once."
+  },
+  "runner.caps.routine": {
+   "value": 1,
+   "in": {
+    "local": 1
+   },
+   "writable_in": [
+    "local"
+   ],
+   "combine": "local_only",
+   "type": "int",
+   "default": null,
+   "doc": "Slices of this stage at once."
+  },
+  "runner.caps.handoff": {
+   "value": 1,
+   "in": {
+    "local": 1
+   },
+   "writable_in": [
+    "local"
+   ],
+   "combine": "local_only",
+   "type": "int",
+   "default": null,
+   "doc": "Slices of this stage at once."
+  },
+  "transcribe.engine": {
+   "value": "faster-whisper",
+   "in": {
+    "local": "faster-whisper"
+   },
+   "writable_in": [
+    "wiki",
+    "local"
+   ],
+   "combine": "override",
+   "type": "enum",
+   "values": [
+    "faster-whisper",
+    "macparakeet",
+    "parakeet-onnx",
+    ""
+   ],
+   "default": null,
+   "doc": "The engine; none declared transcribes nothing, and empty is none on this machine over the wiki's."
+  },
+  "transcribe.model": {
+   "value": "parakeet-tdt-0.6b-v2",
+   "in": {
+    "local": "parakeet-tdt-0.6b-v2"
+   },
+   "writable_in": [
+    "wiki",
+    "local"
+   ],
+   "combine": "override",
+   "type": "str",
+   "default": null,
+   "doc": "The engine's model."
+  },
+  "transcribe.device": {
+   "value": null,
+   "in": {},
+   "writable_in": [
+    "wiki",
+    "local"
+   ],
+   "combine": "override",
+   "type": "str",
+   "default": null,
+   "doc": "The device the engine runs on."
+  },
+  "transcribe.language": {
+   "value": null,
+   "in": {},
+   "writable_in": [
+    "wiki",
+    "local"
+   ],
+   "combine": "override",
+   "type": "str",
+   "default": null,
+   "doc": "The language; empty is auto."
+  },
+  "transcribe.diarize_supported": {
+   "value": true,
+   "in": {
+    "local": true
+   },
+   "writable_in": [
+    "wiki",
+    "local"
+   ],
+   "combine": "override",
+   "type": "bool",
+   "default": false,
+   "doc": "Whether this machine's engine diarizes."
+  },
+  "search.paths": {
+   "value": [
+    "wiki/",
+    "sources/",
+    "notes/",
+    "research/*/reports/"
+   ],
+   "in": {
+    "wiki": [
+     "wiki/",
+     "sources/",
+     "notes/"
+    ],
+    "local": [
+     "research/*/reports/"
+    ]
+   },
+   "writable_in": [
+    "wiki",
+    "local"
+   ],
+   "combine": "union",
+   "type": "list<str>",
+   "default": [
+    "wiki/",
+    "sources/"
+   ],
+   "doc": "The directories search answers from; a machine adds to the wiki's list."
+  },
+  "search.not_indexed": {
+   "value": [
+    "_raw/"
+   ],
+   "in": {
+    "local": [
+     "_raw/"
+    ]
+   },
+   "writable_in": [
+    "wiki",
+    "local"
+   ],
+   "combine": "override",
+   "type": "list<str>",
+   "default": [],
+   "doc": "Searched, never vector-indexed."
+  },
+  "search.properties": {
+   "value": {
+    "Draft": {
+     "type": "checkbox",
+     "boost": 1.25
+    },
+    "Archive": {
+     "type": "checkbox"
+    },
+    "Status": {
+     "type": "text",
+     "match": "prefix"
+    }
+   },
+   "in": {
+    "wiki": {
+     "Draft": {
+      "type": "checkbox",
+      "boost": 1.25
+     },
+     "Archive": {
+      "type": "checkbox"
+     },
+     "Status": {
+      "type": "text",
+      "match": "prefix"
+     }
+    }
+   },
+   "writable_in": [
+    "wiki"
+   ],
+   "combine": "wiki_only",
+   "type": "map",
+   "default": null,
+   "doc": "Frontmatter properties the engine stores."
+  },
+  "search.properties.Draft": {
+   "value": {
+    "type": "checkbox",
+    "boost": 1.25
+   },
+   "in": {
+    "wiki": {
+     "type": "checkbox",
+     "boost": 1.25
+    }
+   },
+   "writable_in": [
+    "wiki"
+   ],
+   "combine": "wiki_only",
+   "type": "table",
+   "default": null,
+   "doc": "One declared property."
+  },
+  "search.properties.Archive": {
+   "value": {
+    "type": "checkbox"
+   },
+   "in": {
+    "wiki": {
+     "type": "checkbox"
+    }
+   },
+   "writable_in": [
+    "wiki"
+   ],
+   "combine": "wiki_only",
+   "type": "table",
+   "default": null,
+   "doc": "One declared property."
+  },
+  "search.properties.Status": {
+   "value": {
+    "type": "text",
+    "match": "prefix"
+   },
+   "in": {
+    "wiki": {
+     "type": "text",
+     "match": "prefix"
+    }
+   },
+   "writable_in": [
+    "wiki"
+   ],
+   "combine": "wiki_only",
+   "type": "table",
+   "default": null,
+   "doc": "One declared property."
+  },
+  "search.properties.Draft.type": {
+   "value": "checkbox",
+   "in": {
+    "wiki": "checkbox"
+   },
+   "writable_in": [
+    "wiki"
+   ],
+   "combine": "wiki_only",
+   "type": "enum",
+   "values": [
+    "text",
+    "multitext",
+    "checkbox",
+    "number",
+    "date",
+    "datetime"
+   ],
+   "default": null,
+   "doc": "Obsidian's property type."
+  },
+  "search.properties.Archive.type": {
+   "value": "checkbox",
+   "in": {
+    "wiki": "checkbox"
+   },
+   "writable_in": [
+    "wiki"
+   ],
+   "combine": "wiki_only",
+   "type": "enum",
+   "values": [
+    "text",
+    "multitext",
+    "checkbox",
+    "number",
+    "date",
+    "datetime"
+   ],
+   "default": null,
+   "doc": "Obsidian's property type."
+  },
+  "search.properties.Status.type": {
+   "value": "text",
+   "in": {
+    "wiki": "text"
+   },
+   "writable_in": [
+    "wiki"
+   ],
+   "combine": "wiki_only",
+   "type": "enum",
+   "values": [
+    "text",
+    "multitext",
+    "checkbox",
+    "number",
+    "date",
+    "datetime"
+   ],
+   "default": null,
+   "doc": "Obsidian's property type."
+  },
+  "search.properties.Draft.match": {
+   "value": "exact",
+   "in": {},
+   "writable_in": [
+    "wiki"
+   ],
+   "combine": "wiki_only",
+   "type": "enum",
+   "values": [
+    "exact",
+    "prefix"
+   ],
+   "default": "exact",
+   "doc": "exact, or prefix for text and multitext."
+  },
+  "search.properties.Archive.match": {
+   "value": "exact",
+   "in": {},
+   "writable_in": [
+    "wiki"
+   ],
+   "combine": "wiki_only",
+   "type": "enum",
+   "values": [
+    "exact",
+    "prefix"
+   ],
+   "default": "exact",
+   "doc": "exact, or prefix for text and multitext."
+  },
+  "search.properties.Status.match": {
+   "value": "prefix",
+   "in": {
+    "wiki": "prefix"
+   },
+   "writable_in": [
+    "wiki"
+   ],
+   "combine": "wiki_only",
+   "type": "enum",
+   "values": [
+    "exact",
+    "prefix"
+   ],
+   "default": "exact",
+   "doc": "exact, or prefix for text and multitext."
+  },
+  "search.properties.Draft.boost": {
+   "value": 1.25,
+   "in": {
+    "wiki": 1.25
+   },
+   "writable_in": [
+    "wiki"
+   ],
+   "combine": "wiki_only",
+   "type": "float",
+   "default": null,
+   "doc": "A checkbox's rank boost for its checked pages."
+  },
+  "search.properties.Archive.boost": {
+   "value": null,
+   "in": {},
+   "writable_in": [
+    "wiki"
+   ],
+   "combine": "wiki_only",
+   "type": "float",
+   "default": null,
+   "doc": "A checkbox's rank boost for its checked pages."
+  },
+  "search.properties.Status.boost": {
+   "value": null,
+   "in": {},
+   "writable_in": [
+    "wiki"
+   ],
+   "combine": "wiki_only",
+   "type": "float",
+   "default": null,
+   "doc": "A checkbox's rank boost for its checked pages."
+  }
+ },
+ "problems": {
+  "wiki": null,
+  "local": null
+ }
+}

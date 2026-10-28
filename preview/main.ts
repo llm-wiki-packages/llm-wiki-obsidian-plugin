@@ -1,4 +1,5 @@
 // Renders the dashboard and chat with fixture data in a browser, for screenshots. Not shipped.
+import configAnswer from '../test/mocks/config-get.json'
 import { AssistantBubble } from '../src/views/chat'
 /* eslint-disable */
 import { App, TFile, WorkspaceLeaf } from 'obsidian'
@@ -113,30 +114,11 @@ const hits = [
   { rank: 2, score: 0.91, title: 'Pricing tiers', source_path: 'sources/web/acme/pricing-tiers.md', snippet: 'Three tiers: starter, growth and a usage-based tier that bills per API call, so pricing tracks the value a customer gets out of the product each month.' },
   { rank: 3, score: 0.84, title: 'Old offer notes', source_path: 'wiki/notes/old-offer.md', snippet: 'An early draft of the grand slam offer: stack the bonuses until the price looks small against the value of the whole package.' },
 ]
-// `config get` answers as a wiki made by `init` gives them, with a few set on this machine.
-const COMMITTED = '.llm-wiki.toml'
-const LOCAL = '.llm-wiki.local.toml'
-const config: Record<string, [unknown, string]> = {
-  'wiki.name': ['Notes', COMMITTED],
-  'page.templates': [{ '*': 'templates/Note.md', 'sources/journal': 'templates/Journal.md', 'sources/*/clips': 'templates/Clip.md' }, COMMITTED],
-  'jobs.defaults.model': ['sonnet', LOCAL],
-  'jobs.request_gap_seconds': [90, COMMITTED],
-  'edits.settle_seconds': [300, LOCAL],
-  'transcribe.engine': ['parakeet-onnx', LOCAL],
-  'transcribe.diarize_supported': [true, LOCAL],
-  'runner.caps.harvest': [1, LOCAL], 'runner.caps.transcribe': [1, LOCAL], 'runner.caps.enrich': [2, LOCAL], 'runner.caps.process': [2, LOCAL], 'runner.caps.routine': [1, LOCAL], 'runner.caps.handoff': [1, LOCAL],
-  'logging.level': ['error', COMMITTED],
-  'logging.retention_days': [14, COMMITTED],
-  'ops.major': [1, COMMITTED],
-  'ops.requires': ['>=0.10', COMMITTED],
-}
+// `config get`: a real answer from a scratch wiki, trimmed to the rows the tab reads.
 for (const t of ['Note', 'Journal', 'Clip', 'Meeting']) note(`templates/${t}.md`, {}, '', 9000)
 const fakeCli = {
-  run: async (verb: string, args: { configKey?: string } = {}) => {
-    if (verb === 'wiki.config.get') {
-      const hit = config[args.configKey ?? '']
-      return { key: args.configKey, found: Boolean(hit), value: hit?.[0] ?? null, source: hit?.[1] ?? null }
-    }
+  run: async (verb: string) => {
+    if (verb === 'wiki.config.get') return configAnswer
     if (verb === 'wiki.search.query') return { backend: 'search_server', quality_mode: 'hybrid_rerank', count: hits.length, hits, backend_metadata: { index_as_of: { source_commit: '9f3c2a1e7b' } }, _cmd_: { head: 'c41d07be22' } }
     if (verb === 'wiki.search.status') return snapshot.search
     // A real `page diff` answer, captured from a scratch wiki and trimmed.

@@ -67,11 +67,12 @@ the gear opens the plugin settings.
   job or runs a due one, in the same step.
 - **Config**: the wiki's own settings (`.llm-wiki.toml` and this machine's
   `.llm-wiki.local.toml`), apart from the plugin's, which link to each other.
-  Each value says which file sets it, and a change is written back to that
-  file through `config set`. Template rules, job defaults, the settle window,
-  run caps and logging are edited in place. Search and transcription are shown,
-  and **Change search setup** or **Set up transcription** hands the change to
-  the agent.
+  One `config get` reads every row; each value says which layer sets it, and
+  a change is written back to that layer through `config set --wiki|--local`.
+  Template rules, searched and unindexed folders, indexed properties, job
+  defaults, the settle window, run caps and logging are edited in place.
+  Search backends and transcription are shown, and **Change search setup** or
+  **Set up transcription** hands the change to the agent.
   That queue needs a CLI that reports page change state; an older one says so.
 
 The dashboard polls every 10 s while something is running, every minute while
@@ -238,7 +239,7 @@ Add `LLM_WIKI_E2E_SANDBOX=<sandbox>` to also hold a real sandboxed chat: a few h
 | `src/vault/` | what Obsidian knows of a page, the Draft and Archive boxes, grouping, saving edits to history, templates on new notes |
 | `src/ui/pageHistory.ts` | the history icon in every note's header |
 | `src/ui/diffModal.ts`, `src/wiki/diff.ts` | one page's change, from `page diff` |
-| `src/wiki/config.ts`, `src/ui/configModal.ts` | the config knobs the Config tab shows (a stand-in for `config ls`), and the dialog that changes one |
+| `src/wiki/config.ts`, `src/ui/configModal.ts` | the `config` contract's row shapes and the keys the Config tab shows, named and grouped; the dialogs that change a value, a list, a template rule, an indexed property |
 | `src/views/dashboard/` | the one view: `index.ts` (header, tabs, action routing), one file per data tab |
 | `src/views/chat.ts`, `src/views/search.ts` | the Chat and Search panes the view hosts |
 | `src/ui/` | DOM helpers, the prompt and confirm modals, the credential dialog, the skill inspector |

@@ -116,14 +116,18 @@ Wiki, New page templates, Search, Jobs, Edits, Transcription, This machine
 runs at once, Logging, Machinery. Each row says what applies (or the default,
 in grey) and a pill for where it is set: *wiki* (`.llm-wiki.toml`, every
 machine), *this machine* (`.llm-wiki.local.toml`) or *default*. The pencil
-opens a one-field dialog that names the file before Save; a change goes back
-to the file the value is set in now, so there is no committed toggle, and a
-key set nowhere goes where it usually lives. Template rules are rows of folder
-→ template, with **Add a rule…** (folder suggestions, a template picker).
-Search shows the backends, searched and unindexed folders, and indexed
-properties from `search status`; **Change search setup** and **Set up
-transcription** hand the change to the agent with what applies now, since
-each takes more than one key. **Plugin settings** opens the plugin's tab,
+opens a dialog in the control the row's type takes (text, number, toggle, a
+list of choices) that names the layer before Save; a change goes back to the
+layer the value is set in now, so there is no committed toggle, and a key set
+nowhere goes where it usually lives (this machine, inside a table this machine
+replaces whole). Template rules are rows of folder → template, with **Add a
+rule…** (folder suggestions, a template picker). Search shows the backends
+from `search status`, then the wiki's searched folders and this machine's
+additions as two rows, the unindexed folders, and the indexed properties, each
+edited in place: a list is a box with one entry per line, a property its kind,
+match and (checkbox only) boost, with **Index a property…**. **Change search
+setup** and **Set up transcription** hand the backends and the engine to the
+agent with what applies now, since each takes more than one key. **Plugin settings** opens the plugin's tab,
 which links back with **Open config**.
 
 ### Inspect (skill dialog)
@@ -486,3 +490,9 @@ name with a "pages written" row that lands on them.
   template rules, job defaults, settle window, inbox archive, run caps,
   logging) is edited in place. Search and transcription are shown and handed
   to the agent, since each takes more than one key.
+- **Cycle 15 (2026-10-28)**: the CLI's `config` owns both files
+  (simple10/llm-wiki-plugins#3715). The tab reads every row in one `config
+  get` (type, enum values, default and doc come from the row, so `KNOBS` only
+  picks, names and groups keys), writes name `--wiki` or `--local` (the old
+  `--committed` is gone), and lists and tables go as a JSON merge patch, which
+  makes search folders and indexed properties editable here.

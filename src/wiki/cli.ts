@@ -46,11 +46,13 @@ export interface Args {
   path?: string
   /** `page fix`: re-mint a copy's shared id, which the CLI asks a person for. */
   force?: boolean
-  /** `config get|set|unset`: a TOML dotted key, and for `set` its value. */
+  /** `config set|unset`: a TOML dotted key, and for `set` its value. */
   configKey?: string
   value?: string
-  /** `config set|unset`: the committed `.llm-wiki.toml`, which the write then commits, not this machine's file. */
-  committed?: boolean
+  /** `config set` with a payload: a JSON Merge Patch against one layer, for a list or a table. */
+  patch?: Record<string, unknown>
+  /** `config set|unset`: the layer written, always named; the wiki's is committed with the change. */
+  layer?: 'wiki' | 'local'
 }
 
 /** The `filter=` kinds `search query` takes (`OPS/commands/search/query.py`), each a string. */
@@ -220,11 +222,25 @@ function configKey(v: string | undefined): string {
   return v
 }
 
-/** A config value is one line, never dash-led, which the CLI would read as a flag. */
+/** A config value is one line; it goes after `--`, so a leading dash is text. */
 function configValue(v: string | undefined): string {
   // eslint-disable-next-line no-control-regex -- rejecting control characters is the point
-  if (!v || v.length > 200 || /[\x00-\x1f]/.test(v) || v.startsWith('-')) throw new CliError('a config value is one line of 1–200 characters', 'args')
+  if (!v || v.length > 200 || /[\x00-\x1f]/.test(v)) throw new CliError('a config value is one line of 1–200 characters', 'args')
   return v
+}
+
+/** A payload is a JSON object, on one line as JSON.stringify writes it. */
+function configPatch(v: Record<string, unknown> | undefined): string {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) throw new CliError('a config payload is a JSON object', 'args')
+  const text = JSON.stringify(v)
+  if (text.length > 20_000) throw new CliError('a config payload is at most 20000 characters', 'args')
+  return text
+}
+
+/** The layer flag a config write names; the CLI's own default (local) is never leaned on. */
+function layerFlag(v: string | undefined): string {
+  if (v !== 'wiki' && v !== 'local') throw new CliError(`a config write names its layer, wiki or local: ${String(v)}`, 'args')
+  return `--${v}`
 }
 
 function trees(v: string[] | undefined): string[] {
@@ -288,8 +304,8 @@ export const VERBS = {
   'wiki.git.status': (a: Args) => wiki(a, 'git', 'status'),
   /** The frontmatter and body a template would add to a page; writes nothing. */
   'wiki.page.template': (a: Args) => wiki(a, 'page', 'template', rel(a.path ?? '')),
-  /** One config key's value and the file that answered it. */
-  'wiki.config.get': (a: Args) => wiki(a, 'config', 'get', configKey(a.configKey)),
+  /** Every config row: what applies, each layer's own value, where it may be written, its type and doc. */
+  'wiki.config.get': (a: Args) => wiki(a, 'config', 'get'),
   'wiki.skills.ls': (a: Args) => wiki(a, 'skills', 'ls'),
   // An exact name carries the manifest: what the unit needs and how it is used.
   'wiki.skills.show': (a: Args) => wiki(a, 'skills', 'ls', unit(a.name)),
@@ -323,9 +339,11 @@ export const VERBS = {
   /** The sweep: every uncommitted change under the wiki's trees, adopted, observed and committed by author. */
   'wiki.git.commit': (a: Args) => write(a, 'git', 'commit'),
   'wiki.git.sync': (a: Args) => write(a, 'git', 'sync'),
-  // This machine's file, or with `committed` the wiki's, which the CLI commits with the change.
-  'wiki.config.set': (a: Args) => write(a, 'config', 'set', ...(a.committed ? ['--committed'] : []), configKey(a.configKey), configValue(a.value)),
-  'wiki.config.unset': (a: Args) => write(a, 'config', 'unset', ...(a.committed ? ['--committed'] : []), configKey(a.configKey)),
+  // One layer, named: this machine's, or the wiki's, which the CLI commits with the change. The key
+  // and value go after `--`, so neither is read as a flag; `--json` goes before it.
+  'wiki.config.set': (a: Args) => ['wiki', key(a.wiki), 'config', 'set', layerFlag(a.layer), '--json', '--', configKey(a.configKey), configValue(a.value)],
+  'wiki.config.patch': (a: Args) => ['wiki', key(a.wiki), 'config', 'set', layerFlag(a.layer), '--json', '--', configPatch(a.patch)],
+  'wiki.config.unset': (a: Args) => ['wiki', key(a.wiki), 'config', 'unset', layerFlag(a.layer), '--json', '--', configKey(a.configKey)],
   // The text goes after `--`, so a query starting with a dash is never read as a flag.
   'wiki.search.query': (a: Args) => [
     'wiki', '--read-only', key(a.wiki), 'search', 'query', topK(a), ...searchFilters(a.filters), '--json', '--', text(a.text),
@@ -357,7 +375,7 @@ const EDITOR: ReadonlySet<Verb> = new Set<Verb>(['wiki.page.curate', 'wiki.page.
 
 const WRITES: ReadonlySet<Verb> = new Set<Verb>([
   'wiki.harness.run', 'wiki.jobs.request', 'wiki.jobs.pause', 'wiki.jobs.resume', 'wiki.tickets.retry', 'wiki.git.sync', 'wiki.search.index', 'wiki.search.reindex',
-  'wiki.config.set', 'wiki.config.unset', 'wiki.credentials.ls', 'wiki.credentials.bindings', ...ATTENDED, ...EDITOR,
+  'wiki.config.set', 'wiki.config.patch', 'wiki.config.unset', 'wiki.credentials.ls', 'wiki.credentials.bindings', ...ATTENDED, ...EDITOR,
 ])
 
 /** The child's environment: the read floor unless the verb writes, the attendance mark on a protected write, and the editor origin on a page write. */

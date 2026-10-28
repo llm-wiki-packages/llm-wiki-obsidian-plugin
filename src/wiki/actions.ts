@@ -1,7 +1,7 @@
 // The writes a click asks for, each one verb, each answering one sentence for a Notice.
 import type { Cli } from './cli'
 import { CliError } from './cli'
-import { placeWords, type ConfigWritten, type Place } from './config'
+import { layerWords, type ConfigWritten, type Layer } from './config'
 
 export interface Outcome {
   ok: boolean
@@ -248,30 +248,41 @@ export class Actions {
     }
   }
 
-  /** One config key, written to the file named; a committed write lands as its own commit. */
-  async setConfig(key: string, value: string, place: Place, name = key): Promise<Outcome> {
+  /** One config key, written to the layer named; a wiki write lands as its own commit. */
+  async setConfig(key: string, value: string, layer: Layer, name = key): Promise<Outcome> {
     try {
-      const a = await this.cli.run<ConfigWritten>('wiki.config.set', { wiki: this.wiki, configKey: key, value, committed: place === 'committed' })
-      return configured(`${name} is ${value} for ${placeWords(place)}`, a)
+      const a = await this.cli.run<ConfigWritten>('wiki.config.set', { wiki: this.wiki, configKey: key, value, layer })
+      return configured(a.changed.length ? `${name} is ${value} for ${layerWords(layer)}` : `${name} was already ${value}`, a)
     } catch (e) {
       return failed(`could not change ${name}`, e)
     }
   }
 
-  /** Remove a key from one file; the other file's value, or the default, applies after. */
-  async unsetConfig(key: string, place: Place, name = key): Promise<Outcome> {
+  /** A list or a table, merged into one layer (`null` removes a key); `did` says what changed, in words. */
+  async patchConfig(patch: Record<string, unknown>, layer: Layer, did: string, name: string): Promise<Outcome> {
     try {
-      const a = await this.cli.run<ConfigWritten>('wiki.config.unset', { wiki: this.wiki, configKey: key, committed: place === 'committed' })
-      if (a.removed === false) return { ok: true, message: `${name} was not set for ${placeWords(place)}` }
-      const after = a.effective_source === '.llm-wiki.toml' ? '; the wiki’s value applies now' : a.effective_source ? '' : '; the default applies now'
-      return configured(`${name} removed for ${placeWords(place)}${after}`, a)
+      const a = await this.cli.run<ConfigWritten>('wiki.config.patch', { wiki: this.wiki, patch, layer })
+      return configured(a.changed.length ? `${did} for ${layerWords(layer)}` : `${name} is unchanged`, a)
+    } catch (e) {
+      return failed(`could not change ${name}`, e)
+    }
+  }
+
+  /** Remove a key from one layer; the other layer's value, or the default, applies after. */
+  async unsetConfig(key: string, layer: Layer, name = key): Promise<Outcome> {
+    try {
+      const a = await this.cli.run<ConfigWritten>('wiki.config.unset', { wiki: this.wiki, configKey: key, layer })
+      if (!a.changed.length) return { ok: true, message: `${name} was not set for ${layerWords(layer)}` }
+      const row = a.rows[key]
+      const after = !row ? '' : 'local' in row.in ? '' : 'wiki' in row.in ? '; the wiki’s value applies now' : '; the default applies now'
+      return configured(`${name} removed for ${layerWords(layer)}${after}`, a)
     } catch (e) {
       return failed(`could not remove ${name}`, e)
     }
   }
 }
 
-/** A config write's sentence, with what the CLI warned of: a local table that now hides committed keys. */
+/** A config write's sentence, with what the CLI warned of: a local table that now hides the wiki's keys. */
 function configured(did: string, a: ConfigWritten): Outcome {
   return { ok: true, message: [did, ...(a.warnings ?? [])].join('. ') }
 }

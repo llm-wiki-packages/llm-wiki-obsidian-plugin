@@ -211,6 +211,12 @@ export class Setting {
   addButton(fn: (b: ButtonComponent) => void) { fn(new ButtonComponent(this.controlEl)); return this }
   addText(fn: (t: TextComponent) => void) { fn(new TextComponent(this.controlEl)); return this }
   addDropdown(fn: (d: DropdownComponent) => void) { fn(new DropdownComponent(this.controlEl)); return this }
+  addTextArea(fn: (t: any) => void) {
+    const el = this.controlEl.createEl('textarea')
+    const t: any = { inputEl: el, setValue: (v: string) => { el.value = v; return t }, setPlaceholder: (v: string) => { el.placeholder = v; return t }, onChange: (f: any) => { el.addEventListener('input', () => f(el.value)); return t } }
+    fn(t)
+    return this
+  }
   addToggle(fn: (t: any) => void) {
     const el = this.controlEl.createEl('input', { type: 'checkbox' })
     fn({ setValue: (v: boolean) => { el.checked = v; return this }, onChange: (f: any) => { el.addEventListener('change', () => f(el.checked)) } })

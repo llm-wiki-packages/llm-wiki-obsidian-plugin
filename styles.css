@@ -487,6 +487,9 @@ a.llm-wiki-file-path:hover, a.llm-wiki-file-path:focus-visible { color: var(--te
 .llm-wiki-config-error { color: var(--text-error); min-height: 1em; }
 .llm-wiki-config-error:empty { display: none; }
 .llm-wiki-config-lands { font-size: var(--font-ui-smaller); }
+.llm-wiki-config-row.is-sub { padding-left: var(--size-4-4); }
+.llm-wiki-config-row.is-sub .llm-wiki-row-title { font-family: var(--font-monospace); font-size: var(--font-ui-small); }
+.llm-wiki-config-list textarea { width: 100%; font-family: var(--font-monospace); }
 .llm-wiki-config-source.is-local { color: var(--color-cyan); background: color-mix(in srgb, var(--color-cyan) 12%, transparent); }
 .llm-wiki-config-source.is-committed { background: color-mix(in srgb, var(--text-accent) 12%, transparent); }
 
