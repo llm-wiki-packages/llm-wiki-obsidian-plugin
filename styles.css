@@ -501,3 +501,20 @@ body.llm-wiki-tidy-props .metadata-property.is-llm-wiki-bookkeeping { opacity: 0
 body.llm-wiki-tidy-props .metadata-container:not(.is-llm-wiki-open) .metadata-property.is-llm-wiki-bookkeeping { display: none; }
 .llm-wiki-props-more { cursor: pointer; padding: var(--size-4-1) var(--size-4-2); font-size: var(--font-ui-smaller); color: var(--text-faint); border-radius: var(--radius-s); width: fit-content; }
 .llm-wiki-props-more:hover, .llm-wiki-props-more:focus-visible { color: var(--text-muted); background: var(--background-modifier-hover); }
+
+/* An HTML file: the page fills the tab. A brief is written for a light page, so the frame keeps a white ground in a dark theme. */
+.workspace-leaf-content[data-type="llm-wiki-html"] .view-content.llm-wiki-html-view { padding: 0; overflow: hidden; }
+.llm-wiki-html-frame { display: block; width: 100%; height: 100%; border: none; background: #fff; }
+.workspace-leaf-content[data-type="llm-wiki-html"] .view-action.is-disabled { opacity: 0.35; pointer-events: none; }
+
+/* Reports: the latest leads, the earlier ones list by day. */
+.llm-wiki-report-latest { border: 1px solid var(--background-modifier-border); border-radius: var(--radius-m); padding: var(--size-4-3) var(--size-4-4); display: flex; flex-direction: column; gap: var(--size-4-2); }
+.llm-wiki-report-kicker { display: flex; gap: var(--size-4-2); align-items: baseline; font-size: var(--font-ui-small); text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+.llm-wiki-report-kicker > :first-child { color: var(--text-accent); font-weight: var(--font-semibold); }
+.llm-wiki-report-title { font-size: var(--font-ui-large); font-weight: var(--font-semibold); }
+.llm-wiki-report-lede { margin: 0; font-size: var(--font-text-size); line-height: var(--line-height-normal); }
+.llm-wiki-report-attention { margin: 0; padding-left: 1.2em; color: var(--text-muted); }
+.llm-wiki-report-attention li { margin: var(--size-2-1) 0; }
+.llm-wiki-report-latest .llm-wiki-row-actions { margin-top: var(--size-2-2); }
+.llm-wiki-report-day { flex: none; width: 8.5em; font-size: var(--font-ui-small); color: var(--text-muted); }
+.llm-wiki-report-summary { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: normal; }

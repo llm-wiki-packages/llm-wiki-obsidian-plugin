@@ -103,6 +103,21 @@ note('sources/papers/vector-db-benchmarks.md', { title: 'Vector DB benchmarks', 
 note('sources/web/acme/pricing-teardown.md', { title: 'Pricing page teardown', Draft: true, resource: 'https://acme.com/pricing' }, '---\ntitle: x\n---\n# Pricing page teardown\n\nAcme moved the Team plan from **$12 to $15** per seat and dropped the annual discount to 10%.\n\n- Starter stays free\n- Enterprise is now quote-only\n', 60)
 note('research/agent-memory/survey.md', { title: 'Agent memory survey', Draft: true }, '# Agent memory survey\n\nNotes from twelve papers on long-term memory for agents.\n', 1500)
 note('wiki/topics/retrieval-evals.md', { title: 'Notes on retrieval evals', Draft: true }, '# Retrieval evals\n\nRecall at 10 is the number we watch; MRR hides too much.\n', 20)
+// The morning briefs: a record and its HTML a day, one day with only the record, one with only the brief.
+const day = (n: number) => new Date(NOW - n * 86_400_000).toISOString().slice(0, 10)
+const brief = (n: number, fm: Record<string, unknown>) => {
+  note(`wiki/reports/${day(n)}.md`, { title: day(n), type: 'report', date: day(n), dashboard: `${day(n)}.html`, ...fm }, '', n * 1440)
+  note(`wiki/reports/${day(n)}.html`, {}, '<!doctype html><html><body>brief</body></html>', n * 1440)
+}
+brief(0, { lede: 'Renewals are the theme this week, and a competitor just moved on price.', attention: '[{"title":"Reply to Acme about the Q3 renewal"},{"title":"The HubSpot credential expires Friday"},{"title":"Two offsite dates to choose between"}]' })
+brief(1, { lede: 'Quiet day; two competitor blog posts worth reading.' })
+note(`wiki/reports/${day(2)}.md`, { title: day(2), type: 'report', date: day(2), description: 'HubSpot pages stopped fetching; the credential expired.' }, '', 2 * 1440)
+brief(3, { lede: 'The vector DB benchmarks landed; Qdrant leads on recall at 10, pgvector on cost.' })
+note(`wiki/reports/${day(4)}.html`, {}, '', 4 * 1440)
+brief(5, { title: 'Weekly review', lede: 'Seven sources added, two topics merged, one contradiction left open about the pricing tiers.' })
+note('wiki/reports/_template.html', {}, '', 20000)
+note('research/charts/usage-by-week.html', {}, '', 300)
+note('sources/web/acme/pricing-snapshot.html', {}, '', 4000)
 // Pages on disk for the search freshness check: one current, one edited since it was indexed; a third is gone.
 const pages: Record<string, string> = {
   'wiki/concepts/value-equation.md': '# Value equation\n\nThe value equation says perceived value rises with the dream outcome and the likelihood of achieving it, and falls with time delay and effort.\n',

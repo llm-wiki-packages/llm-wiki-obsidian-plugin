@@ -52,7 +52,8 @@ export class Component {
 export class TAbstractFile { path = '' }
 export class TFile extends TAbstractFile {
   stat = { mtime: 0, ctime: 0, size: 0 }
-  constructor(path: string, public fm: Record<string, unknown> = {}, public body = '', mtime = Date.now()) { super(); this.path = path; this.stat = { mtime, ctime: mtime, size: body.length } }
+  extension = ''
+  constructor(path: string, public fm: Record<string, unknown> = {}, public body = '', mtime = Date.now()) { super(); this.path = path; this.extension = path.split('.').pop() ?? ''; this.stat = { mtime, ctime: mtime, size: body.length } }
 }
 
 export class TFolder extends TAbstractFile {
@@ -83,7 +84,8 @@ export class App {
       on: () => ({}),
       getAbstractFileByPath: (p: string) => files()[p] ?? null,
       getFileByPath: (p: string) => files()[p] ?? null,
-      getMarkdownFiles: () => Object.values(files()),
+      getMarkdownFiles: () => Object.values(files()).filter((f) => f.extension === 'md'),
+      getFiles: () => Object.values(files()),
       // Every note, then each folder above one: what Obsidian's loaded tree would hold.
       getAllLoadedFiles: () => {
         const notes = Object.values(files())
@@ -113,6 +115,7 @@ export class ItemView extends Component {
   async setState() {}
 }
 
+export class FileView extends ItemView {}
 export class Plugin { app = new App(); addCommand() {} }
 export class PluginSettingTab {}
 export class FileSystemAdapter {}

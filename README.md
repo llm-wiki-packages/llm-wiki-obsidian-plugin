@@ -12,7 +12,7 @@ spawns local processes.
 
 One view, **Brain** (the brain icon in the ribbon, the status bar item, or
 *LLM Wiki Brain: Open dashboard*), opened as a tab in the main area; drag it into a
-side split to keep it beside a note. Chat, Search, Overview and Changes on
+side split to keep it beside a note. Chat, Search, Overview, Reports and Changes on
 the left, the everyday tabs; **More** on the far right opens a second row
 with Jobs, Skills, Credentials and Config, for running the wiki, and reopens the one
 last used. A note opened from the view (a search hit, a
@@ -31,6 +31,15 @@ the gear opens the plugin settings.
   content. A wiki with no jobs gets one card that says what a job and a skill
   are, with Add a source and Browse skills. Without a runner anywhere, one
   notice with an Install-the-runner hand-off.
+- **Reports**: the briefs the agents wrote under `wiki/reports/`, newest
+  first, read from the vault with no CLI call. The daily-report skill writes
+  a markdown record, `YYYY-MM-DD.md`, and a standalone HTML brief beside it,
+  which the record names in `dashboard:`; this tab pairs them. The latest
+  leads with its lede and the items it says need you, with **Open the brief**
+  and **Read the record**; the earlier ones are a list by day. **Template**
+  opens `_template.html`, the look every brief borrows. Under them, the
+  vault's other HTML files. With no report yet, it names the job that writes
+  them (`ops-morning`, paused in a fresh wiki).
 - **Changes**: **New**, the pages a job brought in or you dropped into
   `sources/` that nobody has judged, grouped by the job or the folder (a
   big group folds to one row) with **Accept** (into the wiki, through `page
@@ -172,6 +181,45 @@ the fastest Run there is), Open a job…, Add a source…, Set a credential…, 
 skill…, Ask the agent about this note, Refresh the dashboard, Re-detect wiki
 and binaries. Every row takes focus and opens on Enter.
 
+### HTML files
+
+Obsidian opens no `.html` file by itself; the plugin does, in a tab of its own,
+as a browser would show it. Any such file may have been scraped off the web,
+so it is shown in a frame that cannot reach this machine:
+
+- **A sandboxed frame** (`sandbox="allow-scripts"`, no same origin): no reach
+  into Obsidian, its storage, the vault or Node; no popups, forms, or
+  navigating Obsidian itself.
+- **A policy that fetches nothing**, placed first in the page's head (the page
+  is parsed with `DOMParser`, which runs and loads nothing, to place it): no
+  request to the web, to `localhost` or to `file:`, by fetch, XHR, WebSocket,
+  beacon, worker, image, stylesheet or frame. Inline styles and `data:`
+  images only. A meta refresh is removed before the page is shown.
+- **The page's own scripts are off**, except for a brief in `wiki/reports/`,
+  whose tabs and panels need them. Off, only the plugin's bridge runs, by a
+  nonce the page cannot know. **</>** in the tab header turns a page's
+  scripts on or off for as long as it is open.
+
+The bridge follows a clicked link: a vault path opens in Obsidian
+(Cmd-click for a new tab), a web or mail address in your browser. **Copy** in
+a brief reaches the clipboard after a click, never without one. A brief has
+**‹** and **›** in its header for the day before and after, and a button for
+its record. Commands: *Open reports*, *Open the latest report*, and *Open this
+report's brief* from a record. If another plugin claimed `.html` first, its
+view opens them instead.
+
+What remains with a page's scripts **on**: the page can send its own frame to
+an address (`location = …`), which is one GET, localhost included. It cannot
+read the answer, and the view puts the page back and says so, but the request
+has gone; neither the sandbox, the policy nor the Navigation API (off in an
+opaque origin) can stop it, and Obsidian gives a plugin no hold on the
+network. WebRTC, which no policy covers, has its constructors removed first.
+The frame is not a separate OS process: Obsidian's window runs Node, and a
+subframe shares its renderer, so a browser exploit in a page would reach as
+far as Obsidian does. Scripts off narrows that too.
+
+`docs/html-probe.html` checks all of this inside Obsidian; its comment says how.
+
 ## Requirements
 
 - Obsidian 1.7.2 or later on macOS or Linux.
@@ -241,6 +289,7 @@ Add `LLM_WIKI_E2E_SANDBOX=<sandbox>` to also hold a real sandboxed chat: a few h
 | `src/ui/diffModal.ts`, `src/wiki/diff.ts` | one page's change, from `page diff` |
 | `src/wiki/config.ts`, `src/ui/configModal.ts` | the `config` contract's row shapes and the keys the Config tab shows, named and grouped; the dialogs that change a value, a list, a template rule, an indexed property |
 | `src/views/dashboard/` | the one view: `index.ts` (header, tabs, action routing), one file per data tab |
+| `src/views/html.ts`, `src/vault/reports.ts` | the HTML file view, its sandboxed frame and the bridge out of it; the reports, each record paired with its brief |
 | `src/views/chat.ts`, `src/views/search.ts` | the Chat and Search panes the view hosts |
 | `src/ui/` | DOM helpers, the prompt and confirm modals, the credential dialog, the skill inspector |
 | `docs/cli-shapes.md` | the CLI answers the plugin reads, field by field |
