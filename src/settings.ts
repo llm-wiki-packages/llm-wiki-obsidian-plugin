@@ -48,6 +48,8 @@ export interface LlmWikiSettings {
   applyTemplates: boolean
   /** A page's Properties panel leads with the keys a person writes and folds the wiki's bookkeeping behind More. */
   tidyProperties: boolean
+  /** The graph draws a line from a page to each source its frontmatter `sources` cites. */
+  sourceLinksInGraph: boolean
   /** How the Changes tab groups what came in, and past how many a group folds to one row. */
   changesGroup: GroupBy
   changesCollapse: number
@@ -75,6 +77,7 @@ export const DEFAULT_SETTINGS: LlmWikiSettings = {
   saveHistory: 'commit',
   applyTemplates: true,
   tidyProperties: true,
+  sourceLinksInGraph: false,
   changesGroup: 'source',
   changesCollapse: 5,
   debug: false,
@@ -174,6 +177,7 @@ export class LlmWikiSettingTab extends PluginSettingTab {
           : 'Commits what you edit here a couple of minutes after you stop, so it shows in Changes and page history. Sync also pulls and pushes, so your other machines see it; it is refused while Obsidian Sync or iCloud syncs this vault.', control: { type: 'dropdown', key: 'saveHistory', options: SAVE_HISTORY_NAMES } },
         { name: 'Apply the wiki’s template to new notes', desc: 'A note made in Obsidian starts with the properties the wiki’s template for that folder gives, as a page the agent makes does. Turn it off if Templater fills new notes.', control: { type: 'toggle', key: 'applyTemplates' } },
         { name: 'Fold the wiki’s bookkeeping properties', desc: 'A page’s Properties lead with title, type, description and tags; the keys the wiki keeps for itself (document_id, its revision, when it was made and checked) go last, behind a More row. Nothing in the file changes.', control: { type: 'toggle', key: 'tidyProperties' } },
+        { name: 'Sources in the graph', desc: 'Draw a line in the graph from each page to the sources its frontmatter cites. Nothing in the file changes, and Backlinks does not list them.', control: { type: 'toggle', key: 'sourceLinksInGraph' } },
       ] },
       { type: 'group', heading: 'Search', items: [
         { name: 'Results per search', control: { type: 'slider', key: 'searchK', min: 5, max: 100, step: 5 } },
@@ -192,6 +196,7 @@ export class LlmWikiSettingTab extends PluginSettingTab {
     const clean = CLEAN[key as Key]
     ;(this.plugin.settings as unknown as Record<string, unknown>)[key] = clean ? clean(value) : value
     if (key === 'tidyProperties') this.plugin.properties.apply()
+    if (key === 'sourceLinksInGraph') this.plugin.sourceLinks.apply()
     return this.plugin.saveSettings()
   }
 
