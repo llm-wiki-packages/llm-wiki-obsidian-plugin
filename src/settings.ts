@@ -3,6 +3,7 @@ import type LlmWikiPlugin from './main'
 import { PLUGIN_NAMESPACE } from './chat/skills'
 import type { SearchFilter } from './wiki/cli'
 import type { GroupBy } from './vault/groups'
+import { PLACEMENT_NAMES, type Placement } from './vault/citations'
 
 /** The Agent SDK's permission modes a person picks between; `plan` and `dontAsk` are not offered. */
 export type PermissionMode = 'default' | 'acceptEdits' | 'auto' | 'bypassPermissions'
@@ -50,6 +51,8 @@ export interface LlmWikiSettings {
   tidyProperties: boolean
   /** The graph draws a line from a page to each source its frontmatter `sources` cites. */
   sourceLinksInGraph: boolean
+  /** Where an open note lists its sources, or the pages citing it. */
+  sourcesPanel: Placement
   /** How the Changes tab groups what came in, and past how many a group folds to one row. */
   changesGroup: GroupBy
   changesCollapse: number
@@ -78,6 +81,7 @@ export const DEFAULT_SETTINGS: LlmWikiSettings = {
   applyTemplates: true,
   tidyProperties: true,
   sourceLinksInGraph: false,
+  sourcesPanel: 'side',
   changesGroup: 'source',
   changesCollapse: 5,
   debug: false,
@@ -177,6 +181,9 @@ export class LlmWikiSettingTab extends PluginSettingTab {
           : 'Commits what you edit here a couple of minutes after you stop, so it shows in Changes and page history. Sync also pulls and pushes, so your other machines see it; it is refused while Obsidian Sync or iCloud syncs this vault.', control: { type: 'dropdown', key: 'saveHistory', options: SAVE_HISTORY_NAMES } },
         { name: 'Apply the wiki’s template to new notes', desc: 'A note made in Obsidian starts with the properties the wiki’s template for that folder gives, as a page the agent makes does. Turn it off if Templater fills new notes.', control: { type: 'toggle', key: 'applyTemplates' } },
         { name: 'Fold the wiki’s bookkeeping properties', desc: 'A page’s Properties lead with title, type, description and tags; the keys the wiki keeps for itself (document_id, its revision, when it was made and checked, the sources it cites) go last, behind a More row. Nothing in the file changes.', control: { type: 'toggle', key: 'tidyProperties' } },
+      ] },
+      { type: 'group', heading: 'Sources', items: [
+        { name: 'Sources panel', desc: 'On a wiki page, the sources its frontmatter cites, with the section and quoted words; click a quote to open the source at it. On a source, the pages that cite it. Beside the page needs a pane wide enough for the margin; otherwise it goes below, above Linked mentions.', control: { type: 'dropdown', key: 'sourcesPanel', options: PLACEMENT_NAMES } },
         { name: 'Sources in the graph', desc: 'Draw a line in the graph from each page to the sources its frontmatter cites. Nothing in the file changes, and Backlinks does not list them.', control: { type: 'toggle', key: 'sourceLinksInGraph' } },
       ] },
       { type: 'group', heading: 'Search', items: [
@@ -196,6 +203,7 @@ export class LlmWikiSettingTab extends PluginSettingTab {
     const clean = CLEAN[key as Key]
     ;(this.plugin.settings as unknown as Record<string, unknown>)[key] = clean ? clean(value) : value
     if (key === 'tidyProperties') this.plugin.properties.apply()
+    if (key === 'sourcesPanel') this.plugin.sourcesPanel.refresh()
     if (key === 'sourceLinksInGraph') this.plugin.sourceLinks.apply()
     return this.plugin.saveSettings()
   }

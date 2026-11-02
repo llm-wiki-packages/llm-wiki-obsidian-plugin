@@ -525,3 +525,24 @@ body.llm-wiki-tidy-props .metadata-container:not(.is-llm-wiki-open) .metadata-pr
 .llm-wiki-message.is-open > .llm-wiki-row { border-bottom: none; }
 .llm-wiki-message-body { padding: 0 0 var(--size-4-3) calc(0.6em + var(--size-4-3)); border-bottom: 1px solid var(--background-modifier-border); user-select: text; }
 .llm-wiki-message-body .markdown-rendered { margin-top: var(--size-4-2); }
+
+/* Sources panel: beside the page in its right margin, or above Linked mentions */
+.llm-wiki-sources-host { position: relative; }
+.llm-wiki-sources { font-size: var(--font-ui-small); color: var(--text-normal); }
+.llm-wiki-sources.is-side { position: absolute; top: var(--size-4-8); right: var(--size-4-4); width: var(--llm-wiki-sources-width, 260px); max-height: calc(100% - var(--size-4-8) * 2); overflow-y: auto; padding-left: var(--size-4-3); border-left: 1px solid var(--background-modifier-border); z-index: 1; }
+.llm-wiki-sources.is-bottom { margin: var(--size-4-8) 0 var(--size-4-4); padding-top: var(--size-4-3); border-top: 1px solid var(--background-modifier-border); }
+.llm-wiki-sources-section + .llm-wiki-sources-section { margin-top: var(--size-4-4); }
+.llm-wiki-sources-title { font-weight: var(--font-semibold); font-size: var(--font-ui-medium); margin-bottom: var(--size-2-2); }
+.llm-wiki-sources-count { color: var(--text-faint); font-weight: normal; margin-left: var(--size-2-3); }
+.llm-wiki-sources-group { color: var(--text-faint); font-size: var(--font-ui-smaller); text-transform: uppercase; letter-spacing: 0.04em; margin: var(--size-4-2) 0 var(--size-2-1); }
+.llm-wiki-sources-row { margin: var(--size-2-2) 0; }
+.llm-wiki-sources-name.is-unresolved { color: var(--text-faint); text-decoration: line-through; cursor: default; }
+.llm-wiki-sources-cite { margin-left: var(--size-4-3); }
+.llm-wiki-sources-span { color: var(--text-muted); }
+.llm-wiki-sources-span.is-foldable { cursor: pointer; }
+.llm-wiki-sources-span.is-foldable:hover { color: var(--text-normal); }
+.llm-wiki-sources-chevron { display: inline-block; width: 1em; transition: transform 100ms ease; }
+.llm-wiki-sources-cite.is-open .llm-wiki-sources-chevron { transform: rotate(90deg); }
+.llm-wiki-sources-quote { display: none; margin: var(--size-2-1) 0 var(--size-2-3) 1em; padding: var(--size-2-3) var(--size-4-2); border: 1px solid var(--background-modifier-border); border-radius: var(--radius-s); color: var(--text-muted); cursor: pointer; }
+.llm-wiki-sources-quote:hover { background: var(--background-modifier-hover); color: var(--text-normal); }
+.llm-wiki-sources-cite.is-open .llm-wiki-sources-quote { display: block; }
