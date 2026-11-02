@@ -2,7 +2,7 @@
 import type { Cli } from './cli'
 import { CliError } from './cli'
 import { layerWords, type ConfigWritten, type Layer } from './config'
-import { sweptSentence, type InboxReadAnswer, type SweptAnswer } from './inbox'
+import { closedSentence, sweptSentence, type ClosedAnswer, type InboxReadAnswer, type SweptAnswer } from './inbox'
 import type { InboxMessage } from './model'
 
 export interface Outcome {
@@ -125,6 +125,15 @@ export class Actions {
       return { ok: true, message: `“${m.subject}” is done` }
     } catch (e) {
       return failed(`could not close “${m.subject}”`, e)
+    }
+  }
+
+  /** Close this one message now: its answer to its `reply_to`, or out of the inbox; a job ask stays for its job. */
+  async doneMessage(m: Pick<InboxMessage, 'inbox' | 'id' | 'subject'>): Promise<Outcome> {
+    try {
+      return closedSentence(await this.cli.run<ClosedAnswer>('wiki.inboxes.done', { wiki: this.wiki, name: m.inbox, id: m.id }), m)
+    } catch (e) {
+      return failed(`“${m.subject}” stays in the inbox`, e)
     }
   }
 

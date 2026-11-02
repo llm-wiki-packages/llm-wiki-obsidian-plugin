@@ -205,6 +205,10 @@ export interface Commit {
 export interface InboxMessage {
   inbox: string
   id: string
+  /** The message's file, as the CLI names it: its stem follows the subject, so it is never built from the id but on an older CLI. */
+  path: string
+  /** The job that asked, for a job ask (`from.slug`, no `reply_to`): Done leaves it for that job's next run. */
+  job: string | null
   subject: string
   at: string | null
   /** This machine has read it: the CLI's `state` reads `seen <when>` rather than `new`. */
@@ -221,7 +225,22 @@ export interface InboxMessage {
 /** The held `sources/` pages under one bundle root, or the ones no root holds (`root` null). */
 export interface HeldGroup {
   root: string | null
-  pages: string[]
+  /** Each held page; `waiting` when `whereami` counts it (an open record waits on a person), never on an older CLI. */
+  pages: { path: string; waiting: boolean }[]
+}
+
+/** `whereami`'s `needs_you_parts`: exactly what its count counts, besides the blocked jobs it lists apart. */
+export interface NeedsYouParts {
+  held: { path: string; id: string }[]
+  curate: { reason: string; directory: string }[]
+  conflicts: { id: string; subject: string }[]
+}
+
+/** A job this machine blocked, as `whereami` lists it: why, and the one command that clears it. */
+export interface BlockedJob {
+  job: string
+  reason: string
+  next: string
 }
 
 export interface RecentRun {
@@ -268,10 +287,16 @@ export interface Snapshot {
    * conflicts, all answered with `/ingest`. Null when the CLI could not count, or predates the count.
    */
   needsYou: number | null
-  /** The held sources by bundle root, as wiki-report lists them; read only while the count is above zero. */
+  /** What the count is made of, listed; null from a CLI before the breakdown (llm-wiki-plugins #3940). */
+  parts: NeedsYouParts | null
+  /** The jobs this machine blocked, counted in `needsYou`; empty from a CLI that does not list them. */
+  blocked: BlockedJob[]
+  /** Every held source by bundle root, the ones the count waits on marked; read on a full pass, or while the count is above zero. */
   held: HeldGroup[] | null
   /** The open `conflicts` records; read only while the count is above zero. */
   conflicts: InboxMessage[] | null
+  /** Whether this CLI closes one message with `inboxes done`; an older one is closed by a tick and a sweep. */
+  inboxDone: boolean
   /** Reads that failed, by verb, so a half-empty dashboard says why. */
   errors: Record<string, string>
 }

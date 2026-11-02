@@ -63,26 +63,36 @@ switches; a snapshot never redraws them. Text is selectable everywhere.
   wiki yet", what a job and a skill are, **Add a source…** and **Browse skills**.
 
 **Inbox** — what a skill or an agent asked you, and what waits on your
-judgment. Every row is the CLI's (`inboxes ls user --all`, `whereami`).
+judgment. Every row is the CLI's (`inboxes ls user --all`, `whereami`). The
+tab's count is the messages plus each listed item (held source, conflict,
+blocked job); curate's groups are not in it, they are judged on Changes. The
+health pill counts kinds of trouble instead, and its hover says so.
 - *Messages*, oldest first: subject (bold beside an accent dot until read on
-  this machine), age, and where Done sends the answer ("Done sends your answer
-  to improve", or "Done files it away" when the message names no `reply_to`).
-  Click a row to open it in place: who sent it, about which unit, what they
-  saw, and the body rendered; opening it is `inboxes read`, which marks it
-  read. **Reply** opens the note in a new tab with the cursor under the
-  message, to type the answer into the body. **Done** saves an open editor on
-  the note, ticks `done` as the property editor would, and runs `inboxes
-  sweep`, which sends the edited message to its `reply_to` as `Re:` and takes
-  it out of the inbox; a message with no `reply_to` is closed with `inboxes
-  rm`. The chat icon hands the message to chat (`About the message … [[path]]: `).
-  A message ticked done in the note itself shows under *Answered* with **Send
-  now** (the sweep).
-- *Waiting on your judgment*, only while `needs_you` is above zero, with that
-  count and **Answer with /brain:ingest** (a chat hand-off). Under it, the
-  held sources grouped by bundle root (the bundle's folder, the page count,
-  three names; the row opens the root), the open conflicts (the row opens
-  the record), and a link to Changes for the groups of new pages curate
-  left to you.
+  this machine), age, and what Done will do: "Done sends your answer to
+  improve", "Done answers job inbox-joe: it picks the answer up next run" (a
+  job ask), or "Done removes it". Click a row to open it in place: who sent
+  it, about which unit, what they saw, and the body rendered; opening it is
+  `inboxes read`, which marks it read. If that read fails, the body is shown
+  from the note, said so, and the next open asks the CLI again. **Reply**
+  opens the note (the file the CLI names) in a new tab with the cursor under
+  the message, to type the answer into the body. **Done** saves an open
+  editor on the note, then runs `inboxes done`: the message goes to its
+  `reply_to` as `Re:` with the answer, or out of the inbox; a job ask is
+  ticked and stays for the job's next run. On a CLI without `inboxes done`,
+  Done ticks `done` and runs `inboxes sweep`, or runs `inboxes rm` when there
+  is no `reply_to`. The chat icon hands the message to chat
+  (`About the message … [[path]]: `). Under *Answered*: a job ask already
+  answered ("job X picks it up next run"), and messages ticked done in the
+  note itself, with **Send now** (the sweep).
+- *Waiting on your judgment*, while `needs_you` or the blocked list is above
+  zero, with that count and **Answer in chat** (`/brain:ingest`). With the
+  CLI's breakdown every row here is counted: each blocked job with its reason,
+  the command that clears it and **Ask the agent**; the held sources an open
+  record waits on, by bundle (the row opens the root); the open conflicts (the
+  row opens the record); and curate's groups as one row to **Changes**. On an
+  older CLI the count stands over the conflicts and a link to Changes.
+- *Held sources*: held from ingest but waited on by nothing yet (no record is
+  open), by bundle, muted. On an older CLI every held source is listed here.
 
 **Jobs** — a table grouped by state (Needs you, Running, Due, Scheduled,
 Manual, Paused), soonest first inside a group; a filter field above 10 rows.

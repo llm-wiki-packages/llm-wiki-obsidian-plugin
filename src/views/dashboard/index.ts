@@ -6,6 +6,7 @@ import { renderConfig } from './config'
 import { renderCredentials } from './credentials'
 import { renderChanges } from './changes'
 import { renderInbox } from './inbox'
+import { inboxCount } from '../../wiki/inbox'
 import { renderJobs } from './jobs'
 import { renderOverview } from './overview'
 import { renderReports } from './reports'
@@ -60,7 +61,7 @@ const READ_NAMES: Record<string, string> = {
   'wiki.op.since': 'recent runs', 'wiki.search.status': 'the search status', 'wiki.git.conflicts': 'conflicts', 'machine.runner.ls': 'the runner', 'wiki.skills.ls': 'the skills',
   'wiki.skills.doctor': 'the skills doctor', 'wiki.packages.ls': 'the packages', 'wiki.credentials.ls': 'the credentials', 'wiki.credentials.bindings': 'the credential bindings',
   'wiki.status': 'the sync state', 'wiki.git.log': 'the history', 'wiki.git.status': 'the unsaved files',
-  'wiki.whereami': 'what needs you', 'wiki.inboxes.ls': 'the inbox', 'wiki.page.held': 'the held sources', 'wiki.page.heldRoots': 'the bundle roots',
+  'wiki.whereami': 'what needs you', 'wiki.inboxes.ls': 'the inbox', 'wiki.inboxes.conflicts': 'the open conflicts', 'wiki.page.held': 'the held sources', 'wiki.page.heldRoots': 'the bundle roots',
 }
 
 export class DashboardView extends ItemView {
@@ -222,12 +223,14 @@ export class DashboardView extends ItemView {
     const fresh = (snapshot.pages ?? []).filter((p) => p.state === 'new').length
     const changesTab = this.tabBar.querySelector<HTMLElement>('[data-tab="changes"]')
     if (changesTab) changesTab.setText(fresh ? `Changes · ${fresh}` : 'Changes')
-    const waiting = (snapshot.inbox ?? []).filter((m) => !m.done).length + (snapshot.needsYou ?? 0)
+    const waiting = inboxCount(snapshot)
     this.tabBar.querySelector<HTMLElement>('[data-tab="inbox"]')?.setText(waiting ? `Inbox · ${waiting}` : 'Inbox')
     this.healthPill.setText(snapshot.health.count ? `${snapshot.health.count} need you` : 'ok')
     this.healthPill.className = `llm-wiki-pill llm-wiki-pill-button is-${snapshot.health.tone}`
     const needs = snapshot.attention.filter((a) => a.severity !== 'info').map((a) => a.title)
-    this.healthPill.title = (needs.length ? `${needs.slice(0, 8).join('\n')}${needs.length > 8 ? `\nand ${needs.length - 8} more` : ''}\n\n` : 'Nothing needs you. ') + 'Click for the Overview.'
+    // The pill counts kinds of trouble, one per row below; the Inbox counts messages and items, so the two differ.
+    const kinds = `${needs.length} ${needs.length === 1 ? 'kind' : 'kinds'} of thing need you; the Inbox counts each message and item.\n\n`
+    this.healthPill.title = (needs.length ? `${kinds}${needs.slice(0, 8).join('\n')}${needs.length > 8 ? `\nand ${needs.length - 8} more` : ''}\n\n` : 'Nothing needs you. ') + 'Click for the Overview.'
     const errors = Object.entries(snapshot.errors)
     const at = new Date(snapshot.takenAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     this.refreshedEl.setText(errors.length ? `could not read everything · ${at}` : `refreshed ${at}`)

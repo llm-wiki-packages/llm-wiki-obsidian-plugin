@@ -111,7 +111,8 @@ const COMMIT = /^[0-9a-f]{7,64}$/
 const TREE = /^[a-z][a-z0-9_-]{0,63}$/
 const DAY = /^\d{4}-\d{2}-\d{2}$/
 const DOCUMENT_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/
-const INBOX = /^[a-z][a-z0-9_-]{0,63}$/
+// The CLI's own rule (`lib/inboxes/layout.py` NAME), so the plugin refuses what the CLI would and nothing more.
+const INBOX = /^[a-z0-9][a-z0-9-]*$/
 const MESSAGE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
 // A config key is TOML's dotted spelling (`configkey.parse`): bare segments, or double-quoted ones with no escapes.
 const CONFIG_SEGMENT = '(?:[A-Za-z0-9_][A-Za-z0-9_-]{0,63}|"[^"\\\\\\x00-\\x1f]{1,200}")'
@@ -314,10 +315,12 @@ export const VERBS = {
   'wiki.whereami': (a: Args) => wiki(a, 'whereami'),
   /** One inbox's messages, every machine's: a person answers wherever they sit. */
   'wiki.inboxes.ls': (a: Args) => wiki(a, 'inboxes', 'ls', inbox(a.name), '--all'),
+  /** The open conflicts: the same verb, under a key of its own so a failure here is not the inbox's. */
+  'wiki.inboxes.conflicts': (a: Args) => wiki(a, 'inboxes', 'ls', 'conflicts', '--all'),
   /** The `sources/` pages whose `ingest` lever reads `hold`, their own key, their root's or the wiki's default. */
   'wiki.page.held': (a: Args) => wiki(a, 'page', 'ls', 'filter=under:sources', 'filter=lever:ingest=hold'),
   /** The bundle roots whose subtree reads `ingest: hold`, to group the held pages under. */
-  'wiki.page.heldRoots': (a: Args) => wiki(a, 'page', 'ls', 'filter=prop:root', 'filter=lever:ingest=hold'),
+  'wiki.page.heldRoots': (a: Args) => wiki(a, 'page', 'ls', 'filter=under:sources', 'filter=prop:root', 'filter=lever:ingest=hold'),
   /** Each uncommitted path under the swept trees, with how it changed. */
   'wiki.git.status': (a: Args) => wiki(a, 'git', 'status'),
   /** The frontmatter and body a template would add to a page; writes nothing. */
@@ -341,6 +344,8 @@ export const VERBS = {
   // `read` drops this machine's read marker, which is committed, so it is a write; it answers the message whole.
   'wiki.inboxes.read': (a: Args) => write(a, 'inboxes', 'read', inbox(a.name), message(a.id)),
   'wiki.inboxes.rm': (a: Args) => write(a, 'inboxes', 'rm', inbox(a.name), message(a.id)),
+  // One message closed now, as the sweep closes a ticked one; a job ask is ticked and left for the job (llm-wiki-plugins #3940).
+  'wiki.inboxes.done': (a: Args) => write(a, 'inboxes', 'done', inbox(a.name), message(a.id)),
   // Every message ticked `done`: forwarded to its `reply_to` as `Re:`, then removed.
   'wiki.inboxes.sweep': (a: Args) => write(a, 'inboxes', 'sweep', inbox(a.name)),
   // Accept, or reject with a reason: `reject=` is the whole rejection.
@@ -397,7 +402,7 @@ const ATTENDED: ReadonlySet<Verb> = new Set<Verb>(['wiki.credentials.set', 'wiki
 const EDITOR: ReadonlySet<Verb> = new Set<Verb>(['wiki.page.curate', 'wiki.page.adopt', 'wiki.page.fix', 'wiki.git.commit'])
 
 const WRITES: ReadonlySet<Verb> = new Set<Verb>([
-  'wiki.harness.run', 'wiki.jobs.request', 'wiki.jobs.pause', 'wiki.jobs.resume', 'wiki.tickets.retry', 'wiki.inboxes.read', 'wiki.inboxes.rm', 'wiki.inboxes.sweep', 'wiki.git.sync', 'wiki.search.index', 'wiki.search.reindex',
+  'wiki.harness.run', 'wiki.jobs.request', 'wiki.jobs.pause', 'wiki.jobs.resume', 'wiki.tickets.retry', 'wiki.inboxes.read', 'wiki.inboxes.rm', 'wiki.inboxes.done', 'wiki.inboxes.sweep', 'wiki.git.sync', 'wiki.search.index', 'wiki.search.reindex',
   'wiki.config.set', 'wiki.config.patch', 'wiki.config.unset', 'wiki.credentials.ls', 'wiki.credentials.bindings', ...ATTENDED, ...EDITOR,
 ])
 

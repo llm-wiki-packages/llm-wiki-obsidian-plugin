@@ -33,11 +33,13 @@ the gear opens the plugin settings.
   notice with an Install-the-runner hand-off.
 - **Inbox**: what a skill or an agent asked you (the wiki's `user` inbox),
   oldest first. Click a message to read it in place; **Reply** opens the note
-  to type an answer under it; **Done** sends the answer to whoever asked (the
-  message's `reply_to`, through `inboxes sweep`) or files it away; the chat
-  icon hands it to the agent. Below, while the CLI counts any, **Waiting on
-  your judgment**: sources held from ingest by bundle, open conflicts, and
-  **Answer with /brain:ingest**. The Overview's Needs you carries both counts
+  to type an answer under it; **Done** (`inboxes done`) sends the answer to
+  whoever asked, leaves a job's question answered for its next run, or removes
+  the message; the chat icon hands it to the agent. Below, **Waiting on your
+  judgment**, exactly what the CLI counts: blocked jobs with the command that
+  clears them, held sources a record waits on, open conflicts, curate's groups
+  (on Changes), and **Answer in chat** (`/brain:ingest`). Then **Held
+  sources** nothing waits on yet. The Overview's Needs you carries both counts
   with **Open inbox**.
 - **Reports**: the briefs the agents wrote under `wiki/reports/`, newest
   first, read from the vault with no CLI call. The daily-report skill writes

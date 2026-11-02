@@ -57,6 +57,8 @@ const EMPTY_UNITS: Partial<Record<Verb, unknown>> = {
   'wiki.git.log': { commits: [] },
   'wiki.git.status': { files: [] },
   'wiki.whereami': { needs_you: 0 },
+  'wiki.page.held': { pages: [] },
+  'wiki.page.heldRoots': { pages: [] },
   'wiki.inboxes.ls': { inbox: 'user', count: 0, messages: [] },
   'wiki.skills.ls': { skills: [] },
   'wiki.skills.doctor': { findings: [] },
@@ -90,6 +92,8 @@ const GMAIL: Partial<Record<Verb, unknown>> = {
   'wiki.git.log': { commits: [] },
   'wiki.git.status': { files: [] },
   'wiki.whereami': { needs_you: 0 },
+  'wiki.page.held': { pages: [] },
+  'wiki.page.heldRoots': { pages: [] },
   'wiki.inboxes.ls': { inbox: 'user', count: 0, messages: [] },
 }
 

@@ -1,7 +1,8 @@
 // The inbox answers into the model, and the sentences its writes say. The one place that knows
-// `inboxes ls`, `inboxes read` and `inboxes sweep` field names (docs/cli-shapes.md 1.16, 2.8).
+// `inboxes ls`, `inboxes read`, `inboxes done`, `inboxes sweep` and `whereami`'s needs-you field names
+// (docs/cli-shapes.md 1.16, 1.24, 2.14).
 import { slash } from '../chat/skills'
-import type { AttentionItem, HeldGroup, InboxMessage } from './model'
+import type { AttentionItem, BlockedJob, HeldGroup, InboxMessage, NeedsYouParts } from './model'
 
 /** The inbox a person answers; `init` seeds it and `inboxes sweep` closes it out by default. */
 export const USER_INBOX = 'user'
@@ -16,6 +17,10 @@ export interface InboxRow {
   reply_to?: string | null
   in_reply_to?: string | null
   readable?: boolean
+  /** The file, wiki-relative (llm-wiki-plugins #3940); absent from an older CLI. */
+  path?: string
+  /** The asking job, on a job ask (the ask loop, llm-wiki-plugins #3929); absent from an older CLI. */
+  slug?: string | null
 }
 
 export interface InboxLsAnswer {
@@ -35,7 +40,7 @@ export interface InboxReadAnswer {
 /** One row of `inboxes sweep`: what became of each message ticked `done`. */
 export interface SweptRow {
   id: string
-  action: 'forwarded' | 'repeat' | 'removed' | 'refused'
+  action: 'forwarded' | 'repeat' | 'removed' | 'refused' | 'kept'
   to: string | null
   reply_id: string | null
   reason: string | null
@@ -47,10 +52,28 @@ export interface SweptAnswer {
   swept?: SweptRow[]
 }
 
+/** `inboxes done <inbox> <id>`: what became of that one message. A refusal is an error, not a row. */
+export interface ClosedAnswer {
+  inbox?: string
+  id?: string
+  action?: 'forwarded' | 'repeat' | 'removed' | 'kept'
+  to?: string | null
+  reply_id?: string | null
+}
+
+/** The slice of `whereami` the inbox reads. */
+export interface NeedsYouAnswer {
+  needs_you?: number | null
+  needs_you_parts?: NeedsYouParts | null
+  blocked?: BlockedJob[] | null
+}
+
 export function messageOf(inbox: string, r: InboxRow): InboxMessage {
   return {
     inbox,
     id: r.id,
+    path: r.path || messagePath({ inbox, id: r.id }),
+    job: r.slug && !r.reply_to ? r.slug : null,
     subject: r.subject || r.id,
     at: r.at ?? null,
     seen: typeof r.state === 'string' && r.state !== 'new',
@@ -61,14 +84,14 @@ export function messageOf(inbox: string, r: InboxRow): InboxMessage {
   }
 }
 
-/** Where a message sits in the vault: one file per message under its inbox, named by its id. */
+/** Where an older CLI keeps a message it never renamed: one file per message under its inbox, named by its id. */
 export function messagePath(m: Pick<InboxMessage, 'inbox' | 'id'>): string {
   return `inboxes/${m.inbox}/${m.id}.md`
 }
 
 /** The message a vault path is, if it is one the snapshot holds. */
 export function messageAt(messages: InboxMessage[] | null, path: string): InboxMessage | undefined {
-  return (messages ?? []).find((m) => messagePath(m) === path)
+  return (messages ?? []).find((m) => m.path === path)
 }
 
 function dirOf(path: string): string {
@@ -78,42 +101,65 @@ function dirOf(path: string): string {
 
 /**
  * The held pages under the nearest root above each, the way the bundle levers inherit; a root's own page heads its
- * group and is not listed in it. Pages under no root share one group, last.
+ * group and is not listed in it, and a root with nothing under it is left out. Pages under no root share one group,
+ * last. `waiting` marks the pages the count waits on.
  */
-export function heldGroups(pages: string[], roots: string[]): HeldGroup[] {
+export function heldGroups(pages: string[], roots: string[], waiting: ReadonlySet<string> = new Set()): HeldGroup[] {
   const rootDirs = roots.map((r) => ({ root: r, dir: dirOf(r) })).sort((a, b) => b.dir.length - a.dir.length)
-  const groups = new Map<string | null, string[]>(roots.map((r) => [r, []]))
+  const groups = new Map<string | null, string[]>()
   for (const p of pages) {
     if (roots.includes(p)) continue
-    const home = rootDirs.find((r) => p.startsWith(`${r.dir}/`))
-    const key = home?.root ?? null
-    if (!groups.has(key)) groups.set(key, [])
-    groups.get(key)!.push(p)
+    const key = rootDirs.find((r) => p.startsWith(`${r.dir}/`))?.root ?? null
+    groups.set(key, [...(groups.get(key) ?? []), p])
   }
+  const order = (a: string | null, b: string | null) => (a === b ? 0 : a === null ? 1 : b === null ? -1 : dirOf(a) < dirOf(b) ? -1 : dirOf(a) > dirOf(b) ? 1 : 0)
   return [...groups.entries()]
-    .filter(([root, list]) => root !== null || list.length)
-    .map(([root, list]) => ({ root, pages: list.sort() }))
-    // By path, a parent's bundle before its children's; the loose pages last.
-    .sort((a, b) => (a.root === null ? 1 : b.root === null ? -1 : dirOf(a.root) < dirOf(b.root) ? -1 : 1))
+    .sort(([a], [b]) => order(a, b))
+    .map(([root, list]) => ({ root, pages: list.sort().map((path) => ({ path, waiting: waiting.has(path) })) }))
+}
+
+type Said = { ok: boolean; message: string }
+
+/** What `inboxes done` did, in one sentence. */
+export function closedSentence(a: ClosedAnswer, m: Pick<InboxMessage, 'subject'>): Said {
+  switch (a.action) {
+    case 'forwarded':
+      return { ok: true, message: `Replied to “${m.subject}”: your answer went to ${a.to ?? 'its sender'}` }
+    case 'repeat':
+      return { ok: true, message: `“${m.subject}” was already answered in ${a.to ?? 'its sender'}; closed it` }
+    case 'removed':
+      return { ok: true, message: `“${m.subject}” is done and removed from the inbox` }
+    case 'kept':
+      return { ok: true, message: `Answered “${m.subject}”: the job picks it up next run` }
+    default:
+      return { ok: false, message: `“${m.subject}”: the CLI answered no outcome` }
+  }
 }
 
 /** What the sweep did to the message a person pressed Done on, in one sentence; the others it closed are counted after. */
-export function sweptSentence(a: SweptAnswer, m: Pick<InboxMessage, 'id' | 'subject'>): { ok: boolean; message: string } {
+export function sweptSentence(a: SweptAnswer, m: Pick<InboxMessage, 'id' | 'subject'>): Said {
   const rows = a.swept ?? []
   const mine = rows.find((r) => r.id === m.id)
-  const others = rows.filter((r) => r.id !== m.id && r.action !== 'refused').length
+  const others = rows.filter((r) => r.id !== m.id && r.action !== 'refused' && r.action !== 'kept').length
   const also = others ? ` (and ${others} other answered message${others === 1 ? '' : 's'})` : ''
-  if (!mine) return { ok: false, message: `“${m.subject}” was not closed out: the sweep did not find it ticked done` }
-  switch (mine.action) {
-    case 'forwarded':
-      return { ok: true, message: `Replied to “${m.subject}”: your answer went to ${mine.to ?? 'its sender'}${also}` }
-    case 'repeat':
-      return { ok: true, message: `“${m.subject}” was already answered in ${mine.to ?? 'its sender'}; closed it${also}` }
-    case 'removed':
-      return { ok: true, message: `“${m.subject}” is done${also}` }
-    case 'refused':
-      return { ok: false, message: `“${m.subject}” stays in the inbox: ${mine.reason ?? 'the sweep refused it'}` }
-  }
+  if (!mine) return { ok: false, message: `“${m.subject}” was not sent: the sweep did not find it ticked done` }
+  if (mine.action === 'refused') return { ok: false, message: `“${m.subject}” stays in the inbox: ${mine.reason ?? 'the sweep refused it'}` }
+  const said = closedSentence({ action: mine.action, to: mine.to }, m)
+  return { ok: said.ok, message: `${said.message}${also}` }
+}
+
+/** What Done will do to this message, in the words a row and its button say. */
+export function doneWords(m: Pick<InboxMessage, 'replyTo' | 'job'>): string {
+  if (m.job) return `Done answers job ${m.job}: it picks the answer up next run`
+  if (m.replyTo) return `Done sends your answer to ${m.replyTo}`
+  return 'Done removes it'
+}
+
+/** What the inbox counts: messages to answer and the listed parts. Curate's groups are judged on Changes, so they are not. */
+export function inboxCount(s: { inbox: InboxMessage[] | null; parts: NeedsYouParts | null; blocked: BlockedJob[]; conflicts: InboxMessage[] | null }): number {
+  const open = (s.inbox ?? []).filter((m) => !m.done).length
+  if (s.parts) return open + s.parts.held.length + s.parts.conflicts.length + s.blocked.length
+  return open + (s.conflicts?.length ?? 0) + s.blocked.length
 }
 
 /** The Overview's rows for the inbox: one for the messages, one for what waits on a judgment. Both open the inbox. */
@@ -135,7 +181,7 @@ export function inboxAttention(inbox: InboxMessage[] | null, needsYou: number | 
       id: 'inbox:needs-you',
       severity: 'warn',
       title: needsYou === 1 ? '1 thing waits on your judgment' : `${needsYou} things wait on your judgment`,
-      detail: `Held sources, groups of new pages curate left to you, open conflicts; answered with ${slash('ingest')}.`,
+      detail: `Sources held for you, blocked jobs, groups of new pages curate left to you, open conflicts; most are answered with ${slash('ingest')}.`,
       action: { kind: 'goto', tab: 'inbox', label: 'Open inbox' },
     })
   }

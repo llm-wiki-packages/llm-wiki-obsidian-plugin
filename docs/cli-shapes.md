@@ -822,7 +822,10 @@ interface Row {
 }
 ```
 
-The plugin reads `user` (the inbox a person answers) on every poll, and
+Since llm-wiki-plugins #3940 a row also carries `path`, the message's file:
+its stem follows the subject, so the plugin never builds it from the id but
+on an older CLI. The ask loop (#3929) adds `slug`, the asking job, on a job
+ask. The plugin reads `user` (the inbox a person answers) on every poll, and
 `conflicts` while `whereami`'s `needs_you` is above zero.
 
 ### 1.17 `git conflicts`
@@ -948,8 +951,13 @@ The parts the plugin can list read-only:
   group the held pages under (a page's root is the nearest above it).
 - `inboxes ls conflicts --all`: the open conflicts (1.16 rows).
 
-The curate groups have no read-only list: `page curate --dry-run` is refused
-under `--read-only` ("page curate writes"), so the plugin points at Changes.
+Since #3940, `needs_you_parts` lists exactly what the count counts:
+`{held: [{path, id}], curate: [{reason, directory}], conflicts: [{id,
+subject}]}`; empty lists beside a zero count, null beside none. #3933 adds a
+top-level `blocked: [{job, reason, next}]`, folded into `needs_you` and not
+into the parts, so `needs_you = parts + blocked`. A held source with no open
+record is in the `page ls` list and not in the parts: the plugin shows it as
+held, not waiting. The roots read is `filter=under:sources` too.
 
 ### 1.25 `git status`
 
@@ -1283,7 +1291,7 @@ detached | ...)`, plus push recovery notes. Refusals (rc 2): jailed
   keep=theirs`; `<p> carries no <keep> version in the index`; jailed; read-only.
 
 ---------------------------------------------------------------------------
-### 2.14 `inboxes read|rm <inbox> <id>`, `inboxes sweep [<inbox>]`
+### 2.14 `inboxes read|rm|done <inbox> <id>`, `inboxes sweep [<inbox>]`
 
 - `read` drops this machine's read marker (committed, so a write) and answers
   `{inbox, id, frontmatter, body}`; frontmatter values come back as strings,
@@ -1296,9 +1304,17 @@ detached | ...)`, plus push recovery notes. Refusals (rc 2): jailed
   one of `forwarded` (sent to `to` as `Re: <id>` with the body as edited,
   `reply_id` the new message), `repeat` (an answer already stands there),
   `removed` (no `reply_to`), `refused` (the message stays; `reason` says why).
-- No verb sets `done`: a person ticks it in the note's properties. The
-  plugin's Done ticks it the same way (Obsidian's frontmatter writer) and
-  then sweeps; a message with no `reply_to` is closed with `rm` instead.
+- `done` (llm-wiki-plugins #3940) closes one message now: `--stdin` takes an
+  answer to add under the body (the plugin sends none: it saves the open
+  editor first, so the body already holds it); `done` is ticked; then the
+  message is closed as `sweep` closes one. Answer `{inbox, id, action, to,
+  reply_id}`, `action` one of `forwarded`, `repeat`, `removed`, or `kept`: a
+  job ask (`from.slug`, no `reply_to`) is ticked and left for the job's next
+  run. A refused forward is an error; the answer and tick stay in the file.
+- On a CLI without `done` the plugin ticks `done` itself (Obsidian's
+  frontmatter writer) and sweeps, or runs `rm` when there is no `reply_to`.
+  It tells the two apart by `whereami`'s `needs_you_parts`, which came in the
+  same change.
 
 ## 3. Answers to the four questions
 

@@ -7,7 +7,7 @@ import { slotWords } from './slots'
 import type { AttentionItem, Commit, CommitFile, CredentialView, JobView, MachineView, PageItem, PageState, PipelineView, RecentRun, SearchStatus, SkillView, SlotView, Snapshot, SyncState, TicketView, UnsavedFile } from './model'
 import { isFeed } from './layout'
 import { slash } from '../chat/skills'
-import { heldGroups, inboxAttention, messageOf, USER_INBOX, type InboxLsAnswer } from './inbox'
+import { heldGroups, inboxAttention, messageOf, USER_INBOX, type InboxLsAnswer, type NeedsYouAnswer } from './inbox'
 
 /** What the builder needs of a Cli, so a test can hand it fixtures. */
 export interface Reader {
@@ -95,10 +95,8 @@ export interface OpSinceAnswer {
 }
 /** `search status`, kept whole on the snapshot for the Search tab. */
 export type SearchStatusAnswer = SearchStatus
-/** `whereami`'s `needs_you`: an int, or null when the count could not be read; absent from a CLI before it. */
-export interface WhereamiAnswer {
-  needs_you?: number | null
-}
+/** `whereami`'s needs-you slice (src/wiki/inbox.ts): the count, its parts, and the blocked jobs. */
+export type WhereamiAnswer = NeedsYouAnswer
 export interface RunnerLsAnswer {
   wikis?: { wiki_key: string; installed: object | null }[]
 }
@@ -215,15 +213,20 @@ export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now(
   const listed = skillsLs?.skills ?? []
   const modes = hasModes(listed)
   const skillRows = listed.filter((r) => !r.name.startsWith(PLUGIN_PREFIX))
-  // What the count is made of, read only while it is above zero, so a quiet wiki pays nothing for it.
+  // The conflicts are read only while the count is above zero, so a quiet wiki pays nothing for them. Every held
+  // source is read on a full pass too: one held with no record waits on nobody, but a person still wants to see it.
   const needsYou = typeof whereami?.needs_you === 'number' ? whereami.needs_you : null
-  const [heldPages, heldRoots, conflictRecords] = needsYou
-    ? await Promise.all([
-      soft<{ pages?: PageRow[] }>('wiki.page.held'),
-      soft<{ pages?: PageRow[] }>('wiki.page.heldRoots'),
-      soft<InboxLsAnswer>('wiki.inboxes.ls', { name: 'conflicts' }),
-    ])
-    : [null, null, null]
+  const parts = whereami?.needs_you_parts ?? null
+  const readHeld = Boolean(needsYou) || !light
+  const [heldPages, heldRoots, conflictRecords] = await Promise.all([
+    readHeld ? soft<{ pages?: PageRow[] }>('wiki.page.held') : skip<{ pages?: PageRow[] }>(),
+    readHeld ? soft<{ pages?: PageRow[] }>('wiki.page.heldRoots') : skip<{ pages?: PageRow[] }>(),
+    needsYou ? soft<InboxLsAnswer>('wiki.inboxes.conflicts') : skip<InboxLsAnswer>(),
+  ])
+  const waiting = new Set((parts?.held ?? []).map((h) => h.path))
+  const held = heldPages && heldRoots
+    ? heldGroups((heldPages.pages ?? []).map((p) => p.path), (heldRoots.pages ?? []).map((p) => p.path), waiting)
+    : readHeld ? null : (previous?.held ?? null)?.map((g) => ({ ...g, pages: g.pages.map((p) => ({ ...p, waiting: waiting.has(p.path) })) })) ?? null
   const [shown, packages] = await Promise.all([
     Promise.all(skillRows.map((r) => soft<SkillsLsAnswer>('wiki.skills.show', { name: r.name }).then((a) => ({ ...(a?.skills?.[0] ?? r), ...manifestKeys(r) })))),
     Promise.all((packagesLs?.this_wiki ?? []).map((p) => soft<PackagesShowAnswer>('wiki.packages.show', { name: p.package }).then((a) => ({ name: p.package, answer: a })))),
@@ -304,8 +307,12 @@ export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now(
     search,
     inbox,
     needsYou,
-    held: heldPages && heldRoots ? heldGroups((heldPages.pages ?? []).map((p) => p.path), (heldRoots.pages ?? []).map((p) => p.path)) : null,
+    parts,
+    blocked: whereami?.blocked ?? [],
+    held,
     conflicts: conflictRecords ? (conflictRecords.messages ?? []).map((r) => messageOf('conflicts', r)) : null,
+    // The breakdown and the verb came in one CLI change (llm-wiki-plugins #3940).
+    inboxDone: whereami !== null && 'needs_you_parts' in whereami,
     errors,
   }
 }

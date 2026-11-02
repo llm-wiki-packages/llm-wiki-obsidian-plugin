@@ -93,7 +93,7 @@ export default class LlmWikiPlugin extends Plugin {
       const m = path ? messageAt(this.snapshot?.inbox ?? null, path) : undefined
       const actions = this.actions
       if (!m || !actions) return false
-      if (!checking) void closeMessage(this.app, actions, m).then((out) => {
+      if (!checking) void closeMessage(this.app, actions, m, this.snapshot?.inboxDone ?? false).then((out) => {
         new Notice(out.message, out.ok ? 4000 : 8000)
         void this.refreshSnapshot()
       })
