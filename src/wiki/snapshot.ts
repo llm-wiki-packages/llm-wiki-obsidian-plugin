@@ -275,7 +275,7 @@ export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now(
     : pipelineViews(listed, modes, skills, jobRows)
   const jobs = jobRows.map((j) => jobView(j, ticketRows, now, skills))
   const inbox = userInbox === null ? null : (userInbox.messages ?? []).map((r) => messageOf(USER_INBOX, r)).sort((a, b) => (a.at ?? '').localeCompare(b.at ?? ''))
-  const attention = [...inboxAttention(inbox, needsYou), ...attentionItems({ doctor, due, jobsLs, jobs, skills, skillsDoctor, search, conflicts: conflicts?.pages ?? [], ticketRows })]
+  const attention = [...inboxAttention(inbox, needsYou, whereami?.needs_you_parts ?? null, whereami?.blocked ?? []), ...attentionItems({ doctor, due, jobsLs, jobs, skills, skillsDoctor, search, conflicts: conflicts?.pages ?? [], ticketRows })]
   // The skills doctor was not re-read on a light pass; its findings stand until the next full one, so the count does not flicker.
   if (previous) for (const a of previous.attention) if (a.id.startsWith('skill:') && !attention.some((x) => x.id === a.id)) attention.push(a)
   const rank = { error: 0, warn: 1, info: 2 }

@@ -53,21 +53,21 @@ describe('inbox answers into the model', () => {
     expect(messageOf('user', { id: 'c', slug: 'inbox-joe' })).toMatchObject({ jobAsk: false, job: null })
     expect(messageOf('user', { id: 'd', ticket: 't-1', slug: 'inbox-joe', reply_to: 'improve' })).toMatchObject({ jobAsk: false, job: null })
   })
-  it('groups held pages under the nearest root, the root heading its group, loose pages last', () => {
+  it('groups held pages under the nearest root, the root\'s own page in its group, loose pages last', () => {
     const groups = heldGroups(
       ['sources/Lone memo.md', 'sources/acme/README.md', 'sources/acme/a.md', 'sources/acme/q3/README.md', 'sources/acme/q3/b.md', 'sources/acme-other/c.md'],
       ['sources/acme/README.md', 'sources/acme/q3/README.md'],
     )
     const page = (path: string, waiting = false) => ({ path, waiting })
     expect(groups).toEqual([
-      { root: 'sources/acme/README.md', pages: [page('sources/acme/a.md')] },
-      { root: 'sources/acme/q3/README.md', pages: [page('sources/acme/q3/b.md')] },
+      { root: 'sources/acme/README.md', pages: [page('sources/acme/README.md'), page('sources/acme/a.md')] },
+      { root: 'sources/acme/q3/README.md', pages: [page('sources/acme/q3/README.md'), page('sources/acme/q3/b.md')] },
       { root: null, pages: [page('sources/Lone memo.md'), page('sources/acme-other/c.md')] },
     ])
     expect(heldGroups([], [])).toEqual([])
-    // A root with nothing held under it is no group; a counted page is marked.
-    expect(heldGroups(['sources/x/README.md', 'sources/y/a.md'], ['sources/x/README.md', 'sources/y/README.md'], new Set(['sources/y/a.md'])))
-      .toEqual([{ root: 'sources/y/README.md', pages: [page('sources/y/a.md', true)] }])
+    // A root holding no held page is no group; a root held alone is one; a counted page is marked.
+    expect(heldGroups(['sources/x/README.md', 'sources/y/a.md'], ['sources/x/README.md', 'sources/y/README.md', 'sources/z/README.md'], new Set(['sources/y/a.md'])))
+      .toEqual([{ root: 'sources/x/README.md', pages: [page('sources/x/README.md')] }, { root: 'sources/y/README.md', pages: [page('sources/y/a.md', true)] }])
   })
   it('says what the sweep did to the message pressed, and counts the others', () => {
     const m = msg()
@@ -88,6 +88,8 @@ describe('inbox answers into the model', () => {
     expect(doneWords(msg())).toBe('Done sends your answer to improve')
     expect(doneWords(msg({ replyTo: null }))).toBe('Done removes it')
     expect(doneWords(msg({ replyTo: null }), true)).toBe('Done archives your answer')
+    expect(doneWords(msg({ replyTo: null }), true, false)).toBe('Done deletes your answer: this CLI cannot archive it')
+    expect(doneWords(msg({ replyTo: null }), false, false)).toBe('Done removes it')
     expect(doneWords(msg({ replyTo: null, jobAsk: true, job: 'inbox-joe' }), true)).toBe('Done answers job inbox-joe: it picks the answer up next run')
     expect(doneWords(msg({ replyTo: null, jobAsk: true }))).toBe('Done answers the job: it picks the answer up next run')
   })
@@ -106,6 +108,10 @@ describe('inbox answers into the model', () => {
       ['inbox:needs-you', '3 things wait on your judgment', 'warn'],
     ])
     expect(rows[0]?.detail).toBe('“Pull the Promotions tab?”, “Second”')
+    // With the breakdown, the detail names only the kinds there are.
+    const parts = { held: [], curate: [{ reason: 'draft', directory: 's/n' }], conflicts: [] }
+    expect(inboxAttention([], 2, parts, [{ job: 'j', reason: 'r', next: 'n' }])[0]?.detail).toBe('1 blocked job, 1 group of new pages.')
+    expect(inboxAttention([], 2, { ...parts, curate: [], held: [{ path: 'a', id: 'a' }, { path: 'b', id: 'b' }] })[0]?.detail).toBe('2 held sources; held sources and conflicts are answered with /brain:ingest.')
     expect(rows.every((r) => r.action?.kind === 'goto' && r.action.tab === 'inbox')).toBe(true)
   })
 })
@@ -172,7 +178,7 @@ describe('takeSnapshot: the inbox and what needs you', () => {
     expect(snap.errors).toEqual({})
     expect(snap.inboxDone).toBe(true)
     expect(snap.held).toEqual([
-      { root: 'sources/acme/README.md', pages: [{ path: 'sources/acme/a.md', waiting: true }, { path: 'sources/acme/b.md', waiting: false }] },
+      { root: 'sources/acme/README.md', pages: [{ path: 'sources/acme/README.md', waiting: false }, { path: 'sources/acme/a.md', waiting: true }, { path: 'sources/acme/b.md', waiting: false }] },
       { root: null, pages: [{ path: 'sources/memo.md', waiting: false }] },
     ])
     expect(snap.blocked.map((b) => b.job)).toEqual(['inbox-joe'])
@@ -198,12 +204,15 @@ describe('takeSnapshot: the inbox and what needs you', () => {
 })
 
 /** A vault holding one message, the note open in an editor, and the writes made, in order. */
-function fakeApp(path: string, opts: { tickFails?: boolean } = {}) {
+function fakeApp(path: string, opts: { tickFails?: boolean; body?: string } = {}) {
   const did: string[] = []
   const fm: Record<string, unknown> = { done: false }
   const view = Object.assign(Object.create(MarkdownView.prototype) as object, { file: { path }, save: () => { did.push('save'); return Promise.resolve() } })
   const app = {
-    vault: { getAbstractFileByPath: (p: string) => (p === path ? new TFile() : null) },
+    vault: {
+      getAbstractFileByPath: (p: string) => (p === path ? new TFile() : null),
+      read: () => Promise.resolve(`---\ndone: false\n---\n${opts.body ?? 'Which one?\n'}`),
+    },
     workspace: { getLeavesOfType: () => [{ view }] },
     fileManager: {
       processFrontMatter: (_f: unknown, fn: (x: Record<string, unknown>) => void) => {
@@ -226,15 +235,31 @@ describe('Done', () => {
   it('saves the open note, then one `inboxes done`: the answer typed there goes with it, and nothing is ticked by hand', async () => {
     for (const m of [msg(), msg({ replyTo: null }), msg({ replyTo: null, jobAsk: true, job: 'inbox-joe' })]) {
       const { app, actions, did } = fakeApp(m.path)
-      expect(await closeMessage(app, actions, m, true)).toEqual({ ok: true, message: 'closed' })
+      expect(await closeMessage(app, actions, m, true, { baseline: 'Which one?\n' })).toEqual({ ok: true, message: 'closed' })
       expect(did).toEqual(['save', `done user ${m.id}`])
     }
   })
-  it('after Reply, Done tells the CLI the body holds an answer, so one with nowhere to go is archived', async () => {
+  it('a saved body that differs from what the CLI read is an answer: --answered, wherever it was typed', async () => {
     const m = msg({ replyTo: null })
-    const { app, actions, did } = fakeApp(m.path)
-    await closeMessage(app, actions, m, true, true)
-    expect(did).toEqual(['save', `done user ${m.id} --answered`])
+    const typed = fakeApp(m.path, { body: 'Which one?\n\nThe blue one.\n' })
+    await closeMessage(typed.app, typed.actions, m, true, { baseline: 'Which one?\n' })
+    expect(typed.did).toEqual(['save', `done user ${m.id} --answered`])
+    // No baseline to tell by: the CLI is told an answer may be there, so nothing typed is deleted.
+    const unknown = fakeApp(m.path)
+    await closeMessage(unknown.app, unknown.actions, m, true)
+    expect(unknown.did).toEqual(['save', `done user ${m.id} --answered`])
+  })
+  it('an older CLI asks before `inboxes rm` deletes a typed answer, and keeps the message on no', async () => {
+    const m = msg({ replyTo: null })
+    const asked: string[] = []
+    const no = fakeApp(m.path, { body: 'Which one?\nMine.\n' })
+    const out = await closeMessage(no.app, no.actions, m, false, { baseline: 'Which one?\n', confirmDelete: () => { asked.push('ask'); return Promise.resolve(false) } })
+    expect(out.ok).toBe(false)
+    expect(no.did).toEqual(['save'])
+    const yes = fakeApp(m.path, { body: 'Which one?\nMine.\n' })
+    await closeMessage(yes.app, yes.actions, m, false, { baseline: 'Which one?\n', confirmDelete: () => { asked.push('ask'); return Promise.resolve(true) } })
+    expect(yes.did).toEqual(['save', `rm ${m.id}`])
+    expect(asked).toEqual(['ask', 'ask'])
   })
   it('an older CLI, with a reply_to: saves the open note, ticks done, then sweeps', async () => {
     const m = msg()
@@ -248,10 +273,10 @@ describe('Done', () => {
     await closeMessage(app, actions, m, false)
     expect(did).toEqual(['save', 'sweep user'])
   })
-  it('an older CLI, with nowhere to send an answer: the note saved, then one `inboxes rm`, no tick', async () => {
+  it('an older CLI, with nowhere to send an answer and none typed: the note saved, then one `inboxes rm`, no tick, no question', async () => {
     const m = msg({ replyTo: null })
     const { app, actions, did } = fakeApp(m.path)
-    await closeMessage(app, actions, m, false)
+    await closeMessage(app, actions, m, false, { baseline: 'Which one?\n', confirmDelete: () => Promise.reject(new Error('asked')) })
     expect(did).toEqual(['save', `rm ${m.id}`])
   })
   it('a tick that fails sweeps nothing', async () => {

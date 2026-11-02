@@ -3,7 +3,8 @@ import { slash } from '../../chat/skills'
 import { button, empty, relativeTime, section } from '../../ui/dom'
 import { setBox } from '../../vault/pages'
 import type { Actions, Outcome } from '../../wiki/actions'
-import { doneWords, type InboxReadAnswer } from '../../wiki/inbox'
+import { answerTyped, doneWords, type InboxReadAnswer } from '../../wiki/inbox'
+import { confirm } from '../../ui/modals'
 import type { BlockedJob, HeldGroup, InboxMessage, NeedsYouParts } from '../../wiki/model'
 import type { TabContext } from './index'
 
@@ -18,16 +19,37 @@ async function saveOpen(app: App, path: string): Promise<void> {
   }
 }
 
+const FRONTMATTER = /^---\n[\s\S]*?\n---\n?/
+
+/** The note's body as the vault holds it now, or null when the file is not there. */
+async function bodyNow(app: App, path: string): Promise<string | null> {
+  const file = app.vault.getAbstractFileByPath(path)
+  return file instanceof TFile ? (await app.vault.read(file)).replace(FRONTMATTER, '') : null
+}
+
+export interface DoneOptions {
+  /** The body before any answer: as `inboxes read` answered it, else as this view first saw the note; null when unknown. */
+  baseline?: string | null
+  /** Asked before an older CLI deletes a typed answer; false keeps the message. */
+  confirmDelete?: () => Promise<boolean>
+}
+
 /**
  * Done, the way the inbox means it: the open editor saved, then `inboxes done`, which closes that one message with
- * the answer the body now holds (a job ask is ticked and left for its job). An older CLI has no such verb: there the
- * message is ticked `done` as the property editor would and `inboxes sweep` sends it, or, with no `reply_to`,
- * `inboxes rm` removes it, answer and all.
+ * the answer the body now holds; `--answered` when the body differs from the baseline, or when there is none to tell,
+ * so a typed answer is archived, never deleted (a job ask is ticked and left for its job). An older CLI has no such
+ * verb: there the message is ticked `done` as the property editor would and `inboxes sweep` sends it, or, with no
+ * `reply_to`, `inboxes rm` deletes it, after asking when an answer may be in it.
  */
-export async function closeMessage(app: App, actions: Actions, m: InboxMessage, inboxDone: boolean, typed = false): Promise<Outcome> {
+export async function closeMessage(app: App, actions: Actions, m: InboxMessage, inboxDone: boolean, opts: DoneOptions = {}): Promise<Outcome> {
   await saveOpen(app, m.path)
-  if (inboxDone) return actions.doneMessage(m, typed)
-  if (!m.replyTo) return actions.removeMessage(m)
+  const now = await bodyNow(app, m.path)
+  const typed = opts.baseline == null || now === null ? null : answerTyped(now, opts.baseline)
+  if (inboxDone) return actions.doneMessage(m, typed !== false)
+  if (!m.replyTo) {
+    if (typed !== false && opts.confirmDelete && !(await opts.confirmDelete())) return { ok: false, message: `Nothing changed: “${m.subject}” keeps your answer` }
+    return actions.removeMessage(m)
+  }
   if (!m.done) {
     const ticked = await setBox(app, m.path, DONE, true)
     if (!ticked.ok) return ticked
@@ -43,6 +65,7 @@ async function reply(ctx: TabContext, m: InboxMessage): Promise<void> {
     new Notice(`${m.path} is not in the vault yet; refresh and try again`)
     return
   }
+  await seeBaseline(ctx, m)
   const leaf = app.workspace.getLeaf('tab')
   await leaf.openFile(file, { active: true, state: { mode: 'source' } })
   const view = leaf.view
@@ -54,13 +77,39 @@ async function reply(ctx: TabContext, m: InboxMessage): Promise<void> {
   }
   replied(ctx).add(m.id)
   ctx.redraw()
-  new Notice(`Write your answer under the message, then press Done. ${doneWords(m, true)}.`, 6000)
+  new Notice(`Write your answer under the message, then press Done. ${doneWords(m, true, ctx.snapshot.inboxDone)}.`, 6000)
   void markRead(ctx, m)
 }
 
-/** The messages Reply opened for an answer in this view: Done tells the CLI the body holds one, so it is never deleted. */
+/** The messages Reply opened for an answer in this view: the row says what Done does to an answer. */
 function replied(ctx: TabContext): Set<string> {
   return (ctx.memo['inbox.replied'] ??= new Set<string>()) as Set<string>
+}
+
+function baselines(ctx: TabContext): Record<string, string> {
+  return (ctx.memo['inbox.baselines'] ??= {}) as Record<string, string>
+}
+
+/** The body before any answer: what `inboxes read` answered, else the note as this view first saw it. */
+function baselineOf(ctx: TabContext, m: InboxMessage): string | null {
+  const read = (ctx.memo['inbox.reads'] as Record<string, InboxReadAnswer> | undefined)?.[readKey(m)]
+  return read?.body ?? baselines(ctx)[readKey(m)] ?? null
+}
+
+/** Note the body of a message this view has not seen yet, before anyone types into it. */
+async function seeBaseline(ctx: TabContext, m: InboxMessage): Promise<void> {
+  const key = readKey(m)
+  if (baselines(ctx)[key] !== undefined) return
+  const body = await bodyNow(ctx.plugin.app, m.path)
+  if (body !== null) baselines(ctx)[key] ??= body
+}
+
+/** Done from the dashboard: the baseline this view holds, and a confirmation before an older CLI deletes an answer. */
+export function doneFromView(ctx: TabContext, actions: Actions, m: InboxMessage): Promise<Outcome> {
+  return closeMessage(ctx.plugin.app, actions, m, ctx.snapshot.inboxDone, {
+    baseline: baselineOf(ctx, m),
+    confirmDelete: () => confirm(ctx.plugin.app, { title: `Delete “${m.subject}”?`, body: 'This CLI cannot archive a message: Done deletes it, and anything you typed in it. Update llm-wiki to keep answers.', cta: 'Delete' }),
+  })
 }
 
 function readKey(m: InboxMessage): string {
@@ -98,7 +147,10 @@ export function renderInbox(root: HTMLElement, ctx: TabContext): void {
   const messages = section(root, 'Messages', { count: open.length })
   if (snapshot.inbox === null) empty(messages, 'The inbox could not be read.', 'The notice above says why.')
   else if (!all.length) empty(messages, 'No messages.', 'When a skill or an agent asks you something, it lands here.')
-  for (const m of open) messageRow(messages, m, ctx)
+  for (const m of open) {
+    void seeBaseline(ctx, m)
+    messageRow(messages, m, ctx)
+  }
   answeredRows(messages, answered, ctx)
   judgment(root, ctx)
   heldElsewhere(root, ctx)
@@ -129,7 +181,7 @@ function messageRow(parent: HTMLElement, m: InboxMessage, ctx: TabContext): void
   const main = row.createDiv({ cls: 'llm-wiki-row-main' })
   main.createDiv({ cls: 'llm-wiki-row-title', text: m.subject })
   const typed = replied(ctx).has(m.id)
-  const where = doneWords(m, typed)
+  const where = doneWords(m, typed, ctx.snapshot.inboxDone)
   main.createDiv({ cls: 'llm-wiki-row-detail', text: [relativeTime(m.at), m.readable ? where : 'Unreadable: open the note to see why'].filter(Boolean).join(' · ') })
   row.addEventListener('click', () => {
     ctx.memo['inbox.open'] = expanded ? undefined : m.id
@@ -138,7 +190,7 @@ function messageRow(parent: HTMLElement, m: InboxMessage, ctx: TabContext): void
   const bar = row.createDiv({ cls: 'llm-wiki-row-actions' })
   button(bar, 'Reply', () => reply(ctx, m), { icon: 'reply', title: 'Open the message and write your answer under it' })
   const actions = ctx.plugin.actions
-  if (actions) button(bar, 'Done', () => ctx.write(() => closeMessage(ctx.plugin.app, actions, m, ctx.snapshot.inboxDone, typed)), { icon: 'check', cta: true, title: where })
+  if (actions) button(bar, 'Done', () => ctx.write(() => doneFromView(ctx, actions, m)), { icon: 'check', cta: true, title: where })
   button(bar, '', () => chatAbout(ctx, m), { icon: 'message-square', title: 'Chat about this' })
   if (expanded) void body(wrap.createDiv({ cls: 'llm-wiki-message-body' }), m, ctx)
 }

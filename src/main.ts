@@ -8,7 +8,7 @@ import { DEFAULT_SETTINGS, LlmWikiSettingTab, type LlmWikiSettings } from './set
 import { DashboardView, VIEW_DASHBOARD, type Tab } from './views/dashboard/index'
 import { closeMessage } from './views/dashboard/inbox'
 import { nextText } from './views/dashboard/jobs'
-import { promptText } from './ui/modals'
+import { confirm, promptText } from './ui/modals'
 import { openCredentialModal, type CredentialPrompt } from './ui/credentialModal'
 import { Actions } from './wiki/actions'
 import { messageAt } from './wiki/inbox'
@@ -93,7 +93,10 @@ export default class LlmWikiPlugin extends Plugin {
       const m = path ? messageAt(this.snapshot?.inbox ?? null, path) : undefined
       const actions = this.actions
       if (!m || !actions) return false
-      if (!checking) void closeMessage(this.app, actions, m, this.snapshot?.inboxDone ?? false, true).then((out) => {
+      if (!checking) void closeMessage(this.app, actions, m, this.snapshot?.inboxDone ?? false, {
+        // From the note itself there is no baseline: the CLI is told an answer may be in it, and an older one asks first.
+        confirmDelete: () => confirm(this.app, { title: `Delete “${m.subject}”?`, body: 'This CLI cannot archive a message: Done deletes it, and anything you typed in it.', cta: 'Delete' }),
+      }).then((out) => {
         new Notice(out.message, out.ok ? 4000 : 8000)
         void this.refreshSnapshot()
       })

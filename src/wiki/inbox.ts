@@ -103,15 +103,14 @@ function dirOf(path: string): string {
 }
 
 /**
- * The held pages under the nearest root above each, the way the bundle levers inherit; a root's own page heads its
- * group and is not listed in it, and a root with nothing under it is left out. Pages under no root share one group,
- * last. `waiting` marks the pages the count waits on.
+ * The held pages under the nearest root above each, the way the bundle levers inherit; a root's own page sits in its
+ * own group, and a root holding no held page is left out. Pages under no root share one group, last. `waiting` marks
+ * the pages the count waits on.
  */
 export function heldGroups(pages: string[], roots: string[], waiting: ReadonlySet<string> = new Set()): HeldGroup[] {
   const rootDirs = roots.map((r) => ({ root: r, dir: dirOf(r) })).sort((a, b) => b.dir.length - a.dir.length)
   const groups = new Map<string | null, string[]>()
   for (const p of pages) {
-    if (roots.includes(p)) continue
     const key = rootDirs.find((r) => p.startsWith(`${r.dir}/`))?.root ?? null
     groups.set(key, [...(groups.get(key) ?? []), p])
   }
@@ -153,11 +152,24 @@ export function sweptSentence(a: SweptAnswer, m: Pick<InboxMessage, 'id' | 'subj
   return { ok: said.ok, message: `${said.message}${also}` }
 }
 
-/** What Done will do to this message, in the words a row and its button say. */
-export function doneWords(m: Pick<InboxMessage, 'replyTo' | 'job' | 'jobAsk'>, typed = false): string {
+/**
+ * What Done will do to this message, in the words a row and its button say. `typed`: an answer is in the body. An
+ * older CLI has no `inboxes done` and so no archive for it: there `inboxes rm` deletes what was typed.
+ */
+export function doneWords(m: Pick<InboxMessage, 'replyTo' | 'job' | 'jobAsk'>, typed = false, inboxDone = true): string {
   if (m.jobAsk) return `Done answers ${m.job ? `job ${m.job}` : 'the job'}: it picks the answer up next run`
   if (m.replyTo) return `Done sends your answer to ${m.replyTo}`
-  return typed ? 'Done archives your answer' : 'Done removes it'
+  if (!typed) return 'Done removes it'
+  return inboxDone ? 'Done archives your answer' : 'Done deletes your answer: this CLI cannot archive it'
+}
+
+/** Whether the body holds more than the CLI last read: an answer typed in, wherever it was typed. */
+export function answerTyped(now: string, read: string): boolean {
+  return now.trim() !== read.trim()
+}
+
+function plural(n: number, one: string, many: string): string {
+  return `${n} ${n === 1 ? one : many}`
 }
 
 /** What the inbox counts: messages to answer and the listed parts. Curate's groups are judged on Changes, so they are not. */
@@ -168,7 +180,7 @@ export function inboxCount(s: { inbox: InboxMessage[] | null; parts: NeedsYouPar
 }
 
 /** The Overview's rows for the inbox: one for the messages, one for what waits on a judgment. Both open the inbox. */
-export function inboxAttention(inbox: InboxMessage[] | null, needsYou: number | null): AttentionItem[] {
+export function inboxAttention(inbox: InboxMessage[] | null, needsYou: number | null, parts: NeedsYouParts | null = null, blocked: BlockedJob[] = []): AttentionItem[] {
   const out: AttentionItem[] = []
   const open = (inbox ?? []).filter((m) => !m.done)
   if (open.length) {
@@ -186,9 +198,23 @@ export function inboxAttention(inbox: InboxMessage[] | null, needsYou: number | 
       id: 'inbox:needs-you',
       severity: 'warn',
       title: needsYou === 1 ? '1 thing waits on your judgment' : `${needsYou} things wait on your judgment`,
-      detail: `Sources held for you, blocked jobs, groups of new pages curate left to you, open conflicts; most are answered with ${slash('ingest')}.`,
+      detail: judgmentDetail(parts, blocked),
       action: { kind: 'goto', tab: 'inbox', label: 'Open inbox' },
     })
   }
   return out
+}
+
+/** The kinds the count holds, named only when there are some; an older CLI lists none, so every kind is named. */
+function judgmentDetail(parts: NeedsYouParts | null, blocked: BlockedJob[]): string {
+  const ingest = slash('ingest')
+  if (!parts) return `Sources held for you, blocked jobs, groups of new pages curate left to you, open conflicts; most are answered with ${ingest}.`
+  const kinds = [
+    blocked.length ? plural(blocked.length, 'blocked job', 'blocked jobs') : '',
+    parts.held.length ? plural(parts.held.length, 'held source', 'held sources') : '',
+    parts.conflicts.length ? plural(parts.conflicts.length, 'conflict', 'conflicts') : '',
+    parts.curate.length ? plural(parts.curate.length, 'group of new pages', 'groups of new pages') : '',
+  ].filter(Boolean)
+  const viaIngest = parts.held.length + parts.conflicts.length > 0
+  return `${kinds.join(', ')}${viaIngest ? `; held sources and conflicts are answered with ${ingest}` : ''}.`
 }
