@@ -1,11 +1,16 @@
 // Against a real llm-wiki-cli and a scratch wiki: set LLM_WIKI_E2E_BIN and LLM_WIKI_E2E_VAULT, else skipped.
 // The sandboxed chat also spends model budget, so it runs only with LLM_WIKI_E2E_SANDBOX naming a read-only sandbox.
+import { spawn } from 'node:child_process'
+import { readFile, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { HarnessRunBackend } from '../src/chat/harnessRun'
 import type { ChatEvent, TurnContext } from '../src/chat/types'
 import { Cli, type SearchAnswer, type WikiRow } from '../src/wiki/cli'
 import { findBinary, matchWiki } from '../src/wiki/resolve'
 import { takeSnapshot } from '../src/wiki/snapshot'
+import { Actions } from '../src/wiki/actions'
+import { messagePath } from '../src/wiki/inbox'
 
 const bin = process.env.LLM_WIKI_E2E_BIN
 const vault = process.env.LLM_WIKI_E2E_VAULT
@@ -94,4 +99,50 @@ describe.skipIf(!bin || !vault || !sandbox)('the sandboxed chat against a real C
       backend.close()
     }
   }, 240_000)
+})
+
+// The inbox against a real CLI: LLM_WIKI_E2E_INBOX names a scratch wiki's key. It writes messages there and closes them.
+const inboxKey = process.env.LLM_WIKI_E2E_INBOX
+
+describe.skipIf(!bin || !inboxKey)('the inbox against a real CLI', () => {
+  const cli = () => new Cli({ bin: bin!, env: { ...process.env }, timeoutMs: 30_000 })
+  const send = (subject: string, body: string, replyTo?: string) =>
+    new Promise<string>((resolve, reject) => {
+      const child = spawn(bin!, ['wiki', inboxKey!, 'inboxes', 'write', 'user', `subject=${subject}`, ...(replyTo ? [`reply_to=${replyTo}`] : []), '--json'], { env: process.env })
+      let out = ''
+      child.stdout.on('data', (d: Buffer) => (out += d.toString()))
+      child.on('close', (rc) => (rc === 0 ? resolve((JSON.parse(out) as { id: string }).id) : reject(new Error(out))))
+      child.stdin.end(body)
+    })
+
+  it('lists a message, reads it, and Done sends the answer to its reply_to', async () => {
+    const stamp = Date.now().toString(36)
+    const id = await send(`e2e question ${stamp}`, 'Should the job pull the Promotions tab?', 'improve')
+    const plain = await send(`e2e notice ${stamp}`, 'FYI only.')
+    const snap = await takeSnapshot(cli(), inboxKey!)
+    expect(Object.keys(snap.errors).filter((k) => k.includes('inboxes') || k.includes('whereami') || k.includes('held'))).toEqual([])
+    expect(typeof snap.needsYou).toBe('number')
+    const m = snap.inbox?.find((x) => x.id === id)
+    expect(m).toMatchObject({ inbox: 'user', replyTo: 'improve', done: false, seen: false })
+    expect(snap.attention.some((a) => a.id === 'inbox:user')).toBe(true)
+
+    const actions = new Actions(cli(), inboxKey!)
+    const read = await actions.readMessage(m!)
+    expect(read.read?.body).toContain('Promotions tab')
+    expect((await takeSnapshot(cli(), inboxKey!)).inbox?.find((x) => x.id === id)?.seen).toBe(true)
+
+    // A person's answer and tick, as Obsidian's property editor writes them; the CLI sweeps it on.
+    const wikis = await cli().run<{ wikis: WikiRow[] }>('machine.wikis.ls')
+    const root = wikis.wikis.find((w) => w.key === inboxKey)!.path
+    const file = join(root, messagePath(m!))
+    await writeFile(file, (await readFile(file, 'utf8')).replace(/^done: false$/m, 'done: true') + '\nYes, and tag them newsletter.\n')
+    const swept = await actions.sweepInbox(m!)
+    expect(swept).toMatchObject({ ok: true })
+    expect(swept.message).toMatch(/your answer went to improve/)
+
+    const n = (await takeSnapshot(cli(), inboxKey!)).inbox?.find((x) => x.id === plain)
+    expect(await actions.removeMessage(n!)).toMatchObject({ ok: true })
+    const after = await takeSnapshot(cli(), inboxKey!)
+    expect(after.inbox?.some((x) => x.id === id || x.id === plain)).toBe(false)
+  }, 60_000)
 })

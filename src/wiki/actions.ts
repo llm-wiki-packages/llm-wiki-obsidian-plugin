@@ -2,6 +2,8 @@
 import type { Cli } from './cli'
 import { CliError } from './cli'
 import { layerWords, type ConfigWritten, type Layer } from './config'
+import { sweptSentence, type InboxReadAnswer, type SweptAnswer } from './inbox'
+import type { InboxMessage } from './model'
 
 export interface Outcome {
   ok: boolean
@@ -103,6 +105,35 @@ export class Actions {
       return { ok: true, message: `ticket ${id} back to pending` }
     } catch (e) {
       return failed(`could not retry ${id}`, e)
+    }
+  }
+
+  /** The message whole, and this machine's read marker dropped: opening a message is reading it. */
+  async readMessage(m: Pick<InboxMessage, 'inbox' | 'id' | 'subject'>): Promise<Outcome & { read?: InboxReadAnswer }> {
+    try {
+      const read = await this.cli.run<InboxReadAnswer>('wiki.inboxes.read', { wiki: this.wiki, name: m.inbox, id: m.id })
+      return { ok: true, message: `read “${m.subject}”`, read }
+    } catch (e) {
+      return failed(`could not read “${m.subject}”`, e)
+    }
+  }
+
+  /** A message with nowhere to send an answer: removed (or archived, where the wiki keeps them), as the sweep would. */
+  async removeMessage(m: Pick<InboxMessage, 'inbox' | 'id' | 'subject'>): Promise<Outcome> {
+    try {
+      await this.cli.run('wiki.inboxes.rm', { wiki: this.wiki, name: m.inbox, id: m.id })
+      return { ok: true, message: `“${m.subject}” is done` }
+    } catch (e) {
+      return failed(`could not close “${m.subject}”`, e)
+    }
+  }
+
+  /** Close out every message ticked `done`, this one among them: an answer goes to its `reply_to`, then the message leaves. */
+  async sweepInbox(m: Pick<InboxMessage, 'inbox' | 'id' | 'subject'>): Promise<Outcome> {
+    try {
+      return sweptSentence(await this.cli.run<SweptAnswer>('wiki.inboxes.sweep', { wiki: this.wiki, name: m.inbox }), m)
+    } catch (e) {
+      return failed(`could not close “${m.subject}”`, e)
     }
   }
 

@@ -518,3 +518,10 @@ body.llm-wiki-tidy-props .metadata-container:not(.is-llm-wiki-open) .metadata-pr
 .llm-wiki-report-latest .llm-wiki-row-actions { margin-top: var(--size-2-2); }
 .llm-wiki-report-day { flex: none; width: 8.5em; font-size: var(--font-ui-small); color: var(--text-muted); }
 .llm-wiki-report-summary { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: normal; }
+
+/* Inbox: a new message reads bold beside an accent dot; an open one shows its body under the row. */
+.llm-wiki-dot.is-new { background: var(--interactive-accent); }
+.llm-wiki-message.is-new .llm-wiki-row-title { font-weight: var(--font-bold); }
+.llm-wiki-message.is-open > .llm-wiki-row { border-bottom: none; }
+.llm-wiki-message-body { padding: 0 0 var(--size-4-3) calc(0.6em + var(--size-4-3)); border-bottom: 1px solid var(--background-modifier-border); user-select: text; }
+.llm-wiki-message-body .markdown-rendered { margin-top: var(--size-4-2); }

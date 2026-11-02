@@ -14,6 +14,8 @@ export type Action =
   /** Open the credential dialog: for an empty slot (bind on save), or to replace `name`; `retry` is a parked ticket to retry after. */
   | { kind: 'credential'; skill: string; slot: string; name?: string; retry?: string; job?: string }
   | { kind: 'inspect'; skill: string }
+  /** Open a dashboard tab: the Overview's way into the inbox. */
+  | { kind: 'goto'; tab: 'inbox'; label?: string }
 
 export interface AttentionItem {
   id: string
@@ -199,6 +201,29 @@ export interface Commit {
   revision?: number | null
 }
 
+/** One message in an inbox, as `inboxes ls <inbox> --all` lists it. */
+export interface InboxMessage {
+  inbox: string
+  id: string
+  subject: string
+  at: string | null
+  /** This machine has read it: the CLI's `state` reads `seen <when>` rather than `new`. */
+  seen: boolean
+  /** Ticked `done`, waiting for `inboxes sweep` to close it out. */
+  done: boolean
+  /** The inbox the sweep forwards the answered message to; null means Done simply removes it. */
+  replyTo: string | null
+  /** The message this one answers, when it is a forwarded reply. */
+  inReplyTo: string | null
+  readable: boolean
+}
+
+/** The held `sources/` pages under one bundle root, or the ones no root holds (`root` null). */
+export interface HeldGroup {
+  root: string | null
+  pages: string[]
+}
+
 export interface RecentRun {
   op: string
   /** The job the run was about, when the summary names one. */
@@ -236,6 +261,17 @@ export interface Snapshot {
   sync: SyncState | null
   /** How the search index stands; null when it could not be read. */
   search: SearchStatus | null
+  /** The `user` inbox: what a skill or an agent asked a person, oldest first; null when it could not be read. */
+  inbox: InboxMessage[] | null
+  /**
+   * `whereami`'s `needs_you`: held sources with an open record, the groups curate leaves to a person, and open
+   * conflicts, all answered with `/ingest`. Null when the CLI could not count, or predates the count.
+   */
+  needsYou: number | null
+  /** The held sources by bundle root, as wiki-report lists them; read only while the count is above zero. */
+  held: HeldGroup[] | null
+  /** The open `conflicts` records; read only while the count is above zero. */
+  conflicts: InboxMessage[] | null
   /** Reads that failed, by verb, so a half-empty dashboard says why. */
   errors: Record<string, string>
 }

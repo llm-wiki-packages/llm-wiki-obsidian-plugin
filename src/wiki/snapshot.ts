@@ -7,6 +7,7 @@ import { slotWords } from './slots'
 import type { AttentionItem, Commit, CommitFile, CredentialView, JobView, MachineView, PageItem, PageState, PipelineView, RecentRun, SearchStatus, SkillView, SlotView, Snapshot, SyncState, TicketView, UnsavedFile } from './model'
 import { isFeed } from './layout'
 import { slash } from '../chat/skills'
+import { heldGroups, inboxAttention, messageOf, USER_INBOX, type InboxLsAnswer } from './inbox'
 
 /** What the builder needs of a Cli, so a test can hand it fixtures. */
 export interface Reader {
@@ -94,6 +95,10 @@ export interface OpSinceAnswer {
 }
 /** `search status`, kept whole on the snapshot for the Search tab. */
 export type SearchStatusAnswer = SearchStatus
+/** `whereami`'s `needs_you`: an int, or null when the count could not be read; absent from a CLI before it. */
+export interface WhereamiAnswer {
+  needs_you?: number | null
+}
 export interface RunnerLsAnswer {
   wikis?: { wiki_key: string; installed: object | null }[]
 }
@@ -184,7 +189,7 @@ export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now(
   }
   const light = previous !== undefined
   const skip = <T>(): Promise<T | null> => Promise.resolve(null)
-  const [doctor, jobsLs, due, tickets, pages, ops, search, conflicts, status, gitLog, gitStatus, runnerLs, skillsLs, skillsDoctor, packagesLs, credentialsLs, bindings] = await Promise.all([
+  const [doctor, jobsLs, due, tickets, pages, ops, search, conflicts, status, gitLog, gitStatus, whereami, userInbox, runnerLs, skillsLs, skillsDoctor, packagesLs, credentialsLs, bindings] = await Promise.all([
     soft<DoctorAnswer>('wiki.doctor'),
     soft<JobsLsAnswer>('wiki.jobs.ls'),
     soft<JobsDueAnswer>('wiki.jobs.due'),
@@ -196,6 +201,8 @@ export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now(
     soft<StatusAnswer>('wiki.status'),
     soft<GitLogAnswer>('wiki.git.log', { since: '7d' }),
     soft<GitStatusAnswer>('wiki.git.status'),
+    soft<WhereamiAnswer>('wiki.whereami'),
+    soft<InboxLsAnswer>('wiki.inboxes.ls', { name: USER_INBOX }),
     light ? skip<RunnerLsAnswer>() : soft<RunnerLsAnswer>('machine.runner.ls'),
     light ? skip<SkillsLsAnswer>() : soft<SkillsLsAnswer>('wiki.skills.ls'),
     light ? skip<SkillsDoctorAnswer>() : soft<SkillsDoctorAnswer>('wiki.skills.doctor'),
@@ -208,6 +215,15 @@ export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now(
   const listed = skillsLs?.skills ?? []
   const modes = hasModes(listed)
   const skillRows = listed.filter((r) => !r.name.startsWith(PLUGIN_PREFIX))
+  // What the count is made of, read only while it is above zero, so a quiet wiki pays nothing for it.
+  const needsYou = typeof whereami?.needs_you === 'number' ? whereami.needs_you : null
+  const [heldPages, heldRoots, conflictRecords] = needsYou
+    ? await Promise.all([
+      soft<{ pages?: PageRow[] }>('wiki.page.held'),
+      soft<{ pages?: PageRow[] }>('wiki.page.heldRoots'),
+      soft<InboxLsAnswer>('wiki.inboxes.ls', { name: 'conflicts' }),
+    ])
+    : [null, null, null]
   const [shown, packages] = await Promise.all([
     Promise.all(skillRows.map((r) => soft<SkillsLsAnswer>('wiki.skills.show', { name: r.name }).then((a) => ({ ...(a?.skills?.[0] ?? r), ...manifestKeys(r) })))),
     Promise.all((packagesLs?.this_wiki ?? []).map((p) => soft<PackagesShowAnswer>('wiki.packages.show', { name: p.package }).then((a) => ({ name: p.package, answer: a })))),
@@ -255,13 +271,12 @@ export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now(
     ? previous.pipeline.map((p) => ({ ...p, jobs: jobRows.filter((j) => j.skill === p.name).map((j) => j.slug) }))
     : pipelineViews(listed, modes, skills, jobRows)
   const jobs = jobRows.map((j) => jobView(j, ticketRows, now, skills))
-  const attention = attentionItems({ doctor, due, jobsLs, jobs, skills, skillsDoctor, search, conflicts: conflicts?.pages ?? [], ticketRows })
+  const inbox = userInbox === null ? null : (userInbox.messages ?? []).map((r) => messageOf(USER_INBOX, r)).sort((a, b) => (a.at ?? '').localeCompare(b.at ?? ''))
+  const attention = [...inboxAttention(inbox, needsYou), ...attentionItems({ doctor, due, jobsLs, jobs, skills, skillsDoctor, search, conflicts: conflicts?.pages ?? [], ticketRows })]
   // The skills doctor was not re-read on a light pass; its findings stand until the next full one, so the count does not flicker.
-  if (previous) {
-    for (const a of previous.attention) if (a.id.startsWith('skill:') && !attention.some((x) => x.id === a.id)) attention.push(a)
-    const rank = { error: 0, warn: 1, info: 2 }
-    attention.sort((a, b) => rank[a.severity] - rank[b.severity])
-  }
+  if (previous) for (const a of previous.attention) if (a.id.startsWith('skill:') && !attention.some((x) => x.id === a.id)) attention.push(a)
+  const rank = { error: 0, warn: 1, info: 2 }
+  attention.sort((a, b) => rank[a.severity] - rank[b.severity])
   const runner = previous ? previous.runner : (runnerLs?.wikis ?? []).some((w) => w.wiki_key === wikiKey && w.installed !== null)
   const pageRows = pages?.pages ?? []
   const errors_ = attention.filter((a) => a.severity === 'error').length
@@ -287,6 +302,10 @@ export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now(
     fleet: fleetOf(status),
     sync: syncOf(status, gitStatus),
     search,
+    inbox,
+    needsYou,
+    held: heldPages && heldRoots ? heldGroups((heldPages.pages ?? []).map((p) => p.path), (heldRoots.pages ?? []).map((p) => p.path)) : null,
+    conflicts: conflictRecords ? (conflictRecords.messages ?? []).map((r) => messageOf('conflicts', r)) : null,
     errors,
   }
 }

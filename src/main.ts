@@ -6,10 +6,12 @@ import type { BackendKind, ChatBackend, ModelChoice, WikiTarget } from './chat/t
 import { log } from './logger'
 import { DEFAULT_SETTINGS, LlmWikiSettingTab, type LlmWikiSettings } from './settings'
 import { DashboardView, VIEW_DASHBOARD, type Tab } from './views/dashboard/index'
+import { closeMessage } from './views/dashboard/inbox'
 import { nextText } from './views/dashboard/jobs'
 import { promptText } from './ui/modals'
 import { openCredentialModal, type CredentialPrompt } from './ui/credentialModal'
 import { Actions } from './wiki/actions'
+import { messageAt } from './wiki/inbox'
 import { Cli, type WikiRow } from './wiki/cli'
 import type { JobView, Snapshot } from './wiki/model'
 import { takeSnapshot } from './wiki/snapshot'
@@ -85,6 +87,18 @@ export default class LlmWikiPlugin extends Plugin {
     this.addCommand({ id: 'refresh', name: 'Refresh the dashboard', callback: () => void this.refreshSnapshot() })
     this.addCommand({ id: 'open-changes', name: 'Open changes', callback: () => void this.openDashboard('changes') })
     this.addCommand({ id: 'open-reports', name: 'Open reports', callback: () => void this.openDashboard('reports') })
+    this.addCommand({ id: 'open-inbox', name: 'Open the inbox', callback: () => void this.openDashboard('inbox') })
+    this.addCommand({ id: 'inbox-done', name: 'Done with this message: send the answer, close it', checkCallback: (checking) => {
+      const path = this.app.workspace.getActiveFile()?.path
+      const m = path ? messageAt(this.snapshot?.inbox ?? null, path) : undefined
+      const actions = this.actions
+      if (!m || !actions) return false
+      if (!checking) void closeMessage(this.app, actions, m).then((out) => {
+        new Notice(out.message, out.ok ? 4000 : 8000)
+        void this.refreshSnapshot()
+      })
+      return true
+    } })
     this.addCommand({ id: 'open-latest-report', name: 'Open the latest report', callback: () => this.openLatestReport() })
     this.addCommand({ id: 'open-report-brief', name: 'Open this report’s brief', checkCallback: (checking) => {
       const file = this.app.workspace.getActiveFile()

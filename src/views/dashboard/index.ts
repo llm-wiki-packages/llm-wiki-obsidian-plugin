@@ -5,6 +5,7 @@ import type { Action, Snapshot } from '../../wiki/model'
 import { renderConfig } from './config'
 import { renderCredentials } from './credentials'
 import { renderChanges } from './changes'
+import { renderInbox } from './inbox'
 import { renderJobs } from './jobs'
 import { renderOverview } from './overview'
 import { renderReports } from './reports'
@@ -18,12 +19,13 @@ import type { JobView } from '../../wiki/model'
 
 export const VIEW_DASHBOARD = 'llm-wiki-dashboard'
 
-export type Tab = 'overview' | 'reports' | 'changes' | 'jobs' | 'skills' | 'credentials' | 'config' | 'search' | 'chat'
+export type Tab = 'overview' | 'inbox' | 'reports' | 'changes' | 'jobs' | 'skills' | 'credentials' | 'config' | 'search' | 'chat'
 /** What a person reaches for every day, in the first row. */
 const TABS: { id: Tab; label: string }[] = [
   { id: 'chat', label: 'Chat' },
   { id: 'search', label: 'Search' },
   { id: 'overview', label: 'Overview' },
+  { id: 'inbox', label: 'Inbox' },
   { id: 'reports', label: 'Reports' },
   { id: 'changes', label: 'Changes' },
 ]
@@ -58,6 +60,7 @@ const READ_NAMES: Record<string, string> = {
   'wiki.op.since': 'recent runs', 'wiki.search.status': 'the search status', 'wiki.git.conflicts': 'conflicts', 'machine.runner.ls': 'the runner', 'wiki.skills.ls': 'the skills',
   'wiki.skills.doctor': 'the skills doctor', 'wiki.packages.ls': 'the packages', 'wiki.credentials.ls': 'the credentials', 'wiki.credentials.bindings': 'the credential bindings',
   'wiki.status': 'the sync state', 'wiki.git.log': 'the history', 'wiki.git.status': 'the unsaved files',
+  'wiki.whereami': 'what needs you', 'wiki.inboxes.ls': 'the inbox', 'wiki.page.held': 'the held sources', 'wiki.page.heldRoots': 'the bundle roots',
 }
 
 export class DashboardView extends ItemView {
@@ -219,6 +222,8 @@ export class DashboardView extends ItemView {
     const fresh = (snapshot.pages ?? []).filter((p) => p.state === 'new').length
     const changesTab = this.tabBar.querySelector<HTMLElement>('[data-tab="changes"]')
     if (changesTab) changesTab.setText(fresh ? `Changes · ${fresh}` : 'Changes')
+    const waiting = (snapshot.inbox ?? []).filter((m) => !m.done).length + (snapshot.needsYou ?? 0)
+    this.tabBar.querySelector<HTMLElement>('[data-tab="inbox"]')?.setText(waiting ? `Inbox · ${waiting}` : 'Inbox')
     this.healthPill.setText(snapshot.health.count ? `${snapshot.health.count} need you` : 'ok')
     this.healthPill.className = `llm-wiki-pill llm-wiki-pill-button is-${snapshot.health.tone}`
     const needs = snapshot.attention.filter((a) => a.severity !== 'info').map((a) => a.title)
@@ -256,6 +261,9 @@ export class DashboardView extends ItemView {
         break
       case 'reports':
         renderReports(this.panel, ctx)
+        break
+      case 'inbox':
+        renderInbox(this.panel, ctx)
         break
       case 'config':
         renderConfig(this.panel, ctx)
@@ -344,6 +352,9 @@ export class DashboardView extends ItemView {
         return
       case 'credential':
         this.plugin.credentialModal({ skill: action.skill, slot: action.slot, name: action.name, retry: action.retry, job: action.job })
+        return
+      case 'goto':
+        this.goTo(action.tab)
         return
       case 'inspect': {
         const s = this.plugin.snapshot?.skills.find((x) => x.name === action.skill)

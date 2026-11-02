@@ -116,6 +116,7 @@ export class ItemView extends Component {
 }
 
 export class FileView extends ItemView {}
+export class MarkdownView extends FileView {}
 export class Plugin { app = new App(); addCommand() {} }
 export class PluginSettingTab {}
 export class FileSystemAdapter {}

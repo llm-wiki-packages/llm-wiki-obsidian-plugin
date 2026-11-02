@@ -12,7 +12,7 @@ spawns local processes.
 
 One view, **Brain** (the brain icon in the ribbon, the status bar item, or
 *LLM Wiki Brain: Open dashboard*), opened as a tab in the main area; drag it into a
-side split to keep it beside a note. Chat, Search, Overview, Reports and Changes on
+side split to keep it beside a note. Chat, Search, Overview, Inbox, Reports and Changes on
 the left, the everyday tabs; **More** on the far right opens a second row
 with Jobs, Skills, Credentials and Config, for running the wiki, and reopens the one
 last used. A note opened from the view (a search hit, a
@@ -31,6 +31,14 @@ the gear opens the plugin settings.
   content. A wiki with no jobs gets one card that says what a job and a skill
   are, with Add a source and Browse skills. Without a runner anywhere, one
   notice with an Install-the-runner hand-off.
+- **Inbox**: what a skill or an agent asked you (the wiki's `user` inbox),
+  oldest first. Click a message to read it in place; **Reply** opens the note
+  to type an answer under it; **Done** sends the answer to whoever asked (the
+  message's `reply_to`, through `inboxes sweep`) or files it away; the chat
+  icon hands it to the agent. Below, while the CLI counts any, **Waiting on
+  your judgment**: sources held from ingest by bundle, open conflicts, and
+  **Answer with /brain:ingest**. The Overview's Needs you carries both counts
+  with **Open inbox**.
 - **Reports**: the briefs the agents wrote under `wiki/reports/`, newest
   first, read from the vault with no CLI call. The daily-report skill writes
   a markdown record, `YYYY-MM-DD.md`, and a standalone HTML brief beside it,
@@ -175,7 +183,8 @@ a runner on this machine, edits are saved to history two quiet minutes after
 the last one (the CLI's sweep, `git commit`), and with **Save and sync**
 pulled and pushed too; a runner does that itself, and the plugin stands back.
 
-**Commands**: Open dashboard, Open chat, Open search, Open changes, Save
+**Commands**: Open dashboard, Open chat, Open search, Open changes, Open the
+inbox, Done with this message (on an open inbox message), Save
 edits to history now, Apply the wiki's template to this page, Run a job… (a fuzzy list;
 the fastest Run there is), Open a job…, Add a source…, Set a credential…, Run a
 skill…, Ask the agent about this note, Refresh the dashboard, Re-detect wiki
