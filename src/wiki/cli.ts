@@ -44,6 +44,8 @@ export interface Args {
   dirs?: string[]
   /** One vault-relative page, for the verbs that read a single page. */
   path?: string
+  /** `inboxes done`: the body already holds an answer the person typed, so it is archived, never deleted. */
+  answered?: boolean
   /** `page fix`: re-mint a copy's shared id, which the CLI asks a person for. */
   force?: boolean
   /** `config set|unset`: a TOML dotted key, and for `set` its value. */
@@ -345,7 +347,7 @@ export const VERBS = {
   'wiki.inboxes.read': (a: Args) => write(a, 'inboxes', 'read', inbox(a.name), message(a.id)),
   'wiki.inboxes.rm': (a: Args) => write(a, 'inboxes', 'rm', inbox(a.name), message(a.id)),
   // One message closed now, as the sweep closes a ticked one; a job ask is ticked and left for the job (llm-wiki-plugins #3940).
-  'wiki.inboxes.done': (a: Args) => write(a, 'inboxes', 'done', inbox(a.name), message(a.id)),
+  'wiki.inboxes.done': (a: Args) => write(a, 'inboxes', 'done', inbox(a.name), message(a.id), ...(a.answered ? ['--answered'] : [])),
   // Every message ticked `done`: forwarded to its `reply_to` as `Re:`, then removed.
   'wiki.inboxes.sweep': (a: Args) => write(a, 'inboxes', 'sweep', inbox(a.name)),
   // Accept, or reject with a reason: `reject=` is the whole rejection.

@@ -10,7 +10,7 @@ import { takeSnapshot, type Reader } from '../src/wiki/snapshot'
 const NOW = Date.parse('2026-11-02T08:00:00Z')
 
 const msg = (over: Partial<InboxMessage> = {}): InboxMessage => ({
-  inbox: 'user', id: '20261102-073405-pull-the-promotions-tab', path: 'inboxes/user/20261102-073405-pull-the-promotions-tab.md', job: null,
+  inbox: 'user', id: '20261102-073405-pull-the-promotions-tab', path: 'inboxes/user/20261102-073405-pull-the-promotions-tab.md', jobAsk: false, job: null,
   subject: 'Pull the Promotions tab?', at: '2026-11-02T07:34:05Z', seen: false, done: false, replyTo: 'improve', inReplyTo: null, readable: true, ...over,
 })
 
@@ -27,6 +27,7 @@ describe('the inbox verbs', () => {
     expect(VERBS['wiki.inboxes.rm']({ wiki: 'kb', name: 'user', id: 'a-1' })).toEqual(['wiki', 'kb', 'inboxes', 'rm', 'user', 'a-1', '--json'])
     expect(VERBS['wiki.inboxes.sweep']({ wiki: 'kb', name: 'user' })).toEqual(['wiki', 'kb', 'inboxes', 'sweep', 'user', '--json'])
     expect(VERBS['wiki.inboxes.done']({ wiki: 'kb', name: 'user', id: 'a-1' })).toEqual(['wiki', 'kb', 'inboxes', 'done', 'user', 'a-1', '--json'])
+    expect(VERBS['wiki.inboxes.done']({ wiki: 'kb', name: 'user', id: 'a-1', answered: true })).toEqual(['wiki', 'kb', 'inboxes', 'done', 'user', 'a-1', '--answered', '--json'])
     for (const v of ['wiki.inboxes.read', 'wiki.inboxes.rm', 'wiki.inboxes.done', 'wiki.inboxes.sweep'] as const) expect(childEnv({ LLM_WIKI_PERMISSIONS: 'read' }, v).LLM_WIKI_PERMISSIONS).toBeUndefined()
     expect(() => VERBS['wiki.inboxes.read']({ wiki: 'kb', name: 'user', id: '../x' })).toThrow(CliError)
     expect(() => VERBS['wiki.inboxes.read']({ wiki: 'kb', name: 'user', id: '-rf' })).toThrow(CliError)
@@ -41,13 +42,16 @@ describe('inbox answers into the model', () => {
   it('reads seen, done, reply_to, the job and the CLI\'s path off an `inboxes ls` row', () => {
     const row = { id: 'a-1', subject: 'Hi', at: '2026-11-02T07:00:00Z', state: 'seen 2026-11-02T07:10:00Z', done: true, reply_to: 'improve', in_reply_to: null, readable: true, path: 'inboxes/user/20261102-hi-renamed.md' }
     const m = messageOf('user', row)
-    expect(m).toEqual({ inbox: 'user', id: 'a-1', path: 'inboxes/user/20261102-hi-renamed.md', job: null, subject: 'Hi', at: '2026-11-02T07:00:00Z', seen: true, done: true, replyTo: 'improve', inReplyTo: null, readable: true })
+    expect(m).toEqual({ inbox: 'user', id: 'a-1', path: 'inboxes/user/20261102-hi-renamed.md', jobAsk: false, job: null, subject: 'Hi', at: '2026-11-02T07:00:00Z', seen: true, done: true, replyTo: 'improve', inReplyTo: null, readable: true })
     expect(messageAt([m], 'inboxes/user/20261102-hi-renamed.md')).toBe(m)
     expect(messageAt([m], 'inboxes/user/a-1.md')).toBeUndefined()
     // An older CLI names no path: the file it never renamed.
     expect(messageOf('user', { id: 'b', state: 'new' })).toMatchObject({ path: messagePath({ inbox: 'user', id: 'b' }), subject: 'b', seen: false, done: false, replyTo: null })
-    expect(messageOf('user', { id: 'c', slug: 'inbox-joe' }).job).toBe('inbox-joe')
-    expect(messageOf('user', { id: 'd', slug: 'inbox-joe', reply_to: 'improve' }).job).toBeNull()
+    // A job ask is filed from a landing ticket with no reply_to; the slug only names it.
+    expect(messageOf('user', { id: 'c', ticket: 't-1', slug: 'inbox-joe' })).toMatchObject({ jobAsk: true, job: 'inbox-joe' })
+    expect(messageOf('user', { id: 'c', ticket: 't-1' })).toMatchObject({ jobAsk: true, job: null })
+    expect(messageOf('user', { id: 'c', slug: 'inbox-joe' })).toMatchObject({ jobAsk: false, job: null })
+    expect(messageOf('user', { id: 'd', ticket: 't-1', slug: 'inbox-joe', reply_to: 'improve' })).toMatchObject({ jobAsk: false, job: null })
   })
   it('groups held pages under the nearest root, the root heading its group, loose pages last', () => {
     const groups = heldGroups(
@@ -79,10 +83,13 @@ describe('inbox answers into the model', () => {
     expect(closedSentence({ action: 'forwarded', to: 'improve' }, m)).toEqual({ ok: true, message: 'Replied to “Pull the Promotions tab?”: your answer went to improve' })
     expect(closedSentence({ action: 'kept' }, m)).toEqual({ ok: true, message: 'Answered “Pull the Promotions tab?”: the job picks it up next run' })
     expect(closedSentence({ action: 'removed' }, m).message).toMatch(/removed from the inbox/)
+    expect(closedSentence({ action: 'archived' }, m)).toEqual({ ok: true, message: '“Pull the Promotions tab?” is done; your answer is kept in the inbox\'s archive' })
     expect(closedSentence({}, m).ok).toBe(false)
     expect(doneWords(msg())).toBe('Done sends your answer to improve')
     expect(doneWords(msg({ replyTo: null }))).toBe('Done removes it')
-    expect(doneWords(msg({ replyTo: null, job: 'inbox-joe' }))).toBe('Done answers job inbox-joe: it picks the answer up next run')
+    expect(doneWords(msg({ replyTo: null }), true)).toBe('Done archives your answer')
+    expect(doneWords(msg({ replyTo: null, jobAsk: true, job: 'inbox-joe' }), true)).toBe('Done answers job inbox-joe: it picks the answer up next run')
+    expect(doneWords(msg({ replyTo: null, jobAsk: true }))).toBe('Done answers the job: it picks the answer up next run')
   })
   it('counts messages and listed items in the Inbox badge, never curate groups', () => {
     const parts = { held: [{ path: 's/a.md', id: 'a' }], curate: [{ reason: 'draft', directory: 's/n' }, { reason: 'draft', directory: 's/m' }], conflicts: [{ id: 'c', subject: 'c' }] }
@@ -208,7 +215,7 @@ function fakeApp(path: string, opts: { tickFails?: boolean } = {}) {
     },
   }
   const actions = {
-    doneMessage: (m: InboxMessage) => { did.push(`done ${m.inbox} ${m.id}`); return Promise.resolve({ ok: true, message: 'closed' }) },
+    doneMessage: (m: InboxMessage, answered = false) => { did.push(`done ${m.inbox} ${m.id}${answered ? ' --answered' : ''}`); return Promise.resolve({ ok: true, message: 'closed' }) },
     removeMessage: (m: InboxMessage) => { did.push(`rm ${m.id}`); return Promise.resolve({ ok: true, message: 'removed' }) },
     sweepInbox: (m: InboxMessage) => { did.push(`sweep ${m.inbox}`); return Promise.resolve({ ok: true, message: 'swept' }) },
   }
@@ -217,11 +224,17 @@ function fakeApp(path: string, opts: { tickFails?: boolean } = {}) {
 
 describe('Done', () => {
   it('saves the open note, then one `inboxes done`: the answer typed there goes with it, and nothing is ticked by hand', async () => {
-    for (const m of [msg(), msg({ replyTo: null }), msg({ replyTo: null, job: 'inbox-joe' })]) {
+    for (const m of [msg(), msg({ replyTo: null }), msg({ replyTo: null, jobAsk: true, job: 'inbox-joe' })]) {
       const { app, actions, did } = fakeApp(m.path)
       expect(await closeMessage(app, actions, m, true)).toEqual({ ok: true, message: 'closed' })
       expect(did).toEqual(['save', `done user ${m.id}`])
     }
+  })
+  it('after Reply, Done tells the CLI the body holds an answer, so one with nowhere to go is archived', async () => {
+    const m = msg({ replyTo: null })
+    const { app, actions, did } = fakeApp(m.path)
+    await closeMessage(app, actions, m, true, true)
+    expect(did).toEqual(['save', `done user ${m.id} --answered`])
   })
   it('an older CLI, with a reply_to: saves the open note, ticks done, then sweeps', async () => {
     const m = msg()

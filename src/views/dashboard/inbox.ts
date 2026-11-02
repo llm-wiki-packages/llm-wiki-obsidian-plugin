@@ -24,9 +24,9 @@ async function saveOpen(app: App, path: string): Promise<void> {
  * message is ticked `done` as the property editor would and `inboxes sweep` sends it, or, with no `reply_to`,
  * `inboxes rm` removes it, answer and all.
  */
-export async function closeMessage(app: App, actions: Actions, m: InboxMessage, inboxDone: boolean): Promise<Outcome> {
+export async function closeMessage(app: App, actions: Actions, m: InboxMessage, inboxDone: boolean, typed = false): Promise<Outcome> {
   await saveOpen(app, m.path)
-  if (inboxDone) return actions.doneMessage(m)
+  if (inboxDone) return actions.doneMessage(m, typed)
   if (!m.replyTo) return actions.removeMessage(m)
   if (!m.done) {
     const ticked = await setBox(app, m.path, DONE, true)
@@ -52,8 +52,15 @@ async function reply(ctx: TabContext, m: InboxMessage): Promise<void> {
     editor.setCursor({ line: last, ch: editor.getLine(last).length })
     editor.focus()
   }
-  new Notice(`Write your answer under the message, then press Done. ${doneWords(m)}.`, 6000)
+  replied(ctx).add(m.id)
+  ctx.redraw()
+  new Notice(`Write your answer under the message, then press Done. ${doneWords(m, true)}.`, 6000)
   void markRead(ctx, m)
+}
+
+/** The messages Reply opened for an answer in this view: Done tells the CLI the body holds one, so it is never deleted. */
+function replied(ctx: TabContext): Set<string> {
+  return (ctx.memo['inbox.replied'] ??= new Set<string>()) as Set<string>
 }
 
 function readKey(m: InboxMessage): string {
@@ -99,12 +106,12 @@ export function renderInbox(root: HTMLElement, ctx: TabContext): void {
 
 /** Ticked done but still here: a job's answer waits for its next run; any other waits to be sent. */
 function answeredRows(parent: HTMLElement, answered: InboxMessage[], ctx: TabContext): void {
-  const forJobs = answered.filter((m) => m.job)
-  const unsent = answered.filter((m) => !m.job)
+  const forJobs = answered.filter((m) => m.jobAsk)
+  const unsent = answered.filter((m) => !m.jobAsk)
   for (const m of forJobs) {
     const row = parent.createDiv({ cls: 'llm-wiki-also' })
     row.createSpan({ cls: 'llm-wiki-also-label', text: 'Answered' })
-    row.createSpan({ cls: 'llm-wiki-muted', text: `“${m.subject}”: job ${m.job} picks it up next run` })
+    row.createSpan({ cls: 'llm-wiki-muted', text: `“${m.subject}”: ${m.job ? `job ${m.job}` : 'the job'} picks it up next run` })
   }
   if (!unsent.length) return
   const row = parent.createDiv({ cls: 'llm-wiki-also' })
@@ -121,7 +128,8 @@ function messageRow(parent: HTMLElement, m: InboxMessage, ctx: TabContext): void
   row.createSpan({ cls: `llm-wiki-dot is-${m.seen ? 'muted' : 'new'}`, attr: { title: m.seen ? 'Read on this machine' : 'New' } })
   const main = row.createDiv({ cls: 'llm-wiki-row-main' })
   main.createDiv({ cls: 'llm-wiki-row-title', text: m.subject })
-  const where = doneWords(m)
+  const typed = replied(ctx).has(m.id)
+  const where = doneWords(m, typed)
   main.createDiv({ cls: 'llm-wiki-row-detail', text: [relativeTime(m.at), m.readable ? where : 'Unreadable: open the note to see why'].filter(Boolean).join(' · ') })
   row.addEventListener('click', () => {
     ctx.memo['inbox.open'] = expanded ? undefined : m.id
@@ -130,7 +138,7 @@ function messageRow(parent: HTMLElement, m: InboxMessage, ctx: TabContext): void
   const bar = row.createDiv({ cls: 'llm-wiki-row-actions' })
   button(bar, 'Reply', () => reply(ctx, m), { icon: 'reply', title: 'Open the message and write your answer under it' })
   const actions = ctx.plugin.actions
-  if (actions) button(bar, 'Done', () => ctx.write(() => closeMessage(ctx.plugin.app, actions, m, ctx.snapshot.inboxDone)), { icon: 'check', cta: true, title: where })
+  if (actions) button(bar, 'Done', () => ctx.write(() => closeMessage(ctx.plugin.app, actions, m, ctx.snapshot.inboxDone, typed)), { icon: 'check', cta: true, title: where })
   button(bar, '', () => chatAbout(ctx, m), { icon: 'message-square', title: 'Chat about this' })
   if (expanded) void body(wrap.createDiv({ cls: 'llm-wiki-message-body' }), m, ctx)
 }

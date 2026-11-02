@@ -93,11 +93,11 @@ const snapshot: Snapshot = {
     { op: 'pass', outcome: 'ok', at: ago(80), summary: '2 pages written' },
   ],
   inbox: [
-    { inbox: 'user', id: '20261102-073405-pull-the-promotions-tab', path: 'inboxes/user/20261102-073405-pull-the-promotions-tab-too.md', job: null, subject: 'Pull the Promotions tab too?', at: ago(95), seen: false, done: false, replyTo: 'improve', inReplyTo: null, readable: true },
-    { inbox: 'user', id: '20261102-081200-which-launch-date', path: 'inboxes/user/20261102-081200-which-launch-date.md', job: 'inbox-joe', subject: 'Which mailbox label holds receipts?', at: ago(40), seen: true, done: false, replyTo: null, inReplyTo: null, readable: true },
-    { inbox: 'user', id: '20261102-090000-fyi-quota', path: 'inboxes/user/20261102-090000-fyi-quota.md', job: null, subject: 'The YouTube quota resets at midnight', at: ago(20), seen: true, done: false, replyTo: null, inReplyTo: null, readable: true },
-    { inbox: 'user', id: '20261101-170000-rename-the-acme-bundle', path: 'inboxes/user/20261101-170000-rename-the-acme-bundle.md', job: null, subject: 'Rename the Acme bundle?', at: ago(900), seen: true, done: true, replyTo: 'review', inReplyTo: null, readable: true },
-    { inbox: 'user', id: '20261101-160000-which-calendar', path: 'inboxes/user/20261101-160000-which-calendar.md', job: 'calendar-sync', subject: 'Which calendar is the family one?', at: ago(1000), seen: true, done: true, replyTo: null, inReplyTo: null, readable: true },
+    { inbox: 'user', id: '20261102-073405-pull-the-promotions-tab', path: 'inboxes/user/20261102-073405-pull-the-promotions-tab-too.md', jobAsk: false, job: null, subject: 'Pull the Promotions tab too?', at: ago(95), seen: false, done: false, replyTo: 'improve', inReplyTo: null, readable: true },
+    { inbox: 'user', id: '20261102-081200-which-launch-date', path: 'inboxes/user/20261102-081200-which-launch-date.md', jobAsk: true, job: 'inbox-joe', subject: 'Which mailbox label holds receipts?', at: ago(40), seen: true, done: false, replyTo: null, inReplyTo: null, readable: true },
+    { inbox: 'user', id: '20261102-090000-fyi-quota', path: 'inboxes/user/20261102-090000-fyi-quota.md', jobAsk: false, job: null, subject: 'The YouTube quota resets at midnight', at: ago(20), seen: true, done: false, replyTo: null, inReplyTo: null, readable: true },
+    { inbox: 'user', id: '20261101-170000-rename-the-acme-bundle', path: 'inboxes/user/20261101-170000-rename-the-acme-bundle.md', jobAsk: false, job: null, subject: 'Rename the Acme bundle?', at: ago(900), seen: true, done: true, replyTo: 'review', inReplyTo: null, readable: true },
+    { inbox: 'user', id: '20261101-160000-which-calendar', path: 'inboxes/user/20261101-160000-which-calendar.md', jobAsk: true, job: 'calendar-sync', subject: 'Which calendar is the family one?', at: ago(1000), seen: true, done: true, replyTo: null, inReplyTo: null, readable: true },
   ],
   needsYou: 5,
   parts: {
@@ -110,7 +110,7 @@ const snapshot: Snapshot = {
     { root: 'sources/acme-handbook/README.md', pages: [{ path: 'sources/acme-handbook/Expense policy.md', waiting: true }, { path: 'sources/acme-handbook/Onboarding.md', waiting: false }, { path: 'sources/acme-handbook/Travel.md', waiting: true }, { path: 'sources/acme-handbook/Security.md', waiting: false }] },
     { root: null, pages: [{ path: 'sources/Lone memo.md', waiting: false }] },
   ],
-  conflicts: [{ inbox: 'conflicts', id: '20261102-073552-launch-date-12-01-vs-11-15', path: 'inboxes/conflicts/20261102-073552-launch-date-12-01-vs-11-15.md', job: null, subject: 'Launch date: 12-01 vs 11-15', at: ago(70), seen: false, done: false, replyTo: null, inReplyTo: null, readable: true }],
+  conflicts: [{ inbox: 'conflicts', id: '20261102-073552-launch-date-12-01-vs-11-15', path: 'inboxes/conflicts/20261102-073552-launch-date-12-01-vs-11-15.md', jobAsk: false, job: null, subject: 'Launch date: 12-01 vs 11-15', at: ago(70), seen: false, done: false, replyTo: null, inReplyTo: null, readable: true }],
   inboxDone: true,
   errors: {},
 }

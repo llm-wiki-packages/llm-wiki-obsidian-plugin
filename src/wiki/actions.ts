@@ -129,9 +129,9 @@ export class Actions {
   }
 
   /** Close this one message now: its answer to its `reply_to`, or out of the inbox; a job ask stays for its job. */
-  async doneMessage(m: Pick<InboxMessage, 'inbox' | 'id' | 'subject'>): Promise<Outcome> {
+  async doneMessage(m: Pick<InboxMessage, 'inbox' | 'id' | 'subject'>, answered = false): Promise<Outcome> {
     try {
-      return closedSentence(await this.cli.run<ClosedAnswer>('wiki.inboxes.done', { wiki: this.wiki, name: m.inbox, id: m.id }), m)
+      return closedSentence(await this.cli.run<ClosedAnswer>('wiki.inboxes.done', { wiki: this.wiki, name: m.inbox, id: m.id, answered }), m)
     } catch (e) {
       return failed(`“${m.subject}” stays in the inbox`, e)
     }

@@ -19,6 +19,8 @@ export interface InboxRow {
   readable?: boolean
   /** The file, wiki-relative (llm-wiki-plugins #3940); absent from an older CLI. */
   path?: string
+  /** The landing ticket that filed it (llm-wiki-plugins #3940); with no `reply_to`, a job ask. */
+  ticket?: string | null
   /** The asking job, on a job ask (the ask loop, llm-wiki-plugins #3929); absent from an older CLI. */
   slug?: string | null
 }
@@ -56,7 +58,7 @@ export interface SweptAnswer {
 export interface ClosedAnswer {
   inbox?: string
   id?: string
-  action?: 'forwarded' | 'repeat' | 'removed' | 'kept'
+  action?: 'forwarded' | 'repeat' | 'removed' | 'kept' | 'archived'
   to?: string | null
   reply_id?: string | null
 }
@@ -73,7 +75,8 @@ export function messageOf(inbox: string, r: InboxRow): InboxMessage {
     inbox,
     id: r.id,
     path: r.path || messagePath({ inbox, id: r.id }),
-    job: r.slug && !r.reply_to ? r.slug : null,
+    jobAsk: Boolean(r.ticket) && !r.reply_to,
+    job: r.ticket && !r.reply_to ? (r.slug ?? null) : null,
     subject: r.subject || r.id,
     at: r.at ?? null,
     seen: typeof r.state === 'string' && r.state !== 'new',
@@ -131,6 +134,8 @@ export function closedSentence(a: ClosedAnswer, m: Pick<InboxMessage, 'subject'>
       return { ok: true, message: `“${m.subject}” is done and removed from the inbox` }
     case 'kept':
       return { ok: true, message: `Answered “${m.subject}”: the job picks it up next run` }
+    case 'archived':
+      return { ok: true, message: `“${m.subject}” is done; your answer is kept in the inbox's archive` }
     default:
       return { ok: false, message: `“${m.subject}”: the CLI answered no outcome` }
   }
@@ -149,10 +154,10 @@ export function sweptSentence(a: SweptAnswer, m: Pick<InboxMessage, 'id' | 'subj
 }
 
 /** What Done will do to this message, in the words a row and its button say. */
-export function doneWords(m: Pick<InboxMessage, 'replyTo' | 'job'>): string {
-  if (m.job) return `Done answers job ${m.job}: it picks the answer up next run`
+export function doneWords(m: Pick<InboxMessage, 'replyTo' | 'job' | 'jobAsk'>, typed = false): string {
+  if (m.jobAsk) return `Done answers ${m.job ? `job ${m.job}` : 'the job'}: it picks the answer up next run`
   if (m.replyTo) return `Done sends your answer to ${m.replyTo}`
-  return 'Done removes it'
+  return typed ? 'Done archives your answer' : 'Done removes it'
 }
 
 /** What the inbox counts: messages to answer and the listed parts. Curate's groups are judged on Changes, so they are not. */

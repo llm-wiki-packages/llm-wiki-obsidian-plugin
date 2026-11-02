@@ -34,8 +34,8 @@ the gear opens the plugin settings.
 - **Inbox**: what a skill or an agent asked you (the wiki's `user` inbox),
   oldest first. Click a message to read it in place; **Reply** opens the note
   to type an answer under it; **Done** (`inboxes done`) sends the answer to
-  whoever asked, leaves a job's question answered for its next run, or removes
-  the message; the chat icon hands it to the agent. Below, **Waiting on your
+  whoever asked, leaves a job's question answered for its next run, archives
+  an answer with nowhere to go, or removes the message; the chat icon hands it to the agent. Below, **Waiting on your
   judgment**, exactly what the CLI counts: blocked jobs with the command that
   clears them, held sources a record waits on, open conflicts, curate's groups
   (on Changes), and **Answer in chat** (`/brain:ingest`). Then **Held

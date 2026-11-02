@@ -70,15 +70,18 @@ health pill counts kinds of trouble instead, and its hover says so.
 - *Messages*, oldest first: subject (bold beside an accent dot until read on
   this machine), age, and what Done will do: "Done sends your answer to
   improve", "Done answers job inbox-joe: it picks the answer up next run" (a
-  job ask), or "Done removes it". Click a row to open it in place: who sent
+  job ask), "Done archives your answer" (no `reply_to`, after **Reply**), or
+  "Done removes it". Click a row to open it in place: who sent
   it, about which unit, what they saw, and the body rendered; opening it is
   `inboxes read`, which marks it read. If that read fails, the body is shown
   from the note, said so, and the next open asks the CLI again. **Reply**
   opens the note (the file the CLI names) in a new tab with the cursor under
   the message, to type the answer into the body. **Done** saves an open
-  editor on the note, then runs `inboxes done`: the message goes to its
-  `reply_to` as `Re:` with the answer, or out of the inbox; a job ask is
-  ticked and stays for the job's next run. On a CLI without `inboxes done`,
+  editor on the note, then runs `inboxes done` (with `--answered` after
+  Reply, or from the open note's command): the message goes to its
+  `reply_to` as `Re:` with the answer; with nowhere to go, an answer is
+  archived and a message with none removed; a job ask (filed from a landing
+  ticket, no `reply_to`) is ticked and stays for the job's next run. On a CLI without `inboxes done`,
   Done ticks `done` and runs `inboxes sweep`, or runs `inboxes rm` when there
   is no `reply_to`. The chat icon hands the message to chat
   (`About the message … [[path]]: `). Under *Answered*: a job ask already

@@ -207,7 +207,9 @@ export interface InboxMessage {
   id: string
   /** The message's file, as the CLI names it: its stem follows the subject, so it is never built from the id but on an older CLI. */
   path: string
-  /** The job that asked, for a job ask (`from.slug`, no `reply_to`): Done leaves it for that job's next run. */
+  /** A job ask: filed from a landing ticket (`from.ticket`) with no `reply_to`; Done leaves it for the job's next run. */
+  jobAsk: boolean
+  /** The asking job's slug, when the CLI names it (the ask loop, llm-wiki-plugins #3929). */
   job: string | null
   subject: string
   at: string | null

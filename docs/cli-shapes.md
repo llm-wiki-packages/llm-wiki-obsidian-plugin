@@ -824,8 +824,8 @@ interface Row {
 
 Since llm-wiki-plugins #3940 a row also carries `path`, the message's file:
 its stem follows the subject, so the plugin never builds it from the id but
-on an older CLI. The ask loop (#3929) adds `slug`, the asking job, on a job
-ask. The plugin reads `user` (the inbox a person answers) on every poll, and
+on an older CLI, and `ticket`, the landing ticket that filed it: with no
+`reply_to`, a job ask. The ask loop (#3929) adds `slug`, the asking job's name. The plugin reads `user` (the inbox a person answers) on every poll, and
 `conflicts` while `whereami`'s `needs_you` is above zero.
 
 ### 1.17 `git conflicts`
@@ -1308,9 +1308,13 @@ detached | ...)`, plus push recovery notes. Refusals (rc 2): jailed
   answer to add under the body (the plugin sends none: it saves the open
   editor first, so the body already holds it); `done` is ticked; then the
   message is closed as `sweep` closes one. Answer `{inbox, id, action, to,
-  reply_id}`, `action` one of `forwarded`, `repeat`, `removed`, or `kept`: a
-  job ask (`from.slug`, no `reply_to`) is ticked and left for the job's next
-  run. A refused forward is an error; the answer and tick stay in the file.
+  reply_id}`, `action` one of `forwarded`, `repeat`, `removed`, `archived`
+  (an answer with no `reply_to`: given on stdin, or `--answered` for one
+  already typed into the body, which the plugin passes after Reply; archived
+  whatever `[inboxes] archive` says), or `kept`: a job ask (`from.ticket`
+  set, no `reply_to`) is ticked and left for the job's next run, and `sweep`
+  keeps it too. A refused forward is an error; the answer and tick stay in
+  the file, and a second `--stdin` answer to it is refused.
 - On a CLI without `done` the plugin ticks `done` itself (Obsidian's
   frontmatter writer) and sweeps, or runs `rm` when there is no `reply_to`.
   It tells the two apart by `whereami`'s `needs_you_parts`, which came in the
