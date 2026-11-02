@@ -19,8 +19,10 @@ const ahead = (min: number) => new Date(NOW + min * 60_000).toISOString()
 const snapshot: Snapshot = {
   takenAt: NOW,
   wikiKey: 'notes',
-  health: { tone: 'warn', count: 2 },
+  health: { tone: 'warn', count: 4 },
   attention: [
+    { id: 'inbox:user', severity: 'warn', title: '3 messages wait for your answer', detail: '“Pull the Promotions tab too?”, “Which mailbox label holds receipts?”, “The YouTube quota resets at midnight”', action: { kind: 'goto', tab: 'inbox', label: 'Open inbox' } },
+    { id: 'inbox:needs-you', severity: 'warn', title: '5 things wait on your judgment', detail: 'Sources held for you, blocked jobs, groups of new pages curate left to you, open conflicts; most are answered with /brain:ingest.', action: { kind: 'goto', tab: 'inbox', label: 'Open inbox' } },
     { id: 'unbound:inbox-joe', severity: 'warn', title: 'Joe’s mailbox cannot run on this machine', detail: 'channel-gmail needs a token or key', action: { kind: 'credential', skill: 'channel-gmail', slot: 'file' } },
     { id: 'parked:t9', severity: 'warn', title: 'YouTube subscriptions stopped: yt-cookies is stale', detail: 'cookies expired', action: { kind: 'credential', skill: 'channel-youtube', slot: 'dir', name: 'yt-cookies', retry: 't9' } },
     { id: 'outdated:web-page', severity: 'info', title: 'A newer web-page is in its package', action: { kind: 'ask', prompt: '/llm-wiki:enable web-page', label: 'Update' } },
@@ -90,6 +92,26 @@ const snapshot: Snapshot = {
     { op: 'pass', job: 'yt-subs', outcome: 'failed', at: ago(400), summary: 'cookies expired' },
     { op: 'pass', outcome: 'ok', at: ago(80), summary: '2 pages written' },
   ],
+  inbox: [
+    { inbox: 'user', id: '20261102-073405-pull-the-promotions-tab', path: 'inboxes/user/20261102-073405-pull-the-promotions-tab-too.md', jobAsk: false, job: null, subject: 'Pull the Promotions tab too?', at: ago(95), seen: false, done: false, replyTo: 'improve', inReplyTo: null, readable: true },
+    { inbox: 'user', id: '20261102-081200-which-launch-date', path: 'inboxes/user/20261102-081200-which-launch-date.md', jobAsk: true, job: 'inbox-joe', subject: 'Which mailbox label holds receipts?', at: ago(40), seen: true, done: false, replyTo: null, inReplyTo: null, readable: true },
+    { inbox: 'user', id: '20261102-090000-fyi-quota', path: 'inboxes/user/20261102-090000-fyi-quota.md', jobAsk: false, job: null, subject: 'The YouTube quota resets at midnight', at: ago(20), seen: true, done: false, replyTo: null, inReplyTo: null, readable: true },
+    { inbox: 'user', id: '20261101-170000-rename-the-acme-bundle', path: 'inboxes/user/20261101-170000-rename-the-acme-bundle.md', jobAsk: false, job: null, subject: 'Rename the Acme bundle?', at: ago(900), seen: true, done: true, replyTo: 'review', inReplyTo: null, readable: true },
+    { inbox: 'user', id: '20261101-160000-which-calendar', path: 'inboxes/user/20261101-160000-which-calendar.md', jobAsk: true, job: 'calendar-sync', subject: 'Which calendar is the family one?', at: ago(1000), seen: true, done: true, replyTo: null, inReplyTo: null, readable: true },
+  ],
+  needsYou: 5,
+  parts: {
+    held: [{ path: 'sources/acme-handbook/Expense policy.md', id: 'src-exp' }, { path: 'sources/acme-handbook/Travel.md', id: 'src-travel' }],
+    curate: [{ reason: 'large-group', directory: 'sources/drive/q3' }],
+    conflicts: [{ id: '20261102-073552-launch-date-12-01-vs-11-15', subject: 'Launch date: 12-01 vs 11-15' }],
+  },
+  blocked: [{ job: 'yt-subs', reason: 'the credential yt-cookies was refused at start', next: 'llm-wiki-ops jobs resume yt-subs' }],
+  held: [
+    { root: 'sources/acme-handbook/README.md', pages: [{ path: 'sources/acme-handbook/Expense policy.md', waiting: true }, { path: 'sources/acme-handbook/Onboarding.md', waiting: false }, { path: 'sources/acme-handbook/Travel.md', waiting: true }, { path: 'sources/acme-handbook/Security.md', waiting: false }] },
+    { root: null, pages: [{ path: 'sources/Lone memo.md', waiting: false }] },
+  ],
+  conflicts: [{ inbox: 'conflicts', id: '20261102-073552-launch-date-12-01-vs-11-15', path: 'inboxes/conflicts/20261102-073552-launch-date-12-01-vs-11-15.md', jobAsk: false, job: null, subject: 'Launch date: 12-01 vs 11-15', at: ago(70), seen: false, done: false, replyTo: null, inReplyTo: null, readable: true }],
+  inboxDone: true,
   errors: {},
 }
 
@@ -165,7 +187,11 @@ const plugin: any = {
   wiki: { key: 'notes', name: 'Notes', root: '/tmp/obs-scratch/wiki' },
   snapshot,
   problem: new URLSearchParams(location.search).get('problem') === 'cli' ? 'llm-wiki-cli not found on the login shell PATH; set its path in the plugin settings' : new URLSearchParams(location.search).get('problem') === 'wiki' ? 'the vault is not a registered wiki (2 registered); join it, or set the wiki key in the plugin settings' : null,
-  actions: new Proxy({}, { get: (_t, verb) => (...args: unknown[]) => { console.log('action', verb, args); return Promise.resolve({ ok: true, message: `${String(verb)} ok` }) } }),
+  actions: new Proxy({}, { get: (_t, verb) => (...args: unknown[]) => {
+    console.log('action', verb, args)
+    if (verb === 'readMessage') return Promise.resolve({ ok: true, message: 'read', read: { frontmatter: { from: { actor: 'agent@devops1', unit: 'channel-gmail' }, claimed_unit: 'channel-gmail', evidence: '40 newsletters a week land there' }, body: 'Should the gmail job pull the **Promotions** tab too? It holds about 40 newsletters a week; today they are skipped.\n\n- yes: they land in `sources/mail/` and curate judges them\n- no: nothing changes' } })
+    return Promise.resolve({ ok: true, message: `${String(verb)} ok` })
+  } }),
   refreshSnapshot: () => Promise.resolve(),
   openChat: (text?: string) => { console.log('chat', text); dash.goTo('chat'); dash.chat.prefill(text ?? ''); return Promise.resolve() },
   addJob: () => console.log('add job'),
@@ -215,6 +241,7 @@ if (q.get('many') === '1') {
   dash.render()
 }
 if (q.get('modal') === 'diff') openDiff(plugin, q.get('commit') ? { path: 'sources/notes/Alpha note.md', commit: snapshot.activity[2]!, history: snapshot.activity } : { path: 'sources/notes/Alpha note.md' })
+if (q.get('open')) { dash.memo['inbox.open'] = q.get('open'); dash.render() }
 if (q.get('sub')) { dash.memo['changes.tab'] = q.get('sub'); dash.render() }
 if (q.get('modal') === 'replace') plugin.credentialModal({ name: 'yt-cookies', kind: 'dir', skill: 'channel-youtube', slot: 'dir', retry: 't9', job: 'yt-subs' })
 if (q.get('chat') === 'turn') {

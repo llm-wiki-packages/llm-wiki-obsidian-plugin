@@ -26,8 +26,8 @@ visibly changes (accept, pause, remove…) raise none.
 Header: title, one health pill (`ok` or `N need you`; a button: hover lists
 what needs you, click opens the Overview from any tab), refreshed time,
 Refresh (icon), a gear for the plugin settings. The header reads **Brain**. Tabs,
-remembered per leaf: Chat, Search, Overview, Changes (with the count of new
-pages) on the left; **More** at the far right, which shows a second row (Jobs,
+remembered per leaf: Chat, Search, Overview, Inbox (with the count of what
+waits for you), Reports, Changes (with the count of new pages) on the left; **More** at the far right, which shows a second row (Jobs,
 Skills, Credentials) and
 reopens the one last used. A note opened from the view goes to a new tab (Cmd-click: a
 split), never into the view's own leaf. Chat and Search are panes built once and kept across tab
@@ -45,7 +45,10 @@ switches; a snapshot never redraws them. Text is selectable everywhere.
   it), any other parked ticket (**Retry**), a ticket in review (**Ask the
   agent**), a blocked job (**Ask the agent**), a doctor warn/fail row (**Fix
   with the agent**), a drifted skill (**Inspect**), an unreadable job, a handoff
-  problem, a git conflict (**Open**), search engine not ready (**Review index**, the Search index dialog).
+  problem, a git conflict (**Open**), search engine not ready (**Review index**, the Search index dialog),
+  messages in the inbox ("2 messages wait for your answer", their subjects),
+  and `whereami`'s needs-you count ("3 things wait on your judgment"); those
+  two lead the warnings and their button is **Open inbox**.
   Info rows (an update available, an enabled skill with an empty optional slot)
   follow under a small "Also" label, uncounted. With no runner installed, one
   notice here with **Install the runner** (a chat hand-off).
@@ -58,6 +61,43 @@ switches; a snapshot never redraws them. Text is selectable everywhere.
 - One line, "Today: 15 new · 3 drafts · 3 saved to history → Changes".
 - A wiki with no jobs shows one card instead: "Nothing is pulling into this
   wiki yet", what a job and a skill are, **Add a source…** and **Browse skills**.
+
+**Inbox** — what a skill or an agent asked you, and what waits on your
+judgment. Every row is the CLI's (`inboxes ls user --all`, `whereami`). The
+tab's count is the messages plus each listed item (held source, conflict,
+blocked job); curate's groups are not in it, they are judged on Changes. The
+health pill counts kinds of trouble instead, and its hover says so.
+- *Messages*, oldest first: subject (bold beside an accent dot until read on
+  this machine), age, and what Done will do: "Done sends your answer to
+  improve", "Done answers job inbox-joe: it picks the answer up next run" (a
+  job ask), "Done archives your answer" (no `reply_to`, after **Reply**; on a
+  CLI without `inboxes done`, "Done deletes your answer: this CLI cannot
+  archive it"), or "Done removes it". Click a row to open it in place: who sent
+  it, about which unit, what they saw, and the body rendered; opening it is
+  `inboxes read`, which marks it read. If that read fails, the body is shown
+  from the note, said so, and the next open asks the CLI again. **Reply**
+  opens the note (the file the CLI names) in a new tab with the cursor under
+  the message, to type the answer into the body. **Done** saves an open
+  editor on the note, then runs `inboxes done`, with `--answered` when the
+  saved body differs from the one `inboxes read` answered (or the note as the
+  view first saw it), or when there is nothing to compare: the message goes to its
+  `reply_to` as `Re:` with the answer; with nowhere to go, an answer is
+  archived and a message with none removed; a job ask (filed from a landing
+  ticket, no `reply_to`) is ticked and stays for the job's next run. On a CLI without `inboxes done`,
+  Done ticks `done` and runs `inboxes sweep`, or runs `inboxes rm` when there
+  is no `reply_to`, asking first when an answer may be in the body. The chat icon hands the message to chat
+  (`About the message … [[path]]: `). Under *Answered*: a job ask already
+  answered ("job X picks it up next run"), and messages ticked done in the
+  note itself, with **Send now** (the sweep).
+- *Waiting on your judgment*, while `needs_you` or the blocked list is above
+  zero, with that count and **Answer in chat** (`/brain:ingest`). With the
+  CLI's breakdown every row here is counted: each blocked job with its reason,
+  the command that clears it and **Ask the agent**; the held sources an open
+  record waits on, by bundle (the row opens the root); the open conflicts (the
+  row opens the record); and curate's groups as one row to **Changes**. On an
+  older CLI the count stands over the conflicts and a link to Changes.
+- *Held sources*: held from ingest but waited on by nothing yet (no record is
+  open), by bundle, muted. On an older CLI every held source is listed here.
 
 **Jobs** — a table grouped by state (Needs you, Running, Due, Scheduled,
 Manual, Paused), soonest first inside a group; a filter field above 10 rows.
@@ -301,7 +341,8 @@ machine does all of this itself, and the plugin stands back.
 Open dashboard / chat / search, Run a job… (fuzzy), Open a job… (fuzzy, the
 detail dialog), Add a source…, Set a credential… (fuzzy over empty or broken
 slots), Run a skill… (fuzzy), Ask the agent about this note, Refresh,
-Re-detect, Open changes, Save edits to history now, Apply the wiki's template
+Re-detect, Open changes, Open the inbox, **Done with this message** (on the
+active note when it is an inbox message: what the Done button does), Save edits to history now, Apply the wiki's template
 to this page, **Accept this page into the wiki** and **Archive this page…**
 (on the active note when it is new or a draft). Rows in every list take focus and open on Enter;
 Escape in the composer stops a running turn.

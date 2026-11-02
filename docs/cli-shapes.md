@@ -805,8 +805,28 @@ interface InboxesLs { count: number; inboxes: { name: string; state: "declared" 
 ```
 
 Undeclared inboxes with no held messages are omitted. Named form returns
-`Inbox` `{inbox, state, count, messages: object[]}` [row keys unverified].
-Real: `improve` and `review`, `declared`, 0 messages each.
+`Inbox` `{inbox, state, count, messages: Row[]}`; without `--all`, only the
+messages this machine should handle. Real (ops 0.11.2, `inboxes ls user --all`):
+
+```ts
+interface Row {
+  id: string                // `<yyyymmdd-hhmmss>-<slug>`; the file is inboxes/<inbox>/<id>.md
+  subject: string; at: string; age_seconds: number
+  machine: string | null    // the one machine meant to handle it; null is any
+  state: "new" | `seen ${string}`   // this machine's read marker
+  read_by: string[]; fixes: string[]; op: "add" | "update" | "cancel"
+  done: boolean             // a real bool here; the note spells it `done: true|false`
+  reply_to: string | null   // where `inboxes sweep` forwards the answered message
+  in_reply_to: string | null
+  readable: boolean
+}
+```
+
+Since llm-wiki-plugins #3940 a row also carries `path`, the message's file:
+its stem follows the subject, so the plugin never builds it from the id but
+on an older CLI, and `ticket`, the landing ticket that filed it: with no
+`reply_to`, a job ask. The ask loop (#3929) adds `slug`, the asking job's name. The plugin reads `user` (the inbox a person answers) on every poll, and
+`conflicts` while `whereami`'s `needs_you` is above zero.
 
 ### 1.17 `git conflicts`
 
@@ -916,6 +936,28 @@ no host entry on this machine: scratch - nothing fires them", fix
   "templates/" }`, each with a trailing slash. `feeds` is every tree the index
   reads, the wiki's own pages included. The plugin's feeds, the trees a
   person accepts in, are `feeds` minus `pages`.
+
+`needs_you` (ops 0.11.2, llm-wiki-plugins #3910) sits at the top level of the
+answer: an int, or null when the count could not be read; absent from an older
+CLI. It sums the held `sources/` pages whose `candidates` record is open, the
+groups `page curate --auto --dry-run sources` leaves to a person, and the open
+`conflicts` records; the text form prints `needs_you: N — /ingest` when N > 0.
+The parts the plugin can list read-only:
+
+- `page ls filter=under:sources filter=lever:ingest=hold`: every held source,
+  by its own key, its bundle root's or `intake.ingest` (#3908); more than the
+  count holds, which takes only those with an open record.
+- `page ls filter=prop:root filter=lever:ingest=hold`: the bundle roots, to
+  group the held pages under (a page's root is the nearest above it).
+- `inboxes ls conflicts --all`: the open conflicts (1.16 rows).
+
+Since #3940, `needs_you_parts` lists exactly what the count counts:
+`{held: [{path, id}], curate: [{reason, directory}], conflicts: [{id,
+subject}]}`; empty lists beside a zero count, null beside none. #3933 adds a
+top-level `blocked: [{job, reason, next}]`, folded into `needs_you` and not
+into the parts, so `needs_you = parts + blocked`. A held source with no open
+record is in the `page ls` list and not in the parts: the plugin shows it as
+held, not waiting. The roots read is `filter=under:sources` too.
 
 ### 1.25 `git status`
 
@@ -1249,6 +1291,35 @@ detached | ...)`, plus push recovery notes. Refusals (rc 2): jailed
   keep=theirs`; `<p> carries no <keep> version in the index`; jailed; read-only.
 
 ---------------------------------------------------------------------------
+### 2.14 `inboxes read|rm|done <inbox> <id>`, `inboxes sweep [<inbox>]`
+
+- `read` drops this machine's read marker (committed, so a write) and answers
+  `{inbox, id, frontmatter, body}`; frontmatter values come back as strings,
+  `"true"`/`"false"` included, `from` as an object (`actor`, `unit`…), plus
+  `claimed_unit` and `evidence` when the writer gave them.
+- `rm` removes one message, or moves it under `_archive/` where
+  `[inboxes] archive` is on.
+- `sweep` closes out every message ticked `done` (default inbox `user`):
+  `{inbox, count, swept: [{id, action, to, reply_id, reason}]}`, `action`
+  one of `forwarded` (sent to `to` as `Re: <id>` with the body as edited,
+  `reply_id` the new message), `repeat` (an answer already stands there),
+  `removed` (no `reply_to`), `refused` (the message stays; `reason` says why).
+- `done` (llm-wiki-plugins #3940) closes one message now: `--stdin` takes an
+  answer to add under the body (the plugin sends none: it saves the open
+  editor first, so the body already holds it); `done` is ticked; then the
+  message is closed as `sweep` closes one. Answer `{inbox, id, action, to,
+  reply_id}`, `action` one of `forwarded`, `repeat`, `removed`, `archived`
+  (an answer with no `reply_to`: given on stdin, or `--answered` for one
+  already typed into the body, which the plugin passes after Reply; archived
+  whatever `[inboxes] archive` says), or `kept`: a job ask (`from.ticket`
+  set, no `reply_to`) is ticked and left for the job's next run, and `sweep`
+  keeps it too. A refused forward is an error; the answer and tick stay in
+  the file, and a second `--stdin` answer to it is refused.
+- On a CLI without `done` the plugin ticks `done` itself (Obsidian's
+  frontmatter writer) and sweeps, or runs `rm` when there is no `reply_to`.
+  It tells the two apart by `whereami`'s `needs_you_parts`, which came in the
+  same change.
+
 ## 3. Answers to the four questions
 
 ### (1) Protected writes and attendance

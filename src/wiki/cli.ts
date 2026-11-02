@@ -44,6 +44,8 @@ export interface Args {
   dirs?: string[]
   /** One vault-relative page, for the verbs that read a single page. */
   path?: string
+  /** `inboxes done`: the body already holds an answer the person typed, so it is archived, never deleted. */
+  answered?: boolean
   /** `page fix`: re-mint a copy's shared id, which the CLI asks a person for. */
   force?: boolean
   /** `config set|unset`: a TOML dotted key, and for `set` its value. */
@@ -111,11 +113,24 @@ const COMMIT = /^[0-9a-f]{7,64}$/
 const TREE = /^[a-z][a-z0-9_-]{0,63}$/
 const DAY = /^\d{4}-\d{2}-\d{2}$/
 const DOCUMENT_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/
+// The CLI's own rule (`lib/inboxes/layout.py` NAME), so the plugin refuses what the CLI would and nothing more.
+const INBOX = /^[a-z0-9][a-z0-9-]*$/
+const MESSAGE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
 // A config key is TOML's dotted spelling (`configkey.parse`): bare segments, or double-quoted ones with no escapes.
 const CONFIG_SEGMENT = '(?:[A-Za-z0-9_][A-Za-z0-9_-]{0,63}|"[^"\\\\\\x00-\\x1f]{1,200}")'
 const CONFIG_KEY = new RegExp(`^${CONFIG_SEGMENT}(?:\\.${CONFIG_SEGMENT}){0,7}$`)
 // The range bounds take one value and no negation: the CLI refuses either by name.
 const RANGE_KINDS: ReadonlySet<string> = new Set(['captured_from', 'captured_to'])
+
+function inbox(v: string | undefined): string {
+  if (!v || !INBOX.test(v)) throw new CliError(`bad inbox: ${String(v)}`, 'args')
+  return v
+}
+
+function message(v: string | undefined): string {
+  if (!v || !MESSAGE_ID.test(v)) throw new CliError(`bad message id: ${String(v)}`, 'args')
+  return v
+}
 
 function key(v: string | undefined): string {
   if (!v || !KEY.test(v)) throw new CliError(`bad wiki key: ${String(v)}`, 'args')
@@ -300,6 +315,14 @@ export const VERBS = {
   'wiki.page.find': (a: Args) => wiki(a, 'page', 'ls', `id=${documentId(a.id)}`),
   /** Where the wiki is and its resolved layout: the trees, raw captures, templates. */
   'wiki.whereami': (a: Args) => wiki(a, 'whereami'),
+  /** One inbox's messages, every machine's: a person answers wherever they sit. */
+  'wiki.inboxes.ls': (a: Args) => wiki(a, 'inboxes', 'ls', inbox(a.name), '--all'),
+  /** The open conflicts: the same verb, under a key of its own so a failure here is not the inbox's. */
+  'wiki.inboxes.conflicts': (a: Args) => wiki(a, 'inboxes', 'ls', 'conflicts', '--all'),
+  /** The `sources/` pages whose `ingest` lever reads `hold`, their own key, their root's or the wiki's default. */
+  'wiki.page.held': (a: Args) => wiki(a, 'page', 'ls', 'filter=under:sources', 'filter=lever:ingest=hold'),
+  /** The bundle roots whose subtree reads `ingest: hold`, to group the held pages under. */
+  'wiki.page.heldRoots': (a: Args) => wiki(a, 'page', 'ls', 'filter=under:sources', 'filter=prop:root', 'filter=lever:ingest=hold'),
   /** Each uncommitted path under the swept trees, with how it changed. */
   'wiki.git.status': (a: Args) => wiki(a, 'git', 'status'),
   /** The frontmatter and body a template would add to a page; writes nothing. */
@@ -320,6 +343,13 @@ export const VERBS = {
   'wiki.jobs.pause': (a: Args) => write(a, 'jobs', 'pause', slug(a.slug)),
   'wiki.jobs.resume': (a: Args) => write(a, 'jobs', 'resume', slug(a.slug)),
   'wiki.tickets.retry': (a: Args) => write(a, 'tickets', 'retry', ticket(a.id)),
+  // `read` drops this machine's read marker, which is committed, so it is a write; it answers the message whole.
+  'wiki.inboxes.read': (a: Args) => write(a, 'inboxes', 'read', inbox(a.name), message(a.id)),
+  'wiki.inboxes.rm': (a: Args) => write(a, 'inboxes', 'rm', inbox(a.name), message(a.id)),
+  // One message closed now, as the sweep closes a ticked one; a job ask is ticked and left for the job (llm-wiki-plugins #3940).
+  'wiki.inboxes.done': (a: Args) => write(a, 'inboxes', 'done', inbox(a.name), message(a.id), ...(a.answered ? ['--answered'] : [])),
+  // Every message ticked `done`: forwarded to its `reply_to` as `Re:`, then removed.
+  'wiki.inboxes.sweep': (a: Args) => write(a, 'inboxes', 'sweep', inbox(a.name)),
   // Accept, or reject with a reason: `reject=` is the whole rejection.
   'wiki.page.curate': (a: Args) => write(a, 'page', 'curate', ...paths(a.paths), ...(a.reason === undefined ? [] : [`reject=${oneLine(a.reason)}`])),
   // The additive pass: what moved since the last one. `reindex` is the full one, and the only one that removes.
@@ -374,7 +404,7 @@ const ATTENDED: ReadonlySet<Verb> = new Set<Verb>(['wiki.credentials.set', 'wiki
 const EDITOR: ReadonlySet<Verb> = new Set<Verb>(['wiki.page.curate', 'wiki.page.adopt', 'wiki.page.fix', 'wiki.git.commit'])
 
 const WRITES: ReadonlySet<Verb> = new Set<Verb>([
-  'wiki.harness.run', 'wiki.jobs.request', 'wiki.jobs.pause', 'wiki.jobs.resume', 'wiki.tickets.retry', 'wiki.git.sync', 'wiki.search.index', 'wiki.search.reindex',
+  'wiki.harness.run', 'wiki.jobs.request', 'wiki.jobs.pause', 'wiki.jobs.resume', 'wiki.tickets.retry', 'wiki.inboxes.read', 'wiki.inboxes.rm', 'wiki.inboxes.done', 'wiki.inboxes.sweep', 'wiki.git.sync', 'wiki.search.index', 'wiki.search.reindex',
   'wiki.config.set', 'wiki.config.patch', 'wiki.config.unset', 'wiki.credentials.ls', 'wiki.credentials.bindings', ...ATTENDED, ...EDITOR,
 ])
 

@@ -452,6 +452,7 @@ export function toolSentence(tool: string, detail?: string): string | null {
     'tickets ls': 'Reading the run list', 'tickets retry': `Retrying run ${arg ?? ''}`, 'page ls': 'Reading the page list', 'page curate': 'Curating pages', 'page adopt': 'Adopting pages',
     'search query': 'Searching the wiki', 'search index': 'Refreshing the search index', 'doctor': 'Running the doctor', 'status': 'Reading the status', 'skills ls': 'Reading the skills', 'skills install': `Installing ${arg ?? 'a skill'}`,
     'skills enable': `Enabling ${arg ?? 'a skill'}`, 'skills bind': 'Binding a skill to its profile', 'sandboxes enable': `Enabling the ${arg ?? ''} profile`, 'credentials ls': 'Reading the credential list', 'credentials bind': 'Binding a credential',
+    'inboxes ls': 'Reading the inbox', 'inboxes read': `Reading message ${arg ?? ''}`, 'inboxes write': 'Writing to an inbox', 'inboxes sweep': 'Sending the answered messages',
     'op since': 'Reading recent runs', 'op record': 'Recording the run', 'git commit': 'Committing', 'git sync': 'Syncing',
     'whereami': 'Checking how this session runs', 'git log': 'Reading recent history', 'page read': `Reading ${arg ?? 'a page'}`, 'page history': 'Reading a page’s history', 'search status': 'Checking search', 'reference': 'Reading the reference',
   }

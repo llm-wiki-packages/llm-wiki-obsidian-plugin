@@ -56,6 +56,10 @@ const EMPTY_UNITS: Partial<Record<Verb, unknown>> = {
   'wiki.status': { machine: 'mac', git: { dirty: 0, untracked: 0, unpushed: 0, behind: 0 }, peers: [] },
   'wiki.git.log': { commits: [] },
   'wiki.git.status': { files: [] },
+  'wiki.whereami': { needs_you: 0 },
+  'wiki.page.held': { pages: [] },
+  'wiki.page.heldRoots': { pages: [] },
+  'wiki.inboxes.ls': { inbox: 'user', count: 0, messages: [] },
   'wiki.skills.ls': { skills: [] },
   'wiki.skills.doctor': { findings: [] },
   'wiki.packages.ls': { this_wiki: [] },
@@ -87,6 +91,10 @@ const GMAIL: Partial<Record<Verb, unknown>> = {
   'wiki.status': { machine: 'mac', git: { dirty: 0, untracked: 0, unpushed: 0, behind: 0 }, peers: [] },
   'wiki.git.log': { commits: [] },
   'wiki.git.status': { files: [] },
+  'wiki.whereami': { needs_you: 0 },
+  'wiki.page.held': { pages: [] },
+  'wiki.page.heldRoots': { pages: [] },
+  'wiki.inboxes.ls': { inbox: 'user', count: 0, messages: [] },
 }
 
 describe('takeSnapshot: skills and credentials', () => {
