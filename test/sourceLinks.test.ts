@@ -1,6 +1,7 @@
 // A page's frontmatter sources as graph edges: which paths count, and what is added to and taken from the link table.
 import { describe, expect, it } from 'vitest'
-import { SourceEdges, sourcePathsOf, type LinkTable } from '../src/vault/sourceLinks'
+import type LlmWikiPlugin from '../src/main'
+import { SourceEdges, SourceLinks, sourcePathsOf, type LinkTable } from '../src/vault/sourceLinks'
 
 describe('sourcePathsOf', () => {
   it('reads each resource of a good list', () => {
@@ -81,5 +82,144 @@ describe('SourceEdges', () => {
     expect(edges.set('wiki/p.md', [])).toBe(false)
     expect(edges.sources()).toEqual([])
     expect('wiki/p.md' in table).toBe(false)
+  })
+})
+
+type Handler = (...a: unknown[]) => void
+interface FakeFile { path: string; extension: string }
+
+/** Just enough of Obsidian's app for the wiring: a link table, frontmatter per file, events and graph leaves. */
+function fakeVault(opts: { pages: Record<string, unknown>; files: string[]; table: LinkTable; leaves?: Record<string, unknown[]>; on?: boolean }) {
+  const handlers = new Map<string, Handler[]>()
+  const unloads: (() => void)[] = []
+  const triggered: string[] = []
+  const file = (path: string): FakeFile => ({ path, extension: path.split('.').pop() ?? '' })
+  const all = [...new Set([...Object.keys(opts.pages), ...opts.files])]
+  const metadataCache = {
+    resolvedLinks: opts.table,
+    getFileCache: (f: FakeFile) => (f.path in opts.pages ? { frontmatter: opts.pages[f.path] } : null),
+    getFirstLinkpathDest: (link: string) => {
+      const hit = all.find((p) => p.replace(/\.md$/, '').endsWith(link.split('/').pop() ?? '\0'))
+      return hit ? file(hit) : null
+    },
+    on: (name: string, fn: Handler) => {
+      handlers.set(name, [...(handlers.get(name) ?? []), fn])
+      return { name }
+    },
+    trigger: (name: string, ...a: unknown[]) => {
+      triggered.push(name)
+      for (const fn of handlers.get(name) ?? []) fn(...a)
+    },
+  }
+  const plugin = {
+    settings: { sourceLinksInGraph: opts.on ?? true },
+    registerEvent: () => undefined,
+    register: (fn: () => void) => unloads.push(fn),
+    app: {
+      metadataCache,
+      vault: {
+        getMarkdownFiles: () => all.filter((p) => p.endsWith('.md')).map(file),
+        getFileByPath: (p: string) => (all.includes(p) ? file(p) : null),
+      },
+      workspace: {
+        onLayoutReady: (fn: () => void) => fn(),
+        getLeavesOfType: (type: string) => (opts.leaves?.[type] ?? []).map((view) => ({ view })),
+      },
+    },
+  }
+  const links = new SourceLinks(plugin as unknown as LlmWikiPlugin)
+  return { plugin, links, triggered, fire: (name: string, f?: string) => metadataCache.trigger(name, f ? file(f) : undefined), unload: () => unloads.forEach((fn) => fn()) }
+}
+
+describe('SourceLinks', () => {
+  const pages = (): Record<string, unknown> => ({
+    'wiki/e.md': { sources: [{ resource: 'sources/a.md' }, { resource: 'sources/b.md' }, { resource: 'sources/missing.md' }, { resource: 'wiki/e.md' }] },
+    'wiki/f.md': { sources: [{ resource: 'notes/c.md' }] },
+  })
+  const files = ['sources/a.md', 'sources/b.md', 'sources/deep/c.md']
+  const table = (): LinkTable => ({ 'wiki/e.md': { 'wiki/f.md': 1 }, 'wiki/f.md': {}, 'sources/a.md': {} })
+
+  it('adds the edges at layout ready and redraws the open graphs', () => {
+    let global = 0
+    let local = 0
+    const t = table()
+    const v = fakeVault({ pages: pages(), files, table: t, leaves: { graph: [{ dataEngine: { render: () => global++ } }], localgraph: [{ engine: { render: () => local++ } }] } })
+    v.links.register()
+    expect(t['wiki/e.md']).toEqual({ 'wiki/f.md': 1, 'sources/a.md': 1, 'sources/b.md': 1 })
+    // An exact path that misses falls back to Obsidian's link resolution.
+    expect(t['wiki/f.md']).toEqual({ 'sources/deep/c.md': 1 })
+    expect([global, local]).toEqual([1, 1])
+    expect(v.triggered).toEqual([])
+  })
+
+  it('re-adds a page’s edges after Obsidian rebuilds its row, and follows its frontmatter', () => {
+    const p = pages()
+    const t = table()
+    const v = fakeVault({ pages: p, files, table: t })
+    v.links.register()
+    t['wiki/e.md'] = { 'wiki/f.md': 1 }
+    p['wiki/e.md'] = { sources: [{ resource: 'sources/a.md' }] }
+    v.fire('resolve', 'wiki/e.md')
+    expect(t['wiki/e.md']).toEqual({ 'wiki/f.md': 1, 'sources/a.md': 1 })
+    v.fire('resolved')
+    expect(t['wiki/e.md']).toEqual({ 'wiki/f.md': 1, 'sources/a.md': 1 })
+  })
+
+  it('turning the setting off restores the table, and on adds the edges back', () => {
+    const t = table()
+    const before = structuredClone(t)
+    const v = fakeVault({ pages: pages(), files, table: t })
+    v.links.register()
+    v.plugin.settings.sourceLinksInGraph = false
+    v.links.apply()
+    expect(t).toEqual(before)
+    v.fire('resolve', 'wiki/e.md')
+    v.fire('resolved')
+    expect(t).toEqual(before)
+    v.plugin.settings.sourceLinksInGraph = true
+    v.links.apply()
+    expect(t['wiki/e.md']).toEqual({ 'wiki/f.md': 1, 'sources/a.md': 1, 'sources/b.md': 1 })
+  })
+
+  it('takes every edge back out on unload', () => {
+    const t = table()
+    const before = structuredClone(t)
+    const v = fakeVault({ pages: pages(), files, table: t })
+    v.links.register()
+    v.unload()
+    expect(t).toEqual(before)
+  })
+
+  it('adds nothing while the setting is off', () => {
+    const t = table()
+    const before = structuredClone(t)
+    const v = fakeVault({ pages: pages(), files, table: t, on: false })
+    v.links.register()
+    v.fire('resolve', 'wiki/e.md')
+    expect(t).toEqual(before)
+  })
+
+  it('a graph with no engine gets one resolved event, which this does not answer itself', () => {
+    const v = fakeVault({ pages: pages(), files, table: table(), leaves: { graph: [{}] } })
+    v.links.register()
+    expect(v.triggered).toEqual(['resolved'])
+  })
+
+  it('an engine that throws is logged, not thrown', () => {
+    const v = fakeVault({ pages: pages(), files, table: table(), leaves: { graph: [{ dataEngine: { render: () => { throw new Error('internal') } } }] } })
+    expect(() => v.links.register()).not.toThrow()
+  })
+
+  it('drops the edges of a page deleted since', () => {
+    const p = pages()
+    const t = table()
+    const v = fakeVault({ pages: p, files, table: t })
+    v.links.register()
+    const row = t['wiki/f.md']
+    delete p['wiki/f.md']
+    delete t['wiki/f.md']
+    v.fire('resolved')
+    expect(row).toEqual({ 'sources/deep/c.md': 1 })
+    expect('wiki/f.md' in t).toBe(false)
   })
 })
