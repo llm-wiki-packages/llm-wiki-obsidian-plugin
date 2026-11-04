@@ -16,6 +16,10 @@ const rows: FileRow[] = [
   { path: 'wiki/reports/.trash/2026-10-01.md', mtime: 9 },
   { path: 'research/charts/usage.html', mtime: 5 },
   { path: 'notes/old.htm', mtime: 4 },
+  { path: '_raw/blackboard/ORI1000/files/Well Done.html', mtime: 8 },
+  { path: 'sources/web/capture.html', mtime: 8 },
+  { path: 'templates/page.html', mtime: 8 },
+  { path: '.obsidian/snippets/x.html', mtime: 8 },
   { path: 'wiki/topics/x.md', mtime: 9 },
 ]
 
@@ -42,7 +46,7 @@ describe('the reports', () => {
     expect(seriesOf(reports, 'wiki/reports/brief-28.html')).toMatchObject({ newer: null })
     expect(seriesOf(reports, 'research/charts/usage.html')).toBeNull()
   })
-  it('list the other HTML in the vault, newest first', () => {
+  it('list the other HTML the wiki made, newest first: not raw captures, feeds, templates or dot folders', () => {
     expect(otherHtml(rows).map((r) => r.path)).toEqual(['research/charts/usage.html', 'notes/old.htm'])
   })
 })

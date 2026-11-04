@@ -5,6 +5,7 @@
 // Underscored files are the wiki's own (`_template.html`), and a `.html.md`
 // page is the adopt stub an older landing wrote for the brief, not a report.
 import type { App, TFile } from 'obsidian'
+import { isHidden, isInput } from '../wiki/layout'
 
 export const REPORTS_DIR = 'wiki/reports'
 export const HTML_EXTENSIONS = ['html', 'htm']
@@ -116,9 +117,15 @@ export function collectReports(rows: FileRow[]): Report[] {
   return out.sort((a, b) => (b.date ?? '').localeCompare(a.date ?? '') || b.mtime - a.mtime)
 }
 
-/** Every HTML file outside the reports, newest first. */
+/**
+ * The HTML the wiki made outside the reports, newest first. What came in (a
+ * harvest's raw captures, a feed's files) is input, not something to read
+ * here; nor are templates or dot and version folders.
+ */
 export function otherHtml(rows: FileRow[]): FileRow[] {
-  return rows.filter((r) => isHtml(r.path) && !r.path.startsWith(`${REPORTS_DIR}/`)).sort((a, b) => b.mtime - a.mtime)
+  return rows
+    .filter((r) => isHtml(r.path) && !r.path.startsWith(`${REPORTS_DIR}/`) && !isInput(r.path) && !isHidden(r.path))
+    .sort((a, b) => b.mtime - a.mtime)
 }
 
 /** The briefs in date order, newest first, and where this one sits among them. */
