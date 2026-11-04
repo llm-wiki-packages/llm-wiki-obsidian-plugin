@@ -304,7 +304,8 @@ export function searchSetupAsk(s: SearchStatus | null | undefined): string {
   return [
     `Set up the search engine for this wiki on this machine. Right now search answers from: ${chain}.`,
     'This wiki is already joined, so do not run join again.',
-    'Follow the brain-machine:search-server skill’s setup: check what this machine can run, install and start the engine, and ask me before adding "search_server" to [search] backends in the wiki’s config.',
-    'Then build the index (llm-wiki-ops search index) and tell me what search answers from now.',
+    'Follow the brain-machine:search-server skill’s setup: check what this machine can run, then install and start the engine.',
+    'I want this wiki served from it, so that is my yes to the backends question: put "search_server" first in [search] backends in the wiki’s config and commit it, without asking again.',
+    'Then build the index and tell me what search answers from now. If something stops you, end with what I need to decide, on its own line.',
   ].join(' ')
 }

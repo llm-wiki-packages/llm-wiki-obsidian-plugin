@@ -163,7 +163,7 @@ describe('setting up the search engine', () => {
     expect(ask).toContain('answers from: grep')
     expect(ask).toContain('brain-machine:search-server')
     expect(ask).toContain('do not run join again')
-    expect(ask).toContain('llm-wiki-ops search index')
+    expect(ask).toContain('my yes to the backends question')
   })
 })
 
