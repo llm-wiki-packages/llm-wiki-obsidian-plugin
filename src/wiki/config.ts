@@ -284,7 +284,7 @@ export function grepOnly(s: SearchStatus | null | undefined): boolean {
   return !!s && !s.engine_configured
 }
 
-/** The engine is set up on this machine, but the wiki's backends do not name it, so search still answers from grep. */
+/** The engine is set up on this machine, but the backends that apply here do not name it, so search still answers from grep. */
 export function engineOff(s: SearchStatus | null | undefined): boolean {
   return !!s?.engine_configured && !(s.backends ?? []).some((b) => b.name === 'search_server')
 }
@@ -305,7 +305,7 @@ export function searchSetupAsk(s: SearchStatus | null | undefined): string {
     `Set up the search engine for this wiki on this machine. Right now search answers from: ${chain}.`,
     'This wiki is already joined, so do not run join again.',
     'Follow the brain-machine:search-server skill’s setup: check what this machine can run, then install and start the engine.',
-    'I want this wiki served from it, so that is my yes to the backends question: put "search_server" first in [search] backends in the wiki’s config and commit it, without asking again.',
+    'I want this wiki served from it on this machine, so that is my yes to the backends question: put "search_server" first in [search] backends in this machine’s config (llm-wiki-ops config set --local, .llm-wiki.local.toml), not the committed .llm-wiki.toml, without asking again.',
     'Then build the index and tell me what search answers from now. If something stops you, end with what I need to decide, on its own line.',
   ].join(' ')
 }
