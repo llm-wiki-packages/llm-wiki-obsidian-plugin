@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest'
 import { VERBS, childEnv } from '../src/wiki/cli'
 import {
-  KNOBS, defaultWords, folderPattern, parseInput, parseList, patchOf, propertyName, propertyRows, propertyWords, sourceOf, spellKey, targetOf, templateRows, valueWords,
+  KNOBS, defaultWords, folderPattern, grepOnly, searchSetupAsk, parseInput, parseList, patchOf, propertyName, propertyRows, propertyWords, sourceOf, spellKey, targetOf, templateRows, valueWords,
   type ConfigRow, type ConfigRows, type Knob,
 } from '../src/wiki/config'
 import answer from './mocks/config-get.json'
@@ -149,5 +149,20 @@ describe('indexed properties', () => {
 describe('the knobs', () => {
   it('each name a row the CLI answers', () => {
     expect(KNOBS.flatMap((g) => g.knobs).filter((k) => !rows[k.key]).map((k) => k.key)).toEqual([])
+  })
+})
+
+describe('setting up the search engine', () => {
+  it('is offered only where search answers from grep alone', () => {
+    expect(grepOnly({ engine_configured: false })).toBe(true)
+    expect(grepOnly({ engine_configured: true })).toBe(false)
+    expect(grepOnly(null)).toBe(false)
+  })
+  it('asks the agent for the search-server setup, names the chain, and keeps join out of it', () => {
+    const ask = searchSetupAsk({ engine_configured: false, backends: [{ name: 'grep' }] })
+    expect(ask).toContain('answers from: grep')
+    expect(ask).toContain('brain-machine:search-server')
+    expect(ask).toContain('do not run join again')
+    expect(ask).toContain('llm-wiki-ops search index')
   })
 })

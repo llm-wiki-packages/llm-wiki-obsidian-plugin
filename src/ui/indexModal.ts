@@ -2,6 +2,7 @@ import { Modal, Notice, type App } from 'obsidian'
 import type LlmWikiPlugin from '../main'
 import type { Outcome } from '../wiki/actions'
 import { CliError } from '../wiki/cli'
+import { grepOnly, searchSetupAsk } from '../wiki/config'
 import { corpusTrees, inCorpus } from '../wiki/searchText'
 import type { SearchStatusAnswer } from '../wiki/snapshot'
 import { button, icon, type Tone } from './dom'
@@ -127,6 +128,15 @@ class IndexModal extends Modal {
     const text = hero.createDiv()
     text.createDiv({ cls: 'llm-wiki-index-hero-title', text: v.title })
     if (v.detail) text.createDiv({ cls: 'llm-wiki-muted', text: v.detail })
+    if (grepOnly(this.status) && !this.problem) {
+      const bar = el.createDiv({ cls: 'llm-wiki-row-actions' })
+      button(bar, 'Set up search engine', () => {
+        const prompt = searchSetupAsk(this.status)
+        this.close()
+        void this.plugin.openChat(prompt)
+      }, { icon: 'database', title: 'Search by meaning, not only exact words. The agent installs and starts the engine, then builds the index.' })
+      bar.createSpan({ cls: 'llm-wiki-muted', text: 'Search by meaning as well as exact words. The agent sets it up in chat.' })
+    }
 
     const s = this.status
     if (s?.engine_configured) {

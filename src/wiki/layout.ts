@@ -71,6 +71,10 @@ const under = (path: string, trees: string[]) => trees.some((t) => path === t ||
 export const isFeed = (path: string): boolean => under(path, current.feeds)
 export const isWikiPage = (path: string): boolean => under(path, current.wiki)
 export const isResearch = (path: string): boolean => under(path, current.research)
+/** What came in rather than what was written: the raw captures and the feeds a person accepts from. */
+export const isInput = (path: string): boolean => under(path, [current.raw, ...current.feeds])
+/** Out of view: a dot or version folder, or the templates tree. */
+export const isHidden = (path: string): boolean => under(path, [current.templates]) || path.split('/').some((p) => p.startsWith('.') || p === '_versions')
 
 /** A markdown page whose state the pipeline tracks: a feed or wiki page, not a reserved file, not inside a dot or version folder. */
 export function isLifecycle(path: string): boolean {
