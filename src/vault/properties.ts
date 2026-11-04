@@ -1,6 +1,6 @@
 // A page's Properties panel, sorted for a person: the keys they write first,
 // the wiki's own bookkeeping (a page's id, its revision, when it was made and
-// checked) last and folded behind a More row until it is asked for. Nothing in
+// checked, the sources it cites) last and folded behind a More row until it is asked for. Nothing in
 // the YAML moves; rows are sorted with `order` and hidden with a class. The
 // More row is sticky: open, it stays open on every note until it is closed.
 import type LlmWikiPlugin from '../main'
@@ -9,7 +9,7 @@ import type LlmWikiPlugin from '../main'
 export const FIRST_KEYS = ['title', 'type', 'description', 'tags', 'aliases', 'author', 'published']
 
 /** Keys the wiki keeps for itself: last, and hidden until More is clicked. */
-export const BOOKKEEPING_KEYS = ['document_id', 'document_revision', 'generated', 'verified', 'resource', 'supersedes', 'superseded_by', 'stale_after', 'status', 'observed']
+export const BOOKKEEPING_KEYS = ['document_id', 'document_revision', 'generated', 'verified', 'resource', 'supersedes', 'superseded_by', 'stale_after', 'status', 'observed', 'sources']
 
 /** Where a key sorts in the panel: a first key by its place, bookkeeping after everything, the rest in between as Obsidian has them. */
 export function keyOrder(key: string): number {
