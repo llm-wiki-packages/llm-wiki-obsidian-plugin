@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest'
 import { VERBS, childEnv } from '../src/wiki/cli'
 import {
-  KNOBS, defaultWords, folderPattern, grepOnly, searchSetupAsk, parseInput, parseList, patchOf, propertyName, propertyRows, propertyWords, sourceOf, spellKey, targetOf, templateRows, valueWords,
+  KNOBS, defaultWords, folderPattern, engineFirst, engineOff, grepOnly, searchSetupAsk, parseInput, parseList, patchOf, propertyName, propertyRows, propertyWords, sourceOf, spellKey, targetOf, templateRows, valueWords,
   type ConfigRow, type ConfigRows, type Knob,
 } from '../src/wiki/config'
 import answer from './mocks/config-get.json'
@@ -164,5 +164,18 @@ describe('setting up the search engine', () => {
     expect(ask).toContain('brain-machine:search-server')
     expect(ask).toContain('do not run join again')
     expect(ask).toContain('llm-wiki-ops search index')
+  })
+})
+
+describe('switching the search engine on', () => {
+  const off = { engine_configured: true, realm_ready: false, backends: [{ name: 'grep' }] }
+  it('is due when the engine is set up but the backends do not name it', () => {
+    expect(engineOff(off)).toBe(true)
+    expect(engineOff({ engine_configured: true, backends: [{ name: 'search_server' }, { name: 'grep' }] })).toBe(false)
+    expect(engineOff({ engine_configured: false, backends: [{ name: 'grep' }] })).toBe(false)
+  })
+  it('puts the engine first and keeps the rest of the chain', () => {
+    expect(engineFirst(off)).toEqual(['search_server', 'grep'])
+    expect(engineFirst({ backends: [{ name: 'grep' }, { name: 'search_server' }] })).toEqual(['search_server', 'grep'])
   })
 })

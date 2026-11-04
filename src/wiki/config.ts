@@ -284,6 +284,16 @@ export function grepOnly(s: SearchStatus | null | undefined): boolean {
   return !!s && !s.engine_configured
 }
 
+/** The engine is set up on this machine, but the wiki's backends do not name it, so search still answers from grep. */
+export function engineOff(s: SearchStatus | null | undefined): boolean {
+  return !!s?.engine_configured && !(s.backends ?? []).some((b) => b.name === 'search_server')
+}
+
+/** The backend chain with the engine first, ahead of what answers now. */
+export function engineFirst(s: SearchStatus | null | undefined): string[] {
+  return ['search_server', ...(s?.backends ?? []).map((b) => b.name).filter((n) => n !== 'search_server')]
+}
+
 /**
  * The chat turn that sets up the search engine. It takes more than a value
  * (an engine to install and start, a backend to add, an index to build), so

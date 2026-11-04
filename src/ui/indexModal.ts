@@ -2,7 +2,7 @@ import { Modal, Notice, type App } from 'obsidian'
 import type LlmWikiPlugin from '../main'
 import type { Outcome } from '../wiki/actions'
 import { CliError } from '../wiki/cli'
-import { grepOnly, searchSetupAsk } from '../wiki/config'
+import { engineFirst, engineOff, grepOnly, searchSetupAsk } from '../wiki/config'
 import { corpusTrees, inCorpus } from '../wiki/searchText'
 import type { SearchStatusAnswer } from '../wiki/snapshot'
 import { button, icon, type Tone } from './dom'
@@ -103,6 +103,7 @@ class IndexModal extends Modal {
     if (this.problem) return { tone: 'error', title: 'Could not read the search status', detail: this.problem }
     if (!s) return { tone: 'muted', title: 'Reading the search status…', detail: '' }
     if (!s.engine_configured) return { tone: 'ok', title: 'This wiki searches with grep', detail: 'Grep reads the files as they are now, so there is no index to go stale.' }
+    if (engineOff(s)) return { tone: 'warn', title: 'The search engine is set up but not switched on', detail: 'Search still answers from grep. Switching it on puts the engine ahead of grep in the wiki’s config, which every machine reads, then builds the index.' }
     if (s.realm_ready === false) return { tone: 'error', title: 'The search engine is not ready', detail: `${s.realm_reason || 'no reason given'}. A rebuild sets it up again where it can.` }
     if (deleted) return { tone: 'error', title: `Search is answering with ${plural(deleted, 'deleted page')}`, detail: 'Only a rebuild removes pages that no longer exist.' }
     if (s.reindex_required) return { tone: 'warn', title: 'The search paths changed since the last rebuild', detail: 'Pages that no longer belong may still turn up. A rebuild drops them.' }
@@ -114,7 +115,7 @@ class IndexModal extends Modal {
   /** Which pass fixes what the verdict names. */
   private recommended(): 'index' | 'reindex' | null {
     const s = this.status
-    if (!s?.engine_configured) return null
+    if (!s?.engine_configured || engineOff(s)) return null
     if (s.realm_ready === false || s.reindex_required || this.opts.stale.length) return 'reindex'
     return s.dirty ? 'index' : null
   }
@@ -159,7 +160,8 @@ class IndexModal extends Modal {
     if (this.opts.stale.length) this.staleList(el)
 
     if (this.outcome) el.createDiv({ cls: `llm-wiki-index-outcome ${this.outcome.ok ? 'is-ok' : 'is-error'}`, text: this.outcome.message })
-    if (s?.engine_configured) this.choices(el)
+    if (engineOff(s)) this.switchOn(el)
+    else if (s?.engine_configured) this.choices(el)
   }
 
   /** `exact`: `files` are the CLI's own, so `count` is how many there are even where the list is cut short. */
@@ -218,6 +220,34 @@ class IndexModal extends Modal {
         if (ok) await this.run('reindex')
       })
     if (this.running) wrap.createDiv({ cls: 'llm-wiki-muted llm-wiki-index-wait', text: 'This can take a few minutes. You can close this; the pass keeps going and reports when it is done.' })
+  }
+
+  /** The one step left after setup: name the engine in the wiki's backends, then build the index it will answer from. */
+  private switchOn(parent: HTMLElement): void {
+    const actions = this.plugin.actions
+    if (!actions) return
+    const chain = engineFirst(this.status)
+    const bar = parent.createDiv({ cls: 'llm-wiki-row-actions' })
+    const b = button(bar, this.running ? 'Switching on…' : 'Switch it on', async () => {
+      const ok = await confirm(this.app, {
+        title: 'Switch on the search engine?',
+        body: `The wiki’s search backends become ${chain.join(', then ')}. The change is committed, so every machine that joins this wiki reads it; one without the engine falls back to grep. Then the index is built from every file.`,
+        cta: 'Switch it on',
+      })
+      if (!ok) return
+      this.running = 'reindex'
+      this.outcome = null
+      this.draw()
+      const out = await actions.patchConfig({ search: { backends: chain } }, 'wiki', `search answers from ${chain.join(', then ')}`, 'search backends')
+      this.running = null
+      if (!out.ok) {
+        this.outcome = out
+        return void this.draw()
+      }
+      await this.load()
+      await this.run('reindex')
+    }, { icon: 'power', cta: true })
+    if (this.running) b.disabled = true
   }
 
   private async run(kind: 'index' | 'reindex'): Promise<void> {
