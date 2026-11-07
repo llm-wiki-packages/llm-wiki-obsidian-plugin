@@ -156,6 +156,16 @@ export class Actions {
     }
   }
 
+  /** A page conflict answered: `mine` keeps the page; `theirs` writes the job's render over it, the page set aside in `_versions/`. */
+  async resolvePage(path: string, choice: 'mine' | 'theirs'): Promise<Outcome> {
+    try {
+      await this.cli.run('wiki.page.resolve', { wiki: this.wiki, path, choice })
+      return { ok: true, message: choice === 'mine' ? `${path}: kept your version` : `${path}: took the job's update; your version is in _versions/` }
+    } catch (e) {
+      return failed(`could not resolve ${path}`, e)
+    }
+  }
+
   /** Several writes against one wiki go one after another; two writers at once can trip a lock. */
   async each(slugs: string[], one: (slug: string) => Promise<Outcome>, did: string): Promise<Outcome> {
     const outs: Outcome[] = []

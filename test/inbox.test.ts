@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { closeMessage } from '../src/views/dashboard/inbox'
 import type { Actions } from '../src/wiki/actions'
 import { childEnv, CliError, VERBS, type Args, type Verb } from '../src/wiki/cli'
-import { closedSentence, doneWords, heldGroups, inboxAttention, inboxCount, messageAt, messageOf, messagePath, sweptSentence, type SweptRow } from '../src/wiki/inbox'
+import { closedSentence, doneWords, heldGroups, inboxAttention, inboxCount, incomingPath, messageAt, messageOf, messagePath, sweptSentence, type SweptRow } from '../src/wiki/inbox'
 import type { InboxMessage } from '../src/wiki/model'
 import { takeSnapshot, type Reader } from '../src/wiki/snapshot'
 
@@ -18,7 +18,7 @@ describe('the inbox verbs', () => {
   it('lists one inbox, every machine’s, under the read floor', () => {
     expect(VERBS['wiki.inboxes.ls']({ wiki: 'kb', name: 'user' })).toEqual(['wiki', '--read-only', 'kb', 'inboxes', 'ls', 'user', '--all', '--json'])
     expect(VERBS['wiki.page.held']({ wiki: 'kb' })).toEqual(['wiki', '--read-only', 'kb', 'page', 'ls', 'filter=under:sources', 'filter=lever:ingest=hold', '--json'])
-    expect(VERBS['wiki.page.heldRoots']({ wiki: 'kb' })).toEqual(['wiki', '--read-only', 'kb', 'page', 'ls', 'filter=under:sources', 'filter=prop:root', 'filter=lever:ingest=hold', '--json'])
+    expect(VERBS['wiki.page.heldRoots']({ wiki: 'kb' })).toEqual(['wiki', '--read-only', 'kb', 'page', 'ls', 'filter=under:sources', 'filter=prop:ops.root', 'filter=lever:ingest=hold', '--json'])
     expect(VERBS['wiki.inboxes.conflicts']({ wiki: 'kb' })).toEqual(['wiki', '--read-only', 'kb', 'inboxes', 'ls', 'conflicts', '--all', '--json'])
     expect(childEnv({ LLM_WIKI_PERMISSIONS: 'write' }, 'wiki.inboxes.ls').LLM_WIKI_PERMISSIONS).toBe('read')
   })
@@ -98,6 +98,12 @@ describe('inbox answers into the model', () => {
     const blocked = [{ job: 'j', reason: 'r', next: 'n' }]
     expect(inboxCount({ inbox: [msg(), msg({ id: 'x', done: true })], parts, blocked, conflicts: null })).toBe(4)
     expect(inboxCount({ inbox: [msg()], parts: null, blocked: [], conflicts: [msg({ inbox: 'conflicts' })] })).toBe(2)
+    // A page whose update did not merge is listed, so it is counted (0.15, `page_conflicts`).
+    expect(inboxCount({ inbox: [], parts: { ...parts, page_conflicts: [{ id: 'm-1', page: 'sources/j/a.md' }] }, blocked: [], conflicts: null })).toBe(3)
+  })
+  it('finds the job\'s version of a conflicted page beside it, in _versions/', () => {
+    expect(incomingPath('sources/blackboard/cis101/lecture1.md')).toBe('sources/blackboard/cis101/_versions/lecture1.incoming.md')
+    expect(incomingPath('top.md')).toBe('_versions/top.incoming.md')
   })
   it('raises one Overview row for the messages and one for the count, both opening the inbox', () => {
     expect(inboxAttention([], 0)).toEqual([])
@@ -112,6 +118,7 @@ describe('inbox answers into the model', () => {
     const parts = { held: [], curate: [{ reason: 'draft', directory: 's/n' }], conflicts: [] }
     expect(inboxAttention([], 2, parts, [{ job: 'j', reason: 'r', next: 'n' }])[0]?.detail).toBe('1 blocked job, 1 group of new pages.')
     expect(inboxAttention([], 2, { ...parts, curate: [], held: [{ path: 'a', id: 'a' }, { path: 'b', id: 'b' }] })[0]?.detail).toBe('2 held sources; held sources and conflicts are answered with /brain:ingest.')
+    expect(inboxAttention([], 1, { held: [], curate: [], conflicts: [], page_conflicts: [{ id: 'm-1', page: 'sources/j/a.md' }] })[0]?.detail).toBe('1 page whose update did not merge.')
     expect(rows.every((r) => r.action?.kind === 'goto' && r.action.tab === 'inbox')).toBe(true)
   })
 })

@@ -24,6 +24,16 @@ type Fm = Record<string, unknown> | undefined
 
 const text = (v: unknown): string => (typeof v === 'string' ? v.trim() : '')
 
+/**
+ * A key the pipeline keeps for itself. From page shape 3 (llm-wiki-plugins #4147) it sits in the page's `ops` object;
+ * a page with no `ops` object is read at the top level, where an unmigrated wiki still has it.
+ */
+export function opsKey(fm: Fm, key: string): unknown {
+  const ops = fm?.ops
+  if (ops && typeof ops === 'object' && !Array.isArray(ops)) return (ops as Record<string, unknown>)[key]
+  return fm?.[key]
+}
+
 /** A checkbox set the way #3669 reads it: YAML `true`, or the text `true`. */
 export function boxSet(fm: Fm, key: string): boolean {
   const v = fm?.[key]
@@ -52,7 +62,7 @@ export function factsOf(app: App, path: string): PageFacts {
   return {
     path,
     title: text(fm?.title) || stem(path),
-    job: text(fm?.job) || null,
+    job: text(opsKey(fm, 'job')) || null,
     blurb: text(fm?.summary) || text(fm?.description),
     host: hostOf(fm?.resource),
     mtime: file instanceof TFile ? file.stat.mtime : 0,

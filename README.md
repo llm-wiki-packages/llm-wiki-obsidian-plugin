@@ -38,7 +38,9 @@ the gear opens the plugin settings.
   an answer with nowhere to go, or removes the message; the chat icon hands it to the agent. Below, **Waiting on your
   judgment**, exactly what the CLI counts: blocked jobs with the command that
   clears them, held sources a record waits on, open conflicts, curate's groups
-  (on Changes), and **Answer in chat** (`/brain:ingest`). Then **Held
+  (on Changes), pages whose job update did not merge with your edits
+  (**Compare** opens the job's version in `_versions/`, then **Keep mine** or
+  **Take theirs**, `page resolve`), and **Answer in chat** (`/brain:ingest`). Then **Held
   sources** nothing waits on yet. The Overview's Needs you carries both counts
   with **Open inbox**.
 - **Reports**: the briefs the agents wrote under `wiki/reports/`, newest
@@ -321,8 +323,14 @@ plus one case in `main.ts`'s `backend()`.
   history and sync (`git commit`, `git sync`), reindex, `config set` and
   `config unset`, and `harness run`.
   The Draft and Archive boxes are ticked through Obsidian, as a person would.
+- **A credential click is its own approval.** From 0.15 (ADR-0074) the
+  CLI answers `credentials set`, `bind`, `login` and `remove` with a one-time
+  code instead of writing. The dialog the click came from already said what it
+  does, so the plugin runs the command once more with `approve=<code>` (this
+  is limited to those four verbs, the `ATTENDED` set in `src/wiki/cli.ts`). A
+  row the operator set to `terminal-only` mints no code and stays refused.
 - **The editor's page writes say so.** Accept, Archive, adopt, a copy's
-  repair and the sweep run with `LLM_WIKI_SESSION_ORIGIN=editor` (`EDITOR` in
+  repair, a page conflict's answer and the sweep run with `LLM_WIKI_SESSION_ORIGIN=editor` (`EDITOR` in
   `src/wiki/cli.ts`), which lifts the CLI's settle window: the person editing
   is the one asking.
 - **Nothing on screen says running or due that the ticket store does not.**

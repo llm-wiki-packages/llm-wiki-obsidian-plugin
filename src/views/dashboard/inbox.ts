@@ -1,9 +1,9 @@
 import { Component, MarkdownRenderer, MarkdownView, Notice, TFile, type App } from 'obsidian'
 import { slash } from '../../chat/skills'
 import { button, empty, relativeTime, section } from '../../ui/dom'
-import { setBox } from '../../vault/pages'
+import { setBox, stem } from '../../vault/pages'
 import type { Actions, Outcome } from '../../wiki/actions'
-import { answerTyped, doneWords, type InboxReadAnswer } from '../../wiki/inbox'
+import { answerTyped, doneWords, incomingPath, type InboxReadAnswer } from '../../wiki/inbox'
 import { confirm } from '../../ui/modals'
 import type { BlockedJob, HeldGroup, InboxMessage, NeedsYouParts } from '../../wiki/model'
 import type { TabContext } from './index'
@@ -233,10 +233,11 @@ async function body(el: HTMLElement, m: InboxMessage, ctx: TabContext): Promise<
  */
 function judgment(root: HTMLElement, ctx: TabContext): void {
   const { needsYou, parts, blocked, held, conflicts } = ctx.snapshot
-  if (!needsYou && !blocked.length) return
+  const pageConflicts = parts?.page_conflicts ?? []
+  if (!needsYou && !blocked.length && !pageConflicts.length) return
   const ingest = slash('ingest')
   const body = section(root, 'Waiting on your judgment', {
-    count: needsYou ?? blocked.length,
+    count: Math.max(needsYou ?? 0, blocked.length, pageConflicts.length),
     actions: (bar) => button(bar, 'Answer in chat', () => ctx.act({ kind: 'ask', prompt: ingest }), { icon: 'message-square', cta: true, title: `Starts ${ingest} in chat` }),
   })
   body.createDiv({ cls: 'llm-wiki-muted', text: 'What the wiki will not decide without you. The agent walks through the held sources and conflicts with you; a blocked job names the command that clears it.' })
@@ -251,6 +252,7 @@ function judgment(root: HTMLElement, ctx: TabContext): void {
     main.createDiv({ cls: 'llm-wiki-row-detail', text: ['Conflict between a new source and the wiki', relativeTime(c.at)].filter(Boolean).join(' · ') })
     button(row.createDiv({ cls: 'llm-wiki-row-actions' }), '', () => chatAbout(ctx, c), { icon: 'message-square', title: 'Chat about this' })
   }
+  for (const p of pageConflicts) pageConflictRow(body, p, ctx)
   if (parts?.curate.length) {
     const row = body.createDiv({ cls: 'llm-wiki-row is-link' })
     row.addEventListener('click', () => ctx.goTo('changes'))
@@ -265,6 +267,33 @@ function judgment(root: HTMLElement, ctx: TabContext): void {
     changes.createSpan({ cls: 'llm-wiki-muted', text: 'Groups of new pages are judged on Changes →' })
     changes.addEventListener('click', () => ctx.goTo('changes'))
   }
+}
+
+/**
+ * A page a job refreshed while you had edited it, whose update did not merge: the job's version waits beside it in
+ * `_versions/`. Keep mine closes the record; Take theirs writes the update over the page and sets yours aside.
+ */
+function pageConflictRow(parent: HTMLElement, p: { id: string; page: string }, ctx: TabContext): void {
+  const row = parent.createDiv({ cls: 'llm-wiki-row is-link' })
+  row.addEventListener('click', () => void ctx.act({ kind: 'open', path: p.page }))
+  row.createSpan({ cls: 'llm-wiki-dot is-warn' })
+  const main = row.createDiv({ cls: 'llm-wiki-row-main' })
+  main.createDiv({ cls: 'llm-wiki-row-title', text: stem(p.page) })
+  main.createDiv({ cls: 'llm-wiki-row-detail', text: 'A job’s update did not merge with your edits' })
+  const bar = row.createDiv({ cls: 'llm-wiki-row-actions' })
+  const actions = ctx.plugin.actions
+  // Opened only when it is there: a link that resolves to nothing would make an empty note of that name.
+  const incoming = incomingPath(p.page)
+  button(bar, 'Compare', () => {
+    if (ctx.plugin.app.vault.getAbstractFileByPath(incoming) instanceof TFile) return ctx.act({ kind: 'open', path: incoming })
+    new Notice(`The job’s version is not in the vault yet (${incoming}); sync, then try again.`, 6000)
+  }, { icon: 'git-compare', title: 'Opens the job’s version' })
+  if (!actions) return
+  button(bar, 'Keep mine', () => ctx.write(() => actions.resolvePage(p.page, 'mine')), { title: 'Keeps the page as it is; the next update merges against it' })
+  button(bar, 'Take theirs', async () => {
+    const ok = await confirm(ctx.plugin.app, { title: `Take the update for ${stem(p.page)}?`, body: 'The job’s version replaces the page. Your version is set aside in _versions/.', cta: 'Take theirs' })
+    if (ok) await ctx.write(() => actions.resolvePage(p.page, 'theirs'))
+  }, { title: 'Writes the job’s version over the page' })
 }
 
 /** The held groups narrowed to the pages the count waits on. */
@@ -288,10 +317,6 @@ function heldElsewhere(root: HTMLElement, ctx: TabContext): void {
     ? 'Held from ingest. Nothing waits on them until mine files a record; then they move up.'
     : 'Held from ingest: the agent asks before folding them in.' })
   for (const g of groups) heldRow(body, g, ctx, false)
-}
-
-function stem(path: string): string {
-  return (path.split('/').pop() ?? path).replace(/\.md$/, '')
 }
 
 /** A bundle is named by its folder: its root is `README.md` by convention. */

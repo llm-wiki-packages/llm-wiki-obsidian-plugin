@@ -1324,6 +1324,41 @@ detached | ...)`, plus push recovery notes. Refusals (rc 2): jailed
 
 ### (1) Protected writes and attendance
 
+**From ops 0.15.0 the paragraphs below are history.** One gate,
+`OPS/lib/gate.py`, answers every row of `posture.ACTIONS`
+(`llm-wiki-ops reference approvals --rows`). The posture is derived in this
+order: a `scheduled` or `harness-run` origin means unattended; a jail means
+in-jail; `--dev` means dev; the mark or an opening tty means attended;
+anything else means unmarked. An unmarked session answers the way an
+attended agent does. `credentials set|login|bind|remove` are **approve**:
+the first call writes nothing and exits 2 with
+
+```json
+{ "error": "approval: credentials set x kind=value needs the user's yes (code 2:sx0yt)",
+  "approval": { "code": "2:sx0yt", "seq": 2, "row": "credentials set", "class": "approve",
+                "says": "Stores credential 'x' on this machine.", "lines": [],
+                "rerun": "llm-wiki-cli approve=2:sx0yt wiki kb credentials set x kind=value --json",
+                "expires": "..." } }
+```
+
+(real, 0.15.0). The re-run puts `approve=<code>` right after the CLI's
+name. The code works once, for 30 minutes, and is bound to the command's
+tokens. A **confirm** row refuses with a `confirm` object and passes on
+`--confirm`. A **warn** row (`page resolve`) prints its line on stderr and
+runs. `terminal-only` mints no code.
+
+Page shape 3 (`pages.shape`, a wiki-only config row, llm-wiki-plugins
+#4147): the pipeline's page keys (`job`, `root`, `ingest`, `extract`,
+`rendered`, `conflict`, `updates_waiting`, `observed`, ...) live in a page's
+`ops` object, and narrate's keys live in `narrate`. `filter=prop:ops.root`
+finds bundle roots; `prop:root` finds none. On a wiki below the release's
+shape the runner and landing stand down, and doctor shows a `pages-shape`
+`fail` row. `whereami.needs_you_parts.page_conflicts` is `[{id, page}]`. The
+job's version of the page is `<dir>/_versions/<stem>.incoming.md`, and
+`page resolve <page> mine|theirs|merged` answers the conflict.
+
+Before 0.15:
+
 Source: `docs/contracts/dev/env.md`, "Attendance". A session is marked
 attended by env var `LLM_WIKI_SESSION_ATTENDED=1` (literal `1`; absent =
 unattended; nothing writes `0`). The plugin's `SessionStart` hook sets it only

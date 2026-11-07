@@ -8,6 +8,9 @@ describe('the properties panel', () => {
     expect([...keys].sort((a, b) => keyOrder(a) - keyOrder(b))).toEqual(['title', 'type', 'tags', 'source_url', 'document_id', 'verified'])
     expect(FIRST_KEYS.every((k) => keyOrder(k) < 0)).toBe(true)
     expect(BOOKKEEPING_KEYS.every((k) => keyOrder(k) === 100)).toBe(true)
+    // The pipeline's two objects from page shape 3 fold away with the rest.
+    expect(keyOrder('ops')).toBe(100)
+    expect(keyOrder('narrate')).toBe(100)
     expect(keyOrder('anything_else')).toBe(0)
   })
   it('counts what More folds away', () => {
