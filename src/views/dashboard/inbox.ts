@@ -3,7 +3,7 @@ import { slash } from '../../chat/skills'
 import { button, empty, relativeTime, section } from '../../ui/dom'
 import { setBox } from '../../vault/pages'
 import type { Actions, Outcome } from '../../wiki/actions'
-import { answerTyped, doneWords, type InboxReadAnswer } from '../../wiki/inbox'
+import { answerTyped, doneWords, incomingPath, type InboxReadAnswer } from '../../wiki/inbox'
 import { confirm } from '../../ui/modals'
 import type { BlockedJob, HeldGroup, InboxMessage, NeedsYouParts } from '../../wiki/model'
 import type { TabContext } from './index'
@@ -251,6 +251,7 @@ function judgment(root: HTMLElement, ctx: TabContext): void {
     main.createDiv({ cls: 'llm-wiki-row-detail', text: ['Conflict between a new source and the wiki', relativeTime(c.at)].filter(Boolean).join(' · ') })
     button(row.createDiv({ cls: 'llm-wiki-row-actions' }), '', () => chatAbout(ctx, c), { icon: 'message-square', title: 'Chat about this' })
   }
+  for (const p of parts?.page_conflicts ?? []) pageConflictRow(body, p, ctx)
   if (parts?.curate.length) {
     const row = body.createDiv({ cls: 'llm-wiki-row is-link' })
     row.addEventListener('click', () => ctx.goTo('changes'))
@@ -265,6 +266,28 @@ function judgment(root: HTMLElement, ctx: TabContext): void {
     changes.createSpan({ cls: 'llm-wiki-muted', text: 'Groups of new pages are judged on Changes →' })
     changes.addEventListener('click', () => ctx.goTo('changes'))
   }
+}
+
+/**
+ * A page a job refreshed while you had edited it, whose update did not merge: the job's version waits beside it in
+ * `_versions/`. Keep mine closes the record; Take theirs writes the update over the page and sets yours aside.
+ */
+function pageConflictRow(parent: HTMLElement, p: { id: string; page: string }, ctx: TabContext): void {
+  const row = parent.createDiv({ cls: 'llm-wiki-row is-link' })
+  row.addEventListener('click', () => void ctx.act({ kind: 'open', path: p.page }))
+  row.createSpan({ cls: 'llm-wiki-dot is-warn' })
+  const main = row.createDiv({ cls: 'llm-wiki-row-main' })
+  main.createDiv({ cls: 'llm-wiki-row-title', text: stem(p.page) })
+  main.createDiv({ cls: 'llm-wiki-row-detail', text: 'A job’s update did not merge with your edits' })
+  const bar = row.createDiv({ cls: 'llm-wiki-row-actions' })
+  const actions = ctx.plugin.actions
+  button(bar, 'Compare', () => ctx.act({ kind: 'open', path: incomingPath(p.page) }), { icon: 'git-compare', title: 'Opens the job’s version' })
+  if (!actions) return
+  button(bar, 'Keep mine', () => ctx.write(() => actions.resolvePage(p.page, 'mine')), { title: 'Keeps the page as it is; the next update merges against it' })
+  button(bar, 'Take theirs', async () => {
+    const ok = await confirm(ctx.plugin.app, { title: `Take the update for ${stem(p.page)}?`, body: 'The job’s version replaces the page. Your version is set aside in _versions/.', cta: 'Take theirs' })
+    if (ok) await ctx.write(() => actions.resolvePage(p.page, 'theirs'))
+  }, { title: 'Writes the job’s version over the page' })
 }
 
 /** The held groups narrowed to the pages the count waits on. */

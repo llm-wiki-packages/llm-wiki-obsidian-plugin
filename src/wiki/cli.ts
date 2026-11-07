@@ -46,6 +46,8 @@ export interface Args {
   path?: string
   /** `inboxes done`: the body already holds an answer the person typed, so it is archived, never deleted. */
   answered?: boolean
+  /** `page resolve`: keep the person's page, or write the pipeline's render over it. */
+  choice?: 'mine' | 'theirs'
   /** `page fix`: re-mint a copy's shared id, which the CLI asks a person for. */
   force?: boolean
   /** `config set|unset`: a TOML dotted key, and for `set` its value. */
@@ -321,8 +323,8 @@ export const VERBS = {
   'wiki.inboxes.conflicts': (a: Args) => wiki(a, 'inboxes', 'ls', 'conflicts', '--all'),
   /** The `sources/` pages whose `ingest` lever reads `hold`, their own key, their root's or the wiki's default. */
   'wiki.page.held': (a: Args) => wiki(a, 'page', 'ls', 'filter=under:sources', 'filter=lever:ingest=hold'),
-  /** The bundle roots whose subtree reads `ingest: hold`, to group the held pages under. */
-  'wiki.page.heldRoots': (a: Args) => wiki(a, 'page', 'ls', 'filter=under:sources', 'filter=prop:root', 'filter=lever:ingest=hold'),
+  /** The bundle roots whose subtree reads `ingest: hold`, to group the held pages under. A root says so in its `ops` object (page shape 3). */
+  'wiki.page.heldRoots': (a: Args) => wiki(a, 'page', 'ls', 'filter=under:sources', 'filter=prop:ops.root', 'filter=lever:ingest=hold'),
   /** Each uncommitted path under the swept trees, with how it changed. */
   'wiki.git.status': (a: Args) => wiki(a, 'git', 'status'),
   /** The frontmatter and body a template would add to a page; writes nothing. */
@@ -350,6 +352,8 @@ export const VERBS = {
   'wiki.inboxes.done': (a: Args) => write(a, 'inboxes', 'done', inbox(a.name), message(a.id), ...(a.answered ? ['--answered'] : [])),
   // Every message ticked `done`: forwarded to its `reply_to` as `Re:`, then removed.
   'wiki.inboxes.sweep': (a: Args) => write(a, 'inboxes', 'sweep', inbox(a.name)),
+  // A page conflict a landing could not merge, answered: keep the page as it is, or take the pipeline's render over it.
+  'wiki.page.resolve': (a: Args) => write(a, 'page', 'resolve', rel(a.path ?? ''), a.choice === 'theirs' ? 'theirs' : 'mine'),
   // Accept, or reject with a reason: `reject=` is the whole rejection.
   'wiki.page.curate': (a: Args) => write(a, 'page', 'curate', ...paths(a.paths), ...(a.reason === undefined ? [] : [`reject=${oneLine(a.reason)}`])),
   // The additive pass: what moved since the last one. `reindex` is the full one, and the only one that removes.
@@ -401,12 +405,25 @@ const ATTENDED: ReadonlySet<Verb> = new Set<Verb>(['wiki.credentials.set', 'wiki
  * CLI lifts its settle window (llm-wiki-plugins #3687): the person editing is the one asking, so there is nothing to
  * wait out.
  */
-const EDITOR: ReadonlySet<Verb> = new Set<Verb>(['wiki.page.curate', 'wiki.page.adopt', 'wiki.page.fix', 'wiki.git.commit'])
+const EDITOR: ReadonlySet<Verb> = new Set<Verb>(['wiki.page.curate', 'wiki.page.adopt', 'wiki.page.fix', 'wiki.page.resolve', 'wiki.git.commit'])
 
 const WRITES: ReadonlySet<Verb> = new Set<Verb>([
   'wiki.harness.run', 'wiki.jobs.request', 'wiki.jobs.pause', 'wiki.jobs.resume', 'wiki.tickets.retry', 'wiki.inboxes.read', 'wiki.inboxes.rm', 'wiki.inboxes.done', 'wiki.inboxes.sweep', 'wiki.git.sync', 'wiki.search.index', 'wiki.search.reindex',
   'wiki.config.set', 'wiki.config.patch', 'wiki.config.unset', 'wiki.credentials.ls', 'wiki.credentials.bindings', ...ATTENDED, ...EDITOR,
 ])
+
+/** The gate's one-time code, `<seq>:<chars>` in lowercase Crockford base32 (`OPS/lib/gate.py` `CODE_RE`). */
+const APPROVAL_CODE = /^[1-9][0-9]*:[0-9a-hjkmnp-tv-z]{5}$/
+
+/**
+ * The code an approve-class row minted when it refused (ADR-0074): the first call writes nothing and answers
+ * `approval: {code, says, rerun}`. Null for any other failure, and for a row set to `terminal-only`, which mints none.
+ */
+export function approvalCode(e: unknown): string | null {
+  if (!(e instanceof CliError) || e.rc !== 2) return null
+  const code = (e.body as { approval?: { code?: unknown } } | undefined)?.approval?.code
+  return typeof code === 'string' && APPROVAL_CODE.test(code) ? code : null
+}
 
 /** The child's environment: the read floor unless the verb writes, the attendance mark on a protected write, and the editor origin on a page write. */
 export function childEnv(base: NodeJS.ProcessEnv, verb: Verb): NodeJS.ProcessEnv {
@@ -474,9 +491,25 @@ export class Cli {
     for (const c of this.live) killGroup(c)
   }
 
-  run<T = unknown>(verb: Verb, args: Args = {}, opts: RunOptions = {}): Promise<T> {
+  /**
+   * One verb, answered. A protected write a person clicked that the gate asks to approve (`credentials set`, `bind`,
+   * `login`, `remove`) is run again once with the code it minted: the click was the person's yes, and the dialog it
+   * came from said what it does. The code goes right after the CLI's name, where the gate reads it.
+   */
+  async run<T = unknown>(verb: Verb, args: Args = {}, opts: RunOptions = {}): Promise<T> {
+    try {
+      return await this.once<T>(verb, args, opts)
+    } catch (e) {
+      const code = ATTENDED.has(verb) ? approvalCode(e) : null
+      if (!code) throw e
+      log.debug('cli', verb, 'approved by the click', code)
+      return this.once<T>(verb, args, opts, code)
+    }
+  }
+
+  private once<T>(verb: Verb, args: Args, opts: RunOptions, approve?: string): Promise<T> {
     const timeoutMs = opts.timeoutMs ?? this.config.timeoutMs
-    const argv = [...(this.config.prefix ?? []), ...VERBS[verb](args)]
+    const argv = [...(this.config.prefix ?? []), ...(approve ? [`approve=${approve}`] : []), ...VERBS[verb](args)]
     const started = Date.now()
     return new Promise<T>((resolve, reject) => {
       const child = spawn(this.config.bin, argv, {
