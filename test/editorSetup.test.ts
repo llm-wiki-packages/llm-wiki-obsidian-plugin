@@ -11,6 +11,8 @@ describe('the wiki’s Obsidian settings on an older vault (#6)', () => {
     expect(missingSetup(['*.json', '_raw/'], () => 'checkbox').raw).toBe(false)
     expect(missingSetup(['_raw'], () => 'checkbox').raw).toBe(false)
     expect(missingSetup(undefined, () => 'checkbox').raw).toBe(true)
+    for (const covered of ['/_raw/', '_raw/**', '/_raw']) expect(missingSetup([covered], () => 'checkbox').raw).toBe(false)
+    expect(missingSetup(['_rawer/'], () => 'checkbox').raw).toBe(true)
     setLayout({ raw: 'captures' })
     expect(missingSetup(['_raw/'], () => 'checkbox').raw).toBe(true)
   })

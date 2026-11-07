@@ -20,11 +20,18 @@ export interface Missing {
   boxes: string[]
 }
 
+/**
+ * Whether one excluded-files entry already covers the raw tree: `_raw`, `_raw/`, `/_raw/`, `_raw/**`. A regex entry
+ * (`/…/`) is not read; at worst the offer adds the plain one beside it.
+ */
+function coversRaw(filter: string, dir: string): boolean {
+  return filter.replace(/^\/+/, '').replace(/(\/\*\*)?\/*$/, '') === dir
+}
+
 export function missingSetup(ignore: unknown, typeOf: (key: string) => string | null | undefined, l: Layout = layout()): Missing {
-  const dir = l.raw.replace(/\/+$/, '')
   const filters = Array.isArray(ignore) ? ignore.filter((f): f is string => typeof f === 'string') : []
   return {
-    raw: !filters.some((f) => f.replace(/\/+$/, '') === dir),
+    raw: !filters.some((f) => coversRaw(f, l.raw)),
     boxes: boxKeys(l).filter((k) => !typeOf(k)),
   }
 }
@@ -47,24 +54,25 @@ function typeOf(app: App): (key: string) => string | null | undefined {
   return (key) => (m?.getAssignedType ? m.getAssignedType(key) : m?.types?.[key.toLowerCase()]?.type)
 }
 
-/** What this vault lacks, as far as Obsidian lets it be read; null when neither part can be. */
+/** What this vault lacks and Obsidian lets this plugin add; null when it exposes neither part. */
 export function vaultMissing(app: App): Missing | null {
   const { vault, metadataTypeManager: m } = internals(app)
-  if (!vault.getConfig && !m) return null
-  const found = missingSetup(vault.getConfig ? vault.getConfig('userIgnoreFilters') : [layout().raw], typeOf(app))
-  return { raw: found.raw && Boolean(vault.setConfig), boxes: m?.setType ? found.boxes : [] }
+  const canFilter = Boolean(vault.getConfig && vault.setConfig)
+  const canType = Boolean(m?.setType)
+  if (!canFilter && !canType) return null
+  const found = missingSetup(canFilter ? vault.getConfig!('userIgnoreFilters') : [], typeOf(app))
+  return { raw: canFilter && found.raw, boxes: canType ? found.boxes : [] }
 }
 
-/** Adds what is missing, keeping every filter and type already there. Says what it did. */
-export function applySetup(app: App): string {
+/** Adds what `missing` names, keeping every filter and type already there. Says what it did. */
+export function applySetup(app: App, missing: Missing | null = vaultMissing(app)): string {
   const { vault, metadataTypeManager: m } = internals(app)
-  const missing = vaultMissing(app)
   if (!missing || nothingMissing(missing)) return 'This vault already has the wiki’s Obsidian settings'
   const did: string[] = []
   if (missing.raw && vault.getConfig && vault.setConfig) {
     const now: unknown = vault.getConfig('userIgnoreFilters')
     const kept: unknown[] = Array.isArray(now) ? (now as unknown[]) : []
-    vault.setConfig('userIgnoreFilters', [...kept, `${layout().raw.replace(/\/+$/, '')}/`])
+    vault.setConfig('userIgnoreFilters', [...kept, `${layout().raw}/`])
     did.push(`${layout().raw}/ excluded from search and the graph`)
   }
   for (const k of missing.boxes) m?.setType?.(k, 'checkbox')

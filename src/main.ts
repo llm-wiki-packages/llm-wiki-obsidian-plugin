@@ -26,6 +26,7 @@ import { TidyProperties } from './vault/properties'
 import { SourceLinks } from './vault/sourceLinks'
 import { SourcesPanel } from './ui/sourcesPanel'
 import { DEFAULT_LAYOUT, layout, layoutFrom, setLayout, type LayoutAnswer } from './wiki/layout'
+import { button } from './ui/dom'
 import { applySetup, nothingMissing, vaultMissing } from './vault/editorSetup'
 import { PageHistory } from './ui/pageHistory'
 import { HtmlView, VIEW_HTML } from './views/html'
@@ -43,6 +44,8 @@ export default class LlmWikiPlugin extends Plugin {
   snapshot: Snapshot | null = null
   /** Why the plugin is not ready, or null when it is. */
   problem: string | null = null
+  /** The vault-settings offer was shown this session. */
+  private editorSetupOffered = false
   private statusBar: HTMLElement | null = null
   private pollTimer: number | null = null
   private refreshing: Promise<void> | null = null
@@ -141,7 +144,7 @@ export default class LlmWikiPlugin extends Plugin {
     this.addCommand({ id: 'apply-editor-setup', name: 'Apply the wiki’s Obsidian settings (exclude raw captures, checkbox properties)', checkCallback: (checking) => {
       const missing = this.wiki ? vaultMissing(this.app) : null
       if (!missing || nothingMissing(missing)) return false
-      if (!checking) new Notice(applySetup(this.app), 6000)
+      if (!checking) new Notice(applySetup(this.app, missing), 6000)
       return true
     } })
     this.statusBar = this.addStatusBarItem()
@@ -256,21 +259,23 @@ export default class LlmWikiPlugin extends Plugin {
   /** A vault older than the CLI's seed is offered what `init` gives a new one, once, until the person says Not now. */
   private offerEditorSetup(): void {
     const missing = vaultMissing(this.app)
-    if (!missing || nothingMissing(missing) || this.settings.editorSetupDeclined) return
+    // Once a session: a re-detect must not stack another notice that never times out.
+    if (!missing || nothingMissing(missing) || this.settings.editorSetupDeclined || this.editorSetupOffered) return
+    this.editorSetupOffered = true
     const said = [missing.raw ? `raw captures in ${layout().raw}/ show in search and the graph` : '', missing.boxes.length ? `${missing.boxes.join(', ')} are not checkboxes` : ''].filter(Boolean).join(', and ')
     let notice: Notice | null = null
     const frag = createFragment((f) => {
       f.createDiv({ text: `This vault predates the wiki’s Obsidian settings: ${said}.` })
       const bar = f.createDiv({ cls: 'llm-wiki-row-actions' })
-      bar.createEl('button', { text: 'Apply', cls: 'mod-cta' }).addEventListener('click', () => {
+      button(bar, 'Apply', () => {
         notice?.hide()
-        new Notice(applySetup(this.app), 6000)
-      })
-      bar.createEl('button', { text: 'Not now' }).addEventListener('click', () => {
+        new Notice(applySetup(this.app, missing), 6000)
+      }, { cta: true })
+      button(bar, 'Not now', () => {
         notice?.hide()
         this.settings.editorSetupDeclined = true
         void this.saveSettings()
-      })
+      }, { title: 'Not offered again; the command still applies them' })
     })
     notice = new Notice(frag, 0)
   }
