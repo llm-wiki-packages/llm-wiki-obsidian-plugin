@@ -74,7 +74,7 @@ describe('page facts', () => {
     expect(opsKey(undefined, 'job')).toBeUndefined()
   })
   it('ticks a box only on a page, never writing frontmatter into a dropped file (#16)', async () => {
-    const file = (path: string) => Object.assign(new TFile(), { path, extension: path.split('.').pop() })
+    const file = (path: string) => Object.assign(new TFile(), { path })
     const written: string[] = []
     const files: Record<string, unknown> = { 'sources/drive/report.pdf': file('sources/drive/report.pdf'), 'sources/drive/a.md': file('sources/drive/a.md') }
     const app = {
