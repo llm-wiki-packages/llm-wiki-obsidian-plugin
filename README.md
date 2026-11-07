@@ -192,7 +192,14 @@ inbox, Done with this message (on an open inbox message), Save
 edits to history now, Apply the wiki's template to this page, Run a job… (a fuzzy list;
 the fastest Run there is), Open a job…, Add a source…, Set a credential…, Run a
 skill…, Ask the agent about this note, Refresh the dashboard, Re-detect wiki
-and binaries. Every row takes focus and opens on Enter.
+and binaries, Apply the wiki's Obsidian settings. Every row takes focus and opens on Enter.
+
+**An older vault** gets what `init` seeds into a new one. When `_raw/` is not
+in Obsidian's excluded files, or `Draft`, `Archive` and `done` have no
+property type yet, a notice offers **Apply** or **Not now**. Apply adds the
+raw tree to the excluded files and makes those keys checkboxes. It keeps
+every other filter, and leaves alone a key someone already gave another type.
+After **Not now** the notice stops appearing, but the command still works.
 
 ### HTML files
 
