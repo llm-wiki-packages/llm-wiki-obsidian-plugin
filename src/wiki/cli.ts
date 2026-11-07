@@ -282,6 +282,12 @@ function absDir(v: string): string {
   return v
 }
 
+/** A conflict's answer, never defaulted: a wrong one closes the record and drops one side. */
+function resolveChoice(c: unknown): 'mine' | 'theirs' {
+  if (c === 'mine' || c === 'theirs') return c
+  throw new CliError(`bad choice: ${String(c)}`, 'args')
+}
+
 function topK(a: Args): string {
   const k = a.k ?? 20
   if (!Number.isInteger(k) || k < 1 || k > 100) throw new CliError(`bad k: ${String(a.k)}`, 'args')
@@ -353,7 +359,7 @@ export const VERBS = {
   // Every message ticked `done`: forwarded to its `reply_to` as `Re:`, then removed.
   'wiki.inboxes.sweep': (a: Args) => write(a, 'inboxes', 'sweep', inbox(a.name)),
   // A page conflict a landing could not merge, answered: keep the page as it is, or take the pipeline's render over it.
-  'wiki.page.resolve': (a: Args) => write(a, 'page', 'resolve', rel(a.path ?? ''), a.choice === 'theirs' ? 'theirs' : 'mine'),
+  'wiki.page.resolve': (a: Args) => write(a, 'page', 'resolve', rel(a.path ?? ''), resolveChoice(a.choice)),
   // Accept, or reject with a reason: `reject=` is the whole rejection.
   'wiki.page.curate': (a: Args) => write(a, 'page', 'curate', ...paths(a.paths), ...(a.reason === undefined ? [] : [`reject=${oneLine(a.reason)}`])),
   // The additive pass: what moved since the last one. `reindex` is the full one, and the only one that removes.
