@@ -25,7 +25,9 @@ import { TitleFollowsName } from './vault/titles'
 import { TidyProperties } from './vault/properties'
 import { SourceLinks } from './vault/sourceLinks'
 import { SourcesPanel } from './ui/sourcesPanel'
-import { DEFAULT_LAYOUT, layoutFrom, setLayout, type LayoutAnswer } from './wiki/layout'
+import { DEFAULT_LAYOUT, layout, layoutFrom, setLayout, type LayoutAnswer } from './wiki/layout'
+import { button } from './ui/dom'
+import { applySetup, nothingMissing, vaultMissing } from './vault/editorSetup'
 import { PageHistory } from './ui/pageHistory'
 import { HtmlView, VIEW_HTML } from './views/html'
 import { HTML_EXTENSIONS, briefOf, collectReports, vaultRows } from './vault/reports'
@@ -42,6 +44,8 @@ export default class LlmWikiPlugin extends Plugin {
   snapshot: Snapshot | null = null
   /** Why the plugin is not ready, or null when it is. */
   problem: string | null = null
+  /** The vault-settings offer was shown this session. */
+  private editorSetupOffered = false
   private statusBar: HTMLElement | null = null
   private pollTimer: number | null = null
   private refreshing: Promise<void> | null = null
@@ -137,6 +141,12 @@ export default class LlmWikiPlugin extends Plugin {
     this.sourcesPanel.register()
     this.registerEvent(this.app.workspace.on('llm-wiki:saved' as 'layout-change', () => this.showStatus()))
     this.addCommand({ id: 'redetect', name: 'Re-detect wiki and binaries', callback: () => void this.detect(true) })
+    this.addCommand({ id: 'apply-editor-setup', name: 'Apply the wiki’s Obsidian settings (exclude raw captures, checkbox properties)', checkCallback: (checking) => {
+      const missing = this.wiki ? vaultMissing(this.app) : null
+      if (!missing || nothingMissing(missing)) return false
+      if (!checking) new Notice(applySetup(this.app, missing), 6000)
+      return true
+    } })
     this.statusBar = this.addStatusBarItem()
     this.statusBar.addClass('mod-clickable')
     this.registerDomEvent(this.statusBar, 'click', () => void this.openDashboard())
@@ -240,9 +250,34 @@ export default class LlmWikiPlugin extends Plugin {
     }
     this.app.workspace.trigger('llm-wiki:detected')
     if (!this.wiki) return
+    this.offerEditorSetup()
     await this.refreshSnapshot()
     // The runner is known now: save what was left unsaved, and pull, unless it does that.
     this.autosave.onReady()
+  }
+
+  /** A vault older than the CLI's seed is offered what `init` gives a new one, once, until the person says Not now. */
+  private offerEditorSetup(): void {
+    const missing = vaultMissing(this.app)
+    // Once a session: a re-detect must not stack another notice that never times out.
+    if (!missing || nothingMissing(missing) || this.settings.editorSetupDeclined || this.editorSetupOffered) return
+    this.editorSetupOffered = true
+    const said = [missing.raw ? `raw captures in ${layout().raw}/ show in search and the graph` : '', missing.boxes.length ? `${missing.boxes.join(', ')} are not checkboxes` : ''].filter(Boolean).join(', and ')
+    let notice: Notice | null = null
+    const frag = createFragment((f) => {
+      f.createDiv({ text: `This vault predates the wiki’s Obsidian settings: ${said}.` })
+      const bar = f.createDiv({ cls: 'llm-wiki-row-actions' })
+      button(bar, 'Apply', () => {
+        notice?.hide()
+        new Notice(applySetup(this.app, missing), 6000)
+      }, { cta: true })
+      button(bar, 'Not now', () => {
+        notice?.hide()
+        this.settings.editorSetupDeclined = true
+        void this.saveSettings()
+      }, { title: 'Not offered again; the command still applies them' })
+    })
+    notice = new Notice(frag, 0)
   }
 
   /** The wiki's own trees, from the CLI; a CLI from before `whereami` said them keeps the seeded defaults. */

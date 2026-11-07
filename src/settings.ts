@@ -22,6 +22,8 @@ export interface LlmWikiSettings {
   lastPrompt: string
   /** The last detect outcome, so the launch Notice fires only when it changes. */
   lastDetect: string
+  /** The person said Not now to the offer of the wiki's Obsidian settings; the command still applies them. */
+  editorSetupDeclined: boolean
   /** A registered wiki key, when the vault's path does not match the registry (a symlink, a subfolder). */
   wikiKey: string
   /** How the unsandboxed chat asks before a tool. */
@@ -65,6 +67,7 @@ export const DEFAULT_SETTINGS: LlmWikiSettings = {
   lastSession: '',
   lastPrompt: '',
   lastDetect: '',
+  editorSetupDeclined: false,
   wikiKey: '',
   permissionMode: 'default',
   readOnly: false,
