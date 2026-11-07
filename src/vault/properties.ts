@@ -8,8 +8,11 @@ import type LlmWikiPlugin from '../main'
 /** Keys a person writes, in the order they lead the panel. Any other key follows them. */
 export const FIRST_KEYS = ['title', 'type', 'description', 'tags', 'aliases', 'author', 'published']
 
-/** Keys the wiki keeps for itself: last, and hidden until More is clicked. */
-export const BOOKKEEPING_KEYS = ['document_id', 'document_revision', 'generated', 'verified', 'resource', 'supersedes', 'superseded_by', 'stale_after', 'status', 'observed', 'sources']
+/**
+ * Keys the wiki keeps for itself: last, and hidden until More is clicked. `ops` and `narrate` are the pipeline's two
+ * objects from page shape 3 (llm-wiki-plugins #4147); `observed` is where an unmigrated page still keeps its stamp.
+ */
+export const BOOKKEEPING_KEYS = ['document_id', 'document_revision', 'generated', 'verified', 'resource', 'supersedes', 'superseded_by', 'stale_after', 'status', 'ops', 'narrate', 'observed', 'sources']
 
 /** Where a key sorts in the panel: a first key by its place, bookkeeping after everything, the rest in between as Obsidian has them. */
 export function keyOrder(key: string): number {

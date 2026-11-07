@@ -4,7 +4,7 @@ import { settlingOf } from '../src/wiki/actions'
 import { isContent, isFeed, isLifecycle, isSwept, neverIndexed, setLayout } from '../src/wiki/layout'
 import { collapses, groupPages } from '../src/vault/groups'
 import type { PageFacts } from '../src/vault/pages'
-import { boxSet, hostOf } from '../src/vault/pages'
+import { boxSet, hostOf, opsKey } from '../src/vault/pages'
 import { fillFor } from '../src/vault/templates'
 import { dayOf, whoOf } from '../src/wiki/who'
 import { rolesOf } from '../src/wiki/snapshot'
@@ -64,6 +64,13 @@ describe('page facts', () => {
     expect(boxSet({ Draft: 'true' }, 'Draft')).toBe(true)
     expect(boxSet({ Draft: false }, 'Draft')).toBe(false)
     expect(boxSet(undefined, 'Draft')).toBe(false)
+  })
+  it('reads the pipeline\'s keys in the page\'s ops object, and at the top level only on a page without one', () => {
+    expect(opsKey({ ops: { job: 'blackboard' } }, 'job')).toBe('blackboard')
+    // Page shape 3: a top-level `job` beside an `ops` object is the person's own property, not the pipeline's.
+    expect(opsKey({ job: 'mine', ops: { root: true } }, 'job')).toBeUndefined()
+    expect(opsKey({ job: 'gmail' }, 'job')).toBe('gmail')
+    expect(opsKey(undefined, 'job')).toBeUndefined()
   })
   it('names a host only for a web resource', () => {
     expect(hostOf('https://www.youtube.com/watch?v=1')).toBe('youtube.com')

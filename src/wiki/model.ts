@@ -236,6 +236,8 @@ export interface NeedsYouParts {
   held: { path: string; id: string }[]
   curate: { reason: string; directory: string }[]
   conflicts: { id: string; subject: string }[]
+  /** Pages whose refresh a landing could not merge with a person's edits (`page-conflicts`, llm-wiki-plugins #4098); absent before 0.15. */
+  page_conflicts?: { id: string; page: string }[]
 }
 
 /** A job this machine blocked, as `whereami` lists it: why, and the one command that clears it. */

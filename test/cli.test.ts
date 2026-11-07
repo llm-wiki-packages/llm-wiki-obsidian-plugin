@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { Cli, CliError, VERBS, childEnv, question } from '../src/wiki/cli'
+import { Cli, CliError, VERBS, approvalCode, childEnv, question } from '../src/wiki/cli'
 import { Actions } from '../src/wiki/actions'
 
 describe('the verb table', () => {
@@ -10,6 +10,10 @@ describe('the verb table', () => {
   it('spells a write verb without the floor flag, and refuses a path that climbs', () => {
     expect(VERBS['wiki.jobs.request']({ wiki: 'kb', slug: 'gmail', wait: 30 })).toEqual(['wiki', 'kb', 'jobs', 'request', 'gmail', 'wait=30s', '--json'])
     expect(VERBS['wiki.page.curate']({ wiki: 'kb', paths: ['sources/web/a.md'], reason: 'not relevant' })).toEqual(['wiki', 'kb', 'page', 'curate', 'sources/web/a.md', 'reject=not relevant', '--json'])
+    expect(VERBS['wiki.page.resolve']({ wiki: 'kb', path: 'sources/j/a.md', choice: 'theirs' })).toEqual(['wiki', 'kb', 'page', 'resolve', 'sources/j/a.md', 'theirs', '--json'])
+    expect(VERBS['wiki.page.resolve']({ wiki: 'kb', path: 'sources/j/a.md', choice: 'mine' })).toEqual(['wiki', 'kb', 'page', 'resolve', 'sources/j/a.md', 'mine', '--json'])
+    expect(() => VERBS['wiki.page.resolve']({ wiki: 'kb', path: 'sources/j/a.md' })).toThrow(/bad choice/)
+    expect(() => VERBS['wiki.page.resolve']({ wiki: 'kb', path: '../a.md', choice: 'mine' })).toThrow()
     expect(() => VERBS['wiki.page.curate']({ wiki: 'kb', paths: ['../etc/passwd'] })).toThrow(CliError)
   })
 
@@ -91,6 +95,37 @@ describe('the runner against a stand-in binary', () => {
     const cli = new Cli({ bin: node, prefix: ['-e', 'let b="";process.stdin.on("data",d=>b+=d).on("end",()=>process.stdout.write(JSON.stringify({got:b})))'], env: process.env, timeoutMs: 5000 })
     expect(await cli.run('wiki.credentials.set', { wiki: 'kb', name: 'x' }, { stdin: 's3cret' })).toEqual({ got: 's3cret' })
     expect(await cli.run('wiki.doctor', { wiki: 'kb' })).toEqual({ got: '' })
+  })
+
+  // A gate stand-in: without `approve=<code>` right after the CLI's name it mints a code and refuses, as an approve-class
+  // row does (ADR-0074); with it, it answers the argv it saw and the stdin it was handed.
+  const gate = [
+    '-e',
+    'const a=process.argv.slice(1);let b="";process.stdin.on("data",d=>b+=d).on("end",()=>{' +
+      'if(a[0]==="approve=2:sx0yt"){process.stdout.write(JSON.stringify({argv:a,got:b}));return}' +
+      'process.stdout.write(JSON.stringify({error:"approval: needs the user\'s yes (code 2:sx0yt)",approval:{code:"2:sx0yt",row:"credentials set"}}));process.exit(2)})',
+  ]
+
+  it('runs a clicked credential write again with the code its approve row minted, stdin and all', async () => {
+    const cli = new Cli({ bin: node, prefix: gate, env: process.env, timeoutMs: 5000 })
+    const ans = await cli.run<{ argv: string[]; got: string }>('wiki.credentials.set', { wiki: 'kb', name: 'x' }, { stdin: 's3cret' })
+    expect(ans.argv).toEqual(['approve=2:sx0yt', 'wiki', 'kb', 'credentials', 'set', 'x', 'kind=value', '--json'])
+    expect(ans.got).toBe('s3cret')
+  })
+
+  it('never answers an approval for a verb nobody clicked as a protected write', async () => {
+    const cli = new Cli({ bin: node, prefix: gate, env: process.env, timeoutMs: 5000 })
+    await expect(cli.run('wiki.jobs.request', { wiki: 'kb', slug: 'gmail' })).rejects.toMatchObject({ rc: 2, message: expect.stringContaining('approval:') })
+  })
+
+  it('reads a code only off an rc-2 approval answer, in the gate’s alphabet', () => {
+    const refusal = (body: unknown, rc = 2) => new CliError('x', 'exit', rc, '', body)
+    expect(approvalCode(refusal({ approval: { code: '12:ab3de' } }))).toBe('12:ab3de')
+    expect(approvalCode(refusal({ approval: { code: '12:ab3de' } }, 1))).toBeNull()
+    expect(approvalCode(refusal({ approval: { code: '1:ABCDE' } }))).toBeNull()
+    expect(approvalCode(refusal({ approval: { code: '1:abcd; rm' } }))).toBeNull()
+    expect(approvalCode(refusal({ approval: { rerun: null } }))).toBeNull()
+    expect(approvalCode(new Error('x'))).toBeNull()
   })
 
   it('streams JSON lines and ends with its own _exit line', async () => {

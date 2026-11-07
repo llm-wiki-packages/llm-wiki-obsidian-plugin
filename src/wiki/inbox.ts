@@ -92,6 +92,13 @@ export function messagePath(m: Pick<InboxMessage, 'inbox' | 'id'>): string {
   return `inboxes/${m.inbox}/${m.id}.md`
 }
 
+/** The rolling copy of the render a landing could not merge into a page: `<dir>/_versions/<stem>.incoming.md` (`OPS/lib/jobs/refresh.py`). */
+export function incomingPath(page: string): string {
+  const i = page.lastIndexOf('/')
+  const dir = i < 0 ? '' : `${page.slice(0, i)}/`
+  return `${dir}_versions/${page.slice(i + 1).replace(/\.md$/, '')}.incoming.md`
+}
+
 /** The message a vault path is, if it is one the snapshot holds. */
 export function messageAt(messages: InboxMessage[] | null, path: string): InboxMessage | undefined {
   return (messages ?? []).find((m) => m.path === path)
@@ -175,7 +182,7 @@ function plural(n: number, one: string, many: string): string {
 /** What the inbox counts: messages to answer and the listed parts. Curate's groups are judged on Changes, so they are not. */
 export function inboxCount(s: { inbox: InboxMessage[] | null; parts: NeedsYouParts | null; blocked: BlockedJob[]; conflicts: InboxMessage[] | null }): number {
   const open = (s.inbox ?? []).filter((m) => !m.done).length
-  if (s.parts) return open + s.parts.held.length + s.parts.conflicts.length + s.blocked.length
+  if (s.parts) return open + s.parts.held.length + s.parts.conflicts.length + (s.parts.page_conflicts?.length ?? 0) + s.blocked.length
   return open + (s.conflicts?.length ?? 0) + s.blocked.length
 }
 
@@ -213,6 +220,7 @@ function judgmentDetail(parts: NeedsYouParts | null, blocked: BlockedJob[]): str
     blocked.length ? plural(blocked.length, 'blocked job', 'blocked jobs') : '',
     parts.held.length ? plural(parts.held.length, 'held source', 'held sources') : '',
     parts.conflicts.length ? plural(parts.conflicts.length, 'conflict', 'conflicts') : '',
+    parts.page_conflicts?.length ? plural(parts.page_conflicts.length, 'page whose update did not merge', 'pages whose updates did not merge') : '',
     parts.curate.length ? plural(parts.curate.length, 'group of new pages', 'groups of new pages') : '',
   ].filter(Boolean)
   const viaIngest = parts.held.length + parts.conflicts.length > 0
