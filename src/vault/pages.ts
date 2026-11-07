@@ -81,12 +81,15 @@ export function draftsIn(app: App): PageFacts[] {
     .sort((a, b) => b.mtime - a.mtime)
 }
 
+/** A markdown page, which can hold frontmatter; a dropped PDF or video cannot (#16). */
+export const isPage = (path: string): boolean => path.endsWith('.md')
+
 /** Tick or untick a box as a person would: one Obsidian save of a key the person owns. */
 export async function setBox(app: App, path: string, key: string, on: boolean): Promise<{ ok: boolean; message: string }> {
   const file = app.vault.getAbstractFileByPath(path)
   if (!(file instanceof TFile)) return { ok: false, message: `${path} is not in the vault` }
   // Only a page holds a box: frontmatter written into a dropped PDF or video would corrupt it (#16).
-  if (!path.endsWith('.md')) return { ok: false, message: `${path} is not a page, so it has no ${key} box; accept or archive it instead` }
+  if (!isPage(path)) return { ok: false, message: `${path} is not a page, so it has no ${key} box` }
   try {
     await app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => {
       fm[key] = on
