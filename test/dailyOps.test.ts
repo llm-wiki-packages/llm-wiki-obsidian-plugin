@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, it } from 'vitest'
+import { TFile, type App } from 'obsidian'
 import { CliError, VERBS } from '../src/wiki/cli'
 import { settlingOf } from '../src/wiki/actions'
 import { isContent, isFeed, isLifecycle, isSwept, neverIndexed, setLayout } from '../src/wiki/layout'
 import { collapses, groupPages } from '../src/vault/groups'
 import type { PageFacts } from '../src/vault/pages'
-import { boxSet, hostOf, opsKey } from '../src/vault/pages'
+import { boxSet, hostOf, opsKey, setBox } from '../src/vault/pages'
 import { fillFor } from '../src/vault/templates'
 import { dayOf, whoOf } from '../src/wiki/who'
 import { rolesOf } from '../src/wiki/snapshot'
@@ -71,6 +72,19 @@ describe('page facts', () => {
     expect(opsKey({ job: 'mine', ops: { root: true } }, 'job')).toBeUndefined()
     expect(opsKey({ job: 'gmail' }, 'job')).toBe('gmail')
     expect(opsKey(undefined, 'job')).toBeUndefined()
+  })
+  it('ticks a box only on a page, never writing frontmatter into a dropped file (#16)', async () => {
+    const file = (path: string) => Object.assign(new TFile(), { path, extension: path.split('.').pop() })
+    const written: string[] = []
+    const files: Record<string, unknown> = { 'sources/drive/report.pdf': file('sources/drive/report.pdf'), 'sources/drive/a.md': file('sources/drive/a.md') }
+    const app = {
+      vault: { getAbstractFileByPath: (p: string) => files[p] ?? null },
+      fileManager: { processFrontMatter: async (f: { path: string }, fn: (fm: Record<string, unknown>) => void) => { fn({}); written.push(f.path) } },
+    } as unknown as App
+    expect(await setBox(app, 'sources/drive/report.pdf', 'Draft', true)).toMatchObject({ ok: false, message: expect.stringContaining('not a page') })
+    expect(written).toEqual([])
+    expect(await setBox(app, 'sources/drive/a.md', 'Draft', true)).toMatchObject({ ok: true })
+    expect(written).toEqual(['sources/drive/a.md'])
   })
   it('names a host only for a web resource', () => {
     expect(hostOf('https://www.youtube.com/watch?v=1')).toBe('youtube.com')

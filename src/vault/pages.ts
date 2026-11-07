@@ -85,6 +85,8 @@ export function draftsIn(app: App): PageFacts[] {
 export async function setBox(app: App, path: string, key: string, on: boolean): Promise<{ ok: boolean; message: string }> {
   const file = app.vault.getAbstractFileByPath(path)
   if (!(file instanceof TFile)) return { ok: false, message: `${path} is not in the vault` }
+  // Only a page holds a box: frontmatter written into a dropped PDF or video would corrupt it (#16).
+  if (!path.endsWith('.md')) return { ok: false, message: `${path} is not a page, so it has no ${key} box; accept or archive it instead` }
   try {
     await app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => {
       fm[key] = on

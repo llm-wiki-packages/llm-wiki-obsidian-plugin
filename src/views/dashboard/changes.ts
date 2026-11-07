@@ -203,7 +203,8 @@ function newRow(root: HTMLElement, p: PageFacts, ctx: TabContext): void {
   })
   const bar = row.createDiv({ cls: 'llm-wiki-row-actions' })
   if (!actions) return
-  button(bar, 'Draft', () => ctx.write(() => setBox(ctx.plugin.app, p.path, layout().draftKey, true), true), { icon: 'pencil', title: 'Hold it while you work on it; nothing automatic takes it' })
+  // A dropped file (a PDF, a video) has no frontmatter to hold a box; only Accept or Archive decides it (#16).
+  if (p.path.endsWith('.md')) button(bar, 'Draft', () => ctx.write(() => setBox(ctx.plugin.app, p.path, layout().draftKey, true), true), { icon: 'pencil', title: 'Hold it while you work on it; nothing automatic takes it' })
   button(bar, 'Archive…', async () => {
     const reason = await promptText(ctx.plugin.app, { title: `Archive ${p.title}`, placeholder: 'Why? One line; it is stamped on the page.', cta: 'Archive' })
     if (reason) await ctx.write(() => actions.reject(p.path, reason), true)
