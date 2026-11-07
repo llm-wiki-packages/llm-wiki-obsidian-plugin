@@ -3,7 +3,7 @@ import { openDiff } from '../../ui/diffModal'
 import { button, empty, icon, relativeTime } from '../../ui/dom'
 import { confirm, promptText } from '../../ui/modals'
 import { collapses, groupPages, type GroupBy, type PageGroup } from '../../vault/groups'
-import { draftsIn, factsOf, setBox, type PageFacts } from '../../vault/pages'
+import { draftsIn, factsOf, isPage, setBox, type PageFacts } from '../../vault/pages'
 import { isFeed, isResearch, layout } from '../../wiki/layout'
 import { fileChange } from '../../wiki/diff'
 import type { Commit } from '../../wiki/model'
@@ -131,7 +131,7 @@ function renderNew(root: HTMLElement, tools: HTMLElement, ctx: TabContext, pages
   }
   if (!ctx.memo['changes.explained']) {
     const note = root.createDiv({ cls: 'llm-wiki-explain' })
-    note.createSpan({ text: 'Accept takes a page into the wiki: the agent may fold it into wiki pages, and it stays accepted when you edit it. Draft holds it while you work on it. Archive takes it out of search and the agent’s reach; untick Archive on the page to bring it back.' })
+    note.createSpan({ text: 'Accept takes a page into the wiki: the agent may fold it into wiki pages, and it stays accepted when you edit it. Draft holds a page while you work on it (a dropped file is only accepted or archived). Archive takes it out of search and the agent’s reach; untick Archive on the page to bring it back.' })
     button(note, '', () => {
       ctx.memo['changes.explained'] = true
       ctx.redraw()
@@ -203,9 +203,10 @@ function newRow(root: HTMLElement, p: PageFacts, ctx: TabContext): void {
   })
   const bar = row.createDiv({ cls: 'llm-wiki-row-actions' })
   if (!actions) return
-  button(bar, 'Draft', () => ctx.write(() => setBox(ctx.plugin.app, p.path, layout().draftKey, true), true), { icon: 'pencil', title: 'Hold it while you work on it; nothing automatic takes it' })
+  // A dropped file (a PDF, a video) has no frontmatter to hold a box; only Accept or Archive decides it (#16).
+  if (isPage(p.path)) button(bar, 'Draft', () => ctx.write(() => setBox(ctx.plugin.app, p.path, layout().draftKey, true), true), { icon: 'pencil', title: 'Hold it while you work on it; nothing automatic takes it' })
   button(bar, 'Archive…', async () => {
-    const reason = await promptText(ctx.plugin.app, { title: `Archive ${p.title}`, placeholder: 'Why? One line; it is stamped on the page.', cta: 'Archive' })
+    const reason = await promptText(ctx.plugin.app, { title: `Archive ${p.title}`, placeholder: isPage(p.path) ? 'Why? One line; it is stamped on the page.' : 'Why? One line; it is kept on the file’s record page.', cta: 'Archive' })
     if (reason) await ctx.write(() => actions.reject(p.path, reason), true)
   }, { icon: 'archive', title: 'Out of search and the agent’s reach' })
   button(bar, 'Accept', () => ctx.write(() => actions.accept([p.path]), true), { icon: 'check', cta: true, title: 'Into the wiki: the agent may fold it into wiki pages' })
