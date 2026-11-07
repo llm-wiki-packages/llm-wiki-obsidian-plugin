@@ -7,7 +7,7 @@ import { button, empty, pill, section } from '../../ui/dom'
 import { editKnob, editList, editProperty, editTemplate } from '../../ui/configModal'
 import { CliError } from '../../wiki/cli'
 import {
-  KNOBS, SEARCH_GROUP, SEARCH_PATHS, SEARCH_PROPERTIES, TEMPLATES, defaultWords, patchOf, propertyRows, propertyWords, sourceOf, spellKey, targetOf, templateRows, valueWords,
+  KNOBS, SEARCH_GROUP, engineOff, grepOnly, searchSetupAsk, SEARCH_PATHS, SEARCH_PROPERTIES, TEMPLATES, defaultWords, patchOf, propertyRows, propertyWords, sourceOf, spellKey, targetOf, templateRows, valueWords,
   type ConfigRow, type ConfigRows, type Knob, type KnobGroup, type Layer,
 } from '../../wiki/config'
 import { layout } from '../../wiki/layout'
@@ -55,6 +55,8 @@ function group(root: HTMLElement, g: KnobGroup, rows: Rows, ctx: TabContext): vo
     if (!ctx.plugin.actions) return
     if (g.knobs.some((k) => k.key === TEMPLATES)) button(bar, 'Add a rule…', () => void changeTemplate(ctx, undefined, undefined), { icon: 'plus' })
     if (g.knobs.some((k) => k.key === SEARCH_PROPERTIES)) button(bar, 'Index a property…', () => void changeProperty(ctx, rows, undefined), { icon: 'plus' })
+    if (g.id === SEARCH_GROUP && grepOnly(ctx.snapshot.search)) button(bar, 'Set up search engine', () => ctx.act({ kind: 'ask', prompt: searchSetupAsk(ctx.snapshot.search) }), { icon: 'database', cta: true, title: 'Search answers from grep alone. The agent installs and starts the engine, then builds the index.' })
+    if (g.id === SEARCH_GROUP && engineOff(ctx.snapshot.search)) button(bar, 'Switch on search engine', () => ctx.act({ kind: 'reindex' }), { icon: 'power', cta: true, title: 'The engine is set up, but this machine’s search backends do not name it yet, so search still answers from grep.' })
     if (g.chat) button(bar, g.chat.label, () => ctx.act({ kind: 'ask', prompt: ask(g.chat!.ask, rows, ctx.snapshot.search) }), { icon: 'message-square' })
   } })
   if (g.desc) body.createDiv({ cls: 'llm-wiki-muted llm-wiki-config-desc', text: g.desc })

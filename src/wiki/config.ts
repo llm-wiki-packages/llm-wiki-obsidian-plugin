@@ -10,6 +10,8 @@
 // edits. A value is written back to the layer that sets it now, so a key a wiki
 // chose to commit stays committed; a key set in neither goes where its knob says.
 
+import type { SearchStatus } from './model'
+
 /** The CLI's two layers: the wiki's `.llm-wiki.toml` and this machine's `.llm-wiki.local.toml`. */
 export type Layer = 'wiki' | 'local'
 
@@ -275,4 +277,35 @@ export function folderPattern(raw: string): { pattern: string } | { error: strin
   if (parts.some((p) => !p || p === '.' || p === '..')) return { error: 'a folder path inside the wiki' }
   if (parts.some((p) => p.includes('*') && p !== '*')) return { error: '* stands for a whole folder name' }
   return { pattern: t }
+}
+
+/** Search answers from grep alone: no engine is set up for this wiki on this machine. */
+export function grepOnly(s: SearchStatus | null | undefined): boolean {
+  return !!s && !s.engine_configured
+}
+
+/** The engine is set up on this machine, but the backends that apply here do not name it, so search still answers from grep. */
+export function engineOff(s: SearchStatus | null | undefined): boolean {
+  return !!s?.engine_configured && !(s.backends ?? []).some((b) => b.name === 'search_server')
+}
+
+/** The backend chain with the engine first, ahead of what answers now. */
+export function engineFirst(s: SearchStatus | null | undefined): string[] {
+  return ['search_server', ...(s?.backends ?? []).map((b) => b.name).filter((n) => n !== 'search_server')]
+}
+
+/**
+ * The chat turn that sets up the search engine. It takes more than a value
+ * (an engine to install and start, a backend to add, an index to build), so
+ * it goes to the agent; the wiki is joined already, so join is not run again.
+ */
+export function searchSetupAsk(s: SearchStatus | null | undefined): string {
+  const chain = (s?.backends ?? []).map((b) => b.name).join(', ') || 'grep'
+  return [
+    `Set up the search engine for this wiki on this machine. Right now search answers from: ${chain}.`,
+    'This wiki is already joined, so do not run join again.',
+    'Follow the brain-machine:search-server skill’s setup: check what this machine can run, then install and start the engine.',
+    'I want this wiki served from it on this machine, so that is my yes to the backends question: put "search_server" first in [search] backends in this machine’s config (llm-wiki-ops config set --local, .llm-wiki.local.toml), not the committed .llm-wiki.toml, without asking again.',
+    'Then build the index and tell me what search answers from now. If something stops you, end with what I need to decide, on its own line.',
+  ].join(' ')
 }

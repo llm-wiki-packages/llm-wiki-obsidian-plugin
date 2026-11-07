@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest'
 import { VERBS, childEnv } from '../src/wiki/cli'
 import {
-  KNOBS, defaultWords, folderPattern, parseInput, parseList, patchOf, propertyName, propertyRows, propertyWords, sourceOf, spellKey, targetOf, templateRows, valueWords,
+  KNOBS, defaultWords, folderPattern, engineFirst, engineOff, grepOnly, searchSetupAsk, parseInput, parseList, patchOf, propertyName, propertyRows, propertyWords, sourceOf, spellKey, targetOf, templateRows, valueWords,
   type ConfigRow, type ConfigRows, type Knob,
 } from '../src/wiki/config'
 import answer from './mocks/config-get.json'
@@ -149,5 +149,34 @@ describe('indexed properties', () => {
 describe('the knobs', () => {
   it('each name a row the CLI answers', () => {
     expect(KNOBS.flatMap((g) => g.knobs).filter((k) => !rows[k.key]).map((k) => k.key)).toEqual([])
+  })
+})
+
+describe('setting up the search engine', () => {
+  it('is offered only where search answers from grep alone', () => {
+    expect(grepOnly({ engine_configured: false })).toBe(true)
+    expect(grepOnly({ engine_configured: true })).toBe(false)
+    expect(grepOnly(null)).toBe(false)
+  })
+  it('asks the agent for the search-server setup, names the chain, and keeps join out of it', () => {
+    const ask = searchSetupAsk({ engine_configured: false, backends: [{ name: 'grep' }] })
+    expect(ask).toContain('answers from: grep')
+    expect(ask).toContain('brain-machine:search-server')
+    expect(ask).toContain('do not run join again')
+    expect(ask).toContain('my yes to the backends question')
+    expect(ask).toContain('--local')
+  })
+})
+
+describe('switching the search engine on', () => {
+  const off = { engine_configured: true, realm_ready: false, backends: [{ name: 'grep' }] }
+  it('is due when the engine is set up but the backends do not name it', () => {
+    expect(engineOff(off)).toBe(true)
+    expect(engineOff({ engine_configured: true, backends: [{ name: 'search_server' }, { name: 'grep' }] })).toBe(false)
+    expect(engineOff({ engine_configured: false, backends: [{ name: 'grep' }] })).toBe(false)
+  })
+  it('puts the engine first and keeps the rest of the chain', () => {
+    expect(engineFirst(off)).toEqual(['search_server', 'grep'])
+    expect(engineFirst({ backends: [{ name: 'grep' }, { name: 'search_server' }] })).toEqual(['search_server', 'grep'])
   })
 })
