@@ -1,0 +1,110 @@
+import { EditorState } from '@codemirror/state'
+import { describe, expect, it } from 'vitest'
+import { editorInfoField } from 'obsidian'
+import { blockExtension, blocksField, ownerWords } from '../src/ui/blockEditor'
+import { blockAtLine, blockText, bodyOf, lineDiff, parseBlocks, setAsideByBlock, setAsideOf } from '../src/vault/blocks'
+import type LlmWikiPlugin from '../src/main'
+
+const PAGE = [
+  '# Course', //                                   0
+  '<!-- ops course-summary:s1 -->', //              1
+  'The summary.', //                                2
+  '<!-- ops course-summary:n1 edits=discard -->', // 3
+  'A generated note.[^1]', //                       4
+  '<!-- /ops course-summary:n1 -->', //             5
+  '<!-- /ops course-summary:s1 -->', //             6
+  'My own line.', //                                7
+].join('\n')
+
+describe('parseBlocks: the CLI’s markers', () => {
+  it('reads nested blocks, their attributes and parents, in order', () => {
+    const blocks = parseBlocks(PAGE)
+    expect(blocks.map((b) => [b.address, b.first, b.last, b.parent, b.discard])).toEqual([
+      ['course-summary:s1', 1, 6, null, false],
+      ['course-summary:n1', 3, 5, 'course-summary:s1', true],
+    ])
+    expect(blocks[1]!.attrs).toEqual({ edits: 'discard' })
+    expect(blockText(PAGE, blocks[1]!)).toBe('A generated note.[^1]')
+    expect(blockAtLine(blocks, 4)?.address).toBe('course-summary:n1')
+    expect(blockAtLine(blocks, 2)?.address).toBe('course-summary:s1')
+    expect(blockAtLine(blocks, 7)).toBeNull()
+  })
+  it('splits the address at the last colon, as a writer may carry colons', () => {
+    expect(parseBlocks('<!-- ops job:acme/blog:x-1 -->\nt\n<!-- /ops job:acme/blog:x-1 -->')[0]).toMatchObject({ writer: 'job:acme/blog', id: 'x-1' })
+  })
+  it('leaves malformed markers as text: crossing, unclosed, repeated, a close of nothing', () => {
+    expect(parseBlocks('<!-- ops a:1 -->\n<!-- ops b:2 -->\n<!-- /ops a:1 -->\n<!-- /ops b:2 -->')).toEqual([])
+    expect(parseBlocks('<!-- ops a:1 -->\ntext')).toEqual([])
+    expect(parseBlocks('<!-- ops a:1 -->\n<!-- /ops a:1 -->\n<!-- ops a:1 -->\n<!-- /ops a:1 -->')).toEqual([])
+    expect(parseBlocks('<!-- /ops a:1 -->\n<!-- ops b:2 -->\nx\n<!-- /ops b:2 -->').map((b) => b.address)).toEqual(['b:2'])
+    expect(parseBlocks('<!-- ops A:1 -->\nx\n<!-- /ops A:1 -->')).toEqual([])
+    expect(parseBlocks('text <!-- ops a:1 -->\nx\n<!-- /ops a:1 -->')).toEqual([])
+  })
+  it('a marker inside a code fence is an example', () => {
+    expect(parseBlocks('```md\n<!-- ops a:1 -->\nx\n<!-- /ops a:1 -->\n```')).toEqual([])
+    expect(parseBlocks('~~~~\n<!-- ops a:1 -->\n~~~\n<!-- /ops a:1 -->\n~~~~\n<!-- ops b:1 -->\n<!-- /ops b:1 -->').map((b) => b.address)).toEqual(['b:1'])
+    expect(parseBlocks('> ```\n> <!-- ops a:1 -->\n> <!-- /ops a:1 -->\n> ```')).toEqual([])
+  })
+})
+
+describe('ops.set_aside', () => {
+  const fm = { ops: { set_aside: [
+    { path: 'wiki/_versions/page.2026-11-01.course-summary-s1.md', at: '2026-11-01T10:00:00Z', from: 'course-summary:s1' },
+    { path: 'wiki/_versions/page.2026-11-07.course-summary-s1.md', at: '2026-11-07T10:00:00Z', from: 'course-summary:s1' },
+    { path: 'wiki/_versions/page.2026-11-07.md', at: '2026-11-07T10:00:00Z', from: 'wiki/page.md' },
+    { path: 7, from: 'x:1' }, 'junk',
+  ] } }
+  it('reads the entries, nested or dotted, and drops what is not one', () => {
+    expect(setAsideOf(fm)).toHaveLength(3)
+    expect(setAsideOf({ 'ops.set_aside': [{ path: 'p.md', from: 'a:1' }] })).toEqual([{ path: 'p.md', from: 'a:1', at: null }])
+    expect(setAsideOf({ ops: { set_aside: 'x' } })).toEqual([])
+    expect(setAsideOf(undefined)).toEqual([])
+  })
+  it('keeps the newest entry per block on the page; a whole-page entry names no block', () => {
+    const by = setAsideByBlock(setAsideOf(fm), parseBlocks(PAGE))
+    expect([...by.keys()]).toEqual(['course-summary:s1'])
+    expect(by.get('course-summary:s1')?.path).toBe('wiki/_versions/page.2026-11-07.course-summary-s1.md')
+  })
+  it('a copy’s text is its body', () => {
+    expect(bodyOf('---\ntitle: x\nstatus: deprecated\n---\nmine\n')).toBe('mine\n')
+    expect(bodyOf('no frontmatter')).toBe('no frontmatter')
+  })
+})
+
+describe('lineDiff', () => {
+  it('marks the person’s lines and the writer’s, keeping what both have', () => {
+    expect(lineDiff('a\nmine\nc\n', 'a\ntheirs\nc')).toEqual([
+      { kind: 'same', text: 'a' }, { kind: 'mine', text: 'mine' }, { kind: 'theirs', text: 'theirs' }, { kind: 'same', text: 'c' },
+    ])
+    expect(lineDiff('x', 'x')).toEqual([{ kind: 'same', text: 'x' }])
+  })
+})
+
+describe('the editor rules', () => {
+  const plugin = { app: { metadataCache: { getFileCache: () => null } } } as unknown as LlmWikiPlugin
+  const state = () => EditorState.create({ doc: PAGE, extensions: [editorInfoField, blockExtension(plugin)] })
+  const pos = (s: EditorState, line: number, ch = 0) => s.doc.line(line + 1).from + ch
+
+  it('keeps an edits=discard block read-only against a person’s typing, and lets the file’s own reload through', () => {
+    const s = state()
+    const typed = s.update({ changes: { from: pos(s, 4, 2), insert: 'x' }, userEvent: 'input.type' })
+    expect(typed.state.doc.toString()).toBe(PAGE)
+    const deleted = s.update({ changes: { from: pos(s, 3), to: pos(s, 6) }, userEvent: 'delete.backward' })
+    expect(deleted.state.doc.toString()).toBe(PAGE)
+    const reload = s.update({ changes: { from: pos(s, 4), to: s.doc.line(5).to, insert: 'A new note.' } })
+    expect(reload.state.doc.line(5).text).toBe('A new note.')
+    expect(reload.state.field(blocksField).map((b) => b.address)).toEqual(['course-summary:s1', 'course-summary:n1'])
+  })
+  it('lets a person type in a block a writer owns, and around a read-only one', () => {
+    const s = state()
+    expect(s.update({ changes: { from: pos(s, 2), insert: 'Edited: ' }, userEvent: 'input.type' }).state.doc.line(3).text).toBe('Edited: The summary.')
+    // Right before the read-only block's opening marker, and right after its closing one: outside it.
+    expect(s.update({ changes: { from: pos(s, 3), insert: 'before\n' }, userEvent: 'input.type' }).state.doc.line(4).text).toBe('before')
+    expect(s.update({ changes: { from: s.doc.line(6).to, insert: '\nafter' }, userEvent: 'input.type' }).state.doc.line(7).text).toBe('after')
+    expect(s.update({ changes: { from: pos(s, 7), insert: '!' }, userEvent: 'input.type' }).state.doc.line(8).text).toBe('!My own line.')
+  })
+  it('says what the owner does to an edit', () => {
+    expect(ownerWords({ writer: 'course-summary', discard: false })).toContain('your edit is set aside in _versions/')
+    expect(ownerWords({ writer: 'course-summary', discard: true })).toContain('read-only')
+  })
+})

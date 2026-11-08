@@ -17,3 +17,7 @@ export class TAbstractFile {}
 export class MarkdownView {}
 export class Modal {}
 export class Menu {}
+export class TFolder {}
+// The editor's file, as Obsidian keeps it on every Markdown editor's state; a test sets the file it wants.
+import { StateField } from '@codemirror/state'
+export const editorInfoField = StateField.define<{ file: { path: string } | null }>({ create: () => ({ file: { path: 'wiki/page.md' } }), update: (v) => v })
