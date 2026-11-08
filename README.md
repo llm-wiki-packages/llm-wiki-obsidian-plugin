@@ -212,6 +212,25 @@ raw tree to the excluded files and makes those keys checkboxes. It keeps
 every other filter, and leaves alone a key someone already gave another type.
 After **Not now** the notice stops appearing, but the command still works.
 
+### Blocks a job owns
+
+A job (or any writer) keeps its text on a page between markers,
+`<!-- ops <writer>:<id> -->` … `<!-- /ops <writer>:<id> -->`. The block is its
+writer's: the next run writes its own text there, and if you edited it, your
+text is set aside to `_versions/` and listed in the page's `ops.set_aside`.
+In the editor (source and live preview):
+
+- Each block is tinted, and its writer is named on the opening line.
+- The first time you type in one, a notice says so, once per page and block a
+  session.
+- A block marked `edits=discard` (footnotes and other fully generated text) is
+  read-only; type around it. A reload of the file from disk still goes through.
+- After a run replaced text you had edited, the block's line offers **Your edit
+  was set aside: compare**: a line diff of your set-aside text against the
+  block now, and **Open your text**. Dismissing the entry, restoring your text
+  and taking a block over need CLI verbs not released yet (llm-wiki-plugins
+  #4189, #4190).
+
 ### HTML files
 
 Obsidian opens no `.html` file by itself; the plugin does, in a tab of its own,

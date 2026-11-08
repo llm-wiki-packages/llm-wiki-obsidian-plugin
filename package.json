@@ -16,6 +16,8 @@
     "install-to-vault": "node scripts/install-to-vault.mjs"
   },
   "devDependencies": {
+    "@codemirror/state": "6.7.6",
+    "@codemirror/view": "6.43.13",
     "@types/node": "^24.0.0",
     "builtin-modules": "^5.0.0",
     "esbuild": "^0.25.5",

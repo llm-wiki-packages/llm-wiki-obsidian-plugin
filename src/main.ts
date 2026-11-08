@@ -26,6 +26,7 @@ import { TidyProperties } from './vault/properties'
 import { SourceLinks } from './vault/sourceLinks'
 import { SourcesPanel } from './ui/sourcesPanel'
 import { DestRename } from './vault/destRename'
+import { registerBlocks } from './ui/blockEditor'
 import { DEFAULT_LAYOUT, layout, layoutFrom, setLayout, type LayoutAnswer } from './wiki/layout'
 import { button } from './ui/dom'
 import { applySetup, nothingMissing, vaultMissing } from './vault/editorSetup'
@@ -142,6 +143,7 @@ export default class LlmWikiPlugin extends Plugin {
     this.sourceLinks.register()
     this.sourcesPanel.register()
     this.destRename.register()
+    registerBlocks(this)
     this.registerEvent(this.app.workspace.on('llm-wiki:saved' as 'layout-change', () => this.showStatus()))
     this.addCommand({ id: 'redetect', name: 'Re-detect wiki and binaries', callback: () => void this.detect(true) })
     this.addCommand({ id: 'apply-editor-setup', name: 'Apply the wiki’s Obsidian settings (exclude raw captures, checkbox properties)', checkCallback: (checking) => {
