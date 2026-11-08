@@ -2,7 +2,7 @@
 // landing writes its own text there, setting a person's edit aside to `_versions/` and listing it in `ops.set_aside`.
 // So the editor tints each block and names its writer, warns once when a person starts editing one, keeps an
 // `edits=discard` block read-only, and offers the diff against the text a landing set aside.
-import { ChangeSet, EditorState, StateEffect, StateField, Transaction, type ChangeSpec, type Extension, type Text } from '@codemirror/state'
+import { ChangeSet, EditorSelection, EditorState, StateEffect, StateField, Transaction, type ChangeSpec, type Extension, type Text } from '@codemirror/state'
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from '@codemirror/view'
 import { editorInfoField, MarkdownView, Modal, Notice, TFile, type App } from 'obsidian'
 import type LlmWikiPlugin from '../main'
@@ -95,6 +95,18 @@ export function withoutReadOnly(tr: Transaction): { kept: ChangeSpec[]; hit: Blo
     else kept.push({ from, to, insert: text })
   })
   return hit ? { kept, hit } : null
+}
+
+/**
+ * Where each selection range lands once the kept changes apply, as typing would leave it: a range a kept change
+ * touched becomes a cursor after the text put in; any other range (the one in the read-only block) just moves.
+ */
+export function afterKept(sel: EditorSelection, kept: ChangeSpec[], changes: ChangeSet): EditorSelection {
+  const spans = kept as { from: number; to?: number }[]
+  return EditorSelection.create(
+    sel.ranges.map((r) => (spans.some((c) => c.from <= r.to && (c.to ?? c.from) >= r.from) ? EditorSelection.cursor(changes.mapPos(r.to, 1)) : r.map(changes))),
+    sel.mainIndex,
+  )
 }
 
 /** The innermost of several blocks reached: the one whose writer rewrites the text typed. */
@@ -205,9 +217,8 @@ export function blockExtension(plugin: LlmWikiPlugin): Extension {
     if (refused.first(key)) new Notice(`${ownerWords(out.hit)} Edit the page around it instead.`, 8000)
     if (!out.kept.length) return []
     const event = tr.annotation(Transaction.userEvent)
-    // Each cursor follows its own kept insert, as the person's edit would have left it.
     const changes = ChangeSet.of(out.kept, tr.startState.doc.length)
-    return { changes, selection: tr.startState.selection.map(changes, 1), effects: tr.effects, ...(event ? { userEvent: event } : {}), scrollIntoView: tr.scrollIntoView }
+    return { changes, selection: afterKept(tr.startState.selection, out.kept, changes), effects: tr.effects, ...(event ? { userEvent: event } : {}), scrollIntoView: tr.scrollIntoView }
   })
   // The first edit a person makes in a block a writer owns gets one notice, per page and block, per session.
   const warn = EditorView.updateListener.of((u) => {

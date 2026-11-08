@@ -208,3 +208,15 @@ describe('review 2: cursors, frontmatter, and deletes beside a block', () => {
     expect(t.update({ changes: { from: o - 1, to: o }, userEvent: 'delete.forward' }).state.doc.toString()).toBe(t.doc.toString())
   })
 })
+
+describe('review 3: typing over several selections', () => {
+  const plugin = { app: { metadataCache: { getFileCache: () => null } } } as unknown as LlmWikiPlugin
+  it('keeps every typed character when one selection lies in a read-only block', () => {
+    const doc = 'foo a\n<!-- ops w:n edits=discard -->\nfoo gen\n<!-- /ops w:n -->\nfoo b'
+    let s = EditorState.create({ doc, extensions: [EditorState.allowMultipleSelections.of(true), editorInfoField, blockExtension(plugin)] })
+    const at = [0, s.doc.line(3).from, s.doc.line(5).from]
+    s = s.update({ selection: EditorSelection.create(at.map((p) => EditorSelection.range(p, p + 3))) }).state
+    for (const ch of 'xy') s = s.update({ ...s.replaceSelection(ch), userEvent: 'input.type' }).state
+    expect(s.doc.toString()).toBe('xy a\n<!-- ops w:n edits=discard -->\nfoo gen\n<!-- /ops w:n -->\nxy b')
+  })
+})
