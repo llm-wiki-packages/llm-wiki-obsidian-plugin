@@ -17,7 +17,6 @@ const ATTR = new RegExp(`(${KEY})=(${VALUE})`, 'g')
 const FENCE_OPEN = /^[ \t]*(>)?[ \t>]*(?:(?:[-*+]|\d{1,9}[.)])[ \t]+)*((`|~)\3{2,})(.*)$/
 const FENCE_CLOSE = /^[ \t>]*((`|~)\2{2,})[ \t]*$/
 const QUOTED = /^[ \t]*>/
-const FRONTMATTER = /^---\r?\n[\s\S]*?\r?\n---\r?(?:\n|$)/
 
 export interface Block {
   writer: string
@@ -58,13 +57,23 @@ function fenced(lines: string[], from = 0): Set<number> {
   return inside
 }
 
+/**
+ * The index of the line closing a leading `---` block, or -1 where there is none: the CLI's `frontmatter.fence_end`. A
+ * first line that trims to `---` (after a byte-order mark) opens it, the next line that trims to `---` closes it, and
+ * one that never closes is no block.
+ */
+export function frontmatterEnd(lines: string[]): number {
+  if (!lines.length || lines[0]!.replace(/^\ufeff/, '').trim() !== '---') return -1
+  for (let i = 1; i < lines.length; i++) if (lines[i]!.trim() === '---') return i
+  return -1
+}
+
 /** Every well-formed block in `text`; a block whose markers cross, repeat or never close is left out. */
 export function parseBlocks(text: string): Block[] {
   if (!text.includes('<!--')) return []
   const lines = text.split('\n')
   // The CLI reads the body: frontmatter lines are never markers, and never open a fence.
-  const head = FRONTMATTER.exec(text)?.[0].split('\n').length ?? 1
-  const skip = head - 1
+  const skip = frontmatterEnd(lines) + 1
   const inside = fenced(lines, skip)
   for (let k = 0; k < skip; k++) inside.add(k)
   const stack: { writer: string; id: string; attrs: Record<string, string>; first: number }[] = []

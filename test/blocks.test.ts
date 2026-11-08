@@ -1,8 +1,8 @@
-import { EditorState } from '@codemirror/state'
+import { EditorSelection, EditorState } from '@codemirror/state'
 import { describe, expect, it } from 'vitest'
 import { editorInfoField } from 'obsidian'
 import { blockExtension, blocksField, ownerWords } from '../src/ui/blockEditor'
-import { blockAtLine, blockText, bodyOf, lineDiff, parseBlocks, setAsideByBlock, setAsideOf } from '../src/vault/blocks'
+import { blockAtLine, blockText, bodyOf, frontmatterEnd, lineDiff, parseBlocks, setAsideByBlock, setAsideOf } from '../src/vault/blocks'
 import type LlmWikiPlugin from '../src/main'
 
 const PAGE = [
@@ -164,5 +164,47 @@ describe('review: the edges of a read-only block, partial edits, fences and the 
     const blocks = parseBlocks(PAGE)
     const by = setAsideByBlock([{ path: 'b.md', from: 'course-summary:s1', at: '2026-11-07T10:00:00+00:00' }, { path: 'a.md', from: 'course-summary:s1', at: null }], blocks)
     expect(by.get('course-summary:s1')?.path).toBe('a.md')
+  })
+})
+
+describe('review 2: cursors, frontmatter, and deletes beside a block', () => {
+  const plugin = { app: { metadataCache: { getFileCache: () => null } } } as unknown as LlmWikiPlugin
+  const make = (doc: string) => EditorState.create({ doc, extensions: [EditorState.allowMultipleSelections.of(true), editorInfoField, blockExtension(plugin)] })
+
+  it('each surviving cursor ends after the text it typed, so multi-cursor typing comes out in order', () => {
+    let s = make(PAGE)
+    const at = [s.doc.line(1).to, s.doc.line(5).from, s.doc.line(8).to]
+    s = s.update({ selection: EditorSelection.create(at.map((p) => EditorSelection.cursor(p))) }).state
+    for (const ch of 'xyz') s = s.update({ ...s.changeByRange((r) => ({ changes: { from: r.head, insert: ch }, range: EditorSelection.cursor(r.head + 1) })), userEvent: 'input.type' }).state
+    expect(s.doc.line(1).text).toBe('# Coursexyz')
+    expect(s.doc.line(8).text).toBe('My own line.xyz')
+    expect(s.doc.line(5).text).toBe('A generated note.[^1]')
+  })
+  it('frontmatter is the CLI’s: a bare --- pair, a delimiter with a trailing space, and no reach past its close', () => {
+    expect(frontmatterEnd(['---', '---', 'x'])).toBe(1)
+    expect(frontmatterEnd(['﻿---', 'k: v', '--- '])).toBe(2)
+    expect(frontmatterEnd(['---', 'never closed'])).toBe(-1)
+    expect(frontmatterEnd(['text', '---'])).toBe(-1)
+    expect(parseBlocks('---\n---\n<!-- ops a:1 -->\nx\n<!-- /ops a:1 -->\n\n---\nmore').map((b) => b.first)).toEqual([2])
+    expect(parseBlocks('---\nk: v\n--- \n<!-- ops a:1 -->\nx\n<!-- /ops a:1 -->\n\n---\nmore').map((b) => b.first)).toEqual([3])
+  })
+  it('parses again when a frontmatter delimiter is completed by one keystroke', () => {
+    let s = make('---\nk: v\n<!-- ops a:1 -->\nx\n<!-- /ops a:1 -->\n--')
+    expect(s.field(blocksField)).toHaveLength(1)
+    s = s.update({ changes: { from: s.doc.length, insert: '-' }, userEvent: 'input.type' }).state
+    expect(s.field(blocksField)).toEqual([])
+  })
+  it('lets a person delete an empty line beside a read-only block, or a whole line above it', () => {
+    const doc = 'top\n\n<!-- ops w:n edits=discard -->\ngen\n<!-- /ops w:n -->\n\nend'
+    const s = make(doc)
+    const open = s.doc.line(3).from
+    const close = s.doc.line(5).to
+    expect(s.update({ changes: { from: open - 1, to: open }, userEvent: 'delete.forward' }).state.doc.toString()).toBe('top\n<!-- ops w:n edits=discard -->\ngen\n<!-- /ops w:n -->\n\nend')
+    expect(s.update({ changes: { from: close, to: close + 1 }, userEvent: 'delete.backward' }).state.doc.toString()).toBe('top\n\n<!-- ops w:n edits=discard -->\ngen\n<!-- /ops w:n -->\nend')
+    expect(s.update({ changes: { from: 0, to: s.doc.line(2).from }, userEvent: 'delete.line' }).state.doc.toString()).toBe('\n<!-- ops w:n edits=discard -->\ngen\n<!-- /ops w:n -->\n\nend')
+    // Joining a line with text onto a marker is still refused.
+    const t = make('top\n<!-- ops w:n edits=discard -->\ngen\n<!-- /ops w:n -->\nend')
+    const o = t.doc.line(2).from
+    expect(t.update({ changes: { from: o - 1, to: o }, userEvent: 'delete.forward' }).state.doc.toString()).toBe(t.doc.toString())
   })
 })

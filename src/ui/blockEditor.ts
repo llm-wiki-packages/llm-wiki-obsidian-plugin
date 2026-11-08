@@ -2,15 +2,15 @@
 // landing writes its own text there, setting a person's edit aside to `_versions/` and listing it in `ops.set_aside`.
 // So the editor tints each block and names its writer, warns once when a person starts editing one, keeps an
 // `edits=discard` block read-only, and offers the diff against the text a landing set aside.
-import { EditorState, StateEffect, StateField, Transaction, type ChangeSpec, type Extension, type Text } from '@codemirror/state'
+import { ChangeSet, EditorState, StateEffect, StateField, Transaction, type ChangeSpec, type Extension, type Text } from '@codemirror/state'
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from '@codemirror/view'
 import { editorInfoField, MarkdownView, Modal, Notice, TFile, type App } from 'obsidian'
 import type LlmWikiPlugin from '../main'
 import { blockText, bodyOf, lineDiff, parseBlocks, setAsideByBlock, setAsideOf, type Block, type SetAside } from '../vault/blocks'
 import { button, relativeTime } from './dom'
 
-/** A fence run or a marker on a line: a change there may move what is a block. */
-const STRUCTURE = /<!--|`{3}|~{3}/
+/** A fence run, a marker, or a frontmatter delimiter on a line: a change there may move what is a block. */
+const STRUCTURE = /<!--|`{3}|~{3}|^\s*-{2,}\s*$/
 
 /**
  * Whether a change leaves every block where it was: no line added or removed, nothing typed or deleted that could make
@@ -21,7 +21,7 @@ export function keepsBlocks(tr: Transaction): boolean {
   tr.changes.iterChanges((fromA, toA, fromB, toB, inserted) => {
     if (!keeps) return
     const changed = tr.startState.doc.sliceString(fromA, toA) + inserted.toString()
-    if (/[\n<>`~]/.test(changed)) keeps = false
+    if (/[\n<>`~\ufeff]/.test(changed)) keeps = false
     else if (STRUCTURE.test(tr.startState.doc.lineAt(fromA).text) || STRUCTURE.test(tr.state.doc.lineAt(fromB).text) || STRUCTURE.test(tr.state.doc.lineAt(toB).text)) keeps = false
   })
   return keeps
@@ -47,15 +47,25 @@ function span(doc: Text, b: Block): { start: number; end: number } {
 }
 
 /**
- * Whether one change, `[from, to)` in `doc` replaced by `text`, reaches into the block or breaks its markers. Text
- * typed on a new line right before the opening marker, or right after the closing one, is outside it; anything that
- * joins a marker to the line beside it, or types onto a marker line, is not.
+ * Whether one change, `[from, to)` in `doc` replaced by `text`, reaches into the block or breaks its markers. A change
+ * inside the block reaches it; one at its edge reaches it only when, after it, the opening marker no longer starts its
+ * line or the closing marker no longer ends its line. So a line typed above or below a block, or an empty line beside
+ * it deleted, is outside it; text typed onto a marker line, or a line joined onto one, is not.
  */
 export function reaches(doc: Text, b: Block, from: number, to: number, text = ''): boolean {
   const { start, end } = span(doc, b)
-  if (from === to) return (from > start && from < end) || (from === start && !text.endsWith('\n')) || (from === end && !text.startsWith('\n'))
-  // A deletion reaching the newline before the opening marker or after the closing one joins a marker to its neighbour.
-  return from < end + 1 && to > start - 1
+  if (from < end && to > start) return true
+  if (from === to && from > start && from < end) return true
+  if (to === start) {
+    // What will stand right before the opening marker: the end of the text put in, or what is left before `from`.
+    const before = text ? text.at(-1) : from > 0 ? doc.sliceString(from - 1, from) : '\n'
+    return before !== '\n'
+  }
+  if (from === end) {
+    const after = text ? text[0] : to < doc.length ? doc.sliceString(to, to + 1) : '\n'
+    return after !== '\n'
+  }
+  return false
 }
 
 /** The blocks a transaction's changes reach, read off the document before them. */
@@ -195,7 +205,9 @@ export function blockExtension(plugin: LlmWikiPlugin): Extension {
     if (refused.first(key)) new Notice(`${ownerWords(out.hit)} Edit the page around it instead.`, 8000)
     if (!out.kept.length) return []
     const event = tr.annotation(Transaction.userEvent)
-    return { changes: out.kept, ...(event ? { userEvent: event } : {}), scrollIntoView: tr.scrollIntoView }
+    // Each cursor follows its own kept insert, as the person's edit would have left it.
+    const changes = ChangeSet.of(out.kept, tr.startState.doc.length)
+    return { changes, selection: tr.startState.selection.map(changes, 1), effects: tr.effects, ...(event ? { userEvent: event } : {}), scrollIntoView: tr.scrollIntoView }
   })
   // The first edit a person makes in a block a writer owns gets one notice, per page and block, per session.
   const warn = EditorView.updateListener.of((u) => {
