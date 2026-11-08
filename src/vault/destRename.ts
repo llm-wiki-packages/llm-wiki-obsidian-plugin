@@ -22,7 +22,10 @@ export class DestRename {
   renamed(oldPath: string, newPath: string): void {
     const p = this.plugin
     if (!p.actions) return
-    for (const r of renamedDests(oldPath, newPath, p.snapshot?.dests ?? null)) {
+    const found = renamedDests(oldPath, newPath, p.snapshot?.dests ?? null)
+    // The job rows and the Overview follow the move at once, so none offers the folder it left.
+    if (found.length) void p.refreshSnapshot()
+    for (const r of found) {
       const key = `${r.slug}→${r.dest}`
       if (this.offered.has(key)) continue
       this.offered.add(key)
@@ -35,7 +38,7 @@ export class DestRename {
           notice?.hide()
           void p.repoint(r, false)
         }, { cta: true, title: `llm-wiki-ops jobs edit ${r.slug} dest=${r.dest}` })
-        button(bar, 'Not now', () => notice?.hide(), { title: 'The Overview offers it again while the job’s pages sit outside its dest' })
+        button(bar, 'Not now', () => notice?.hide(), { title: 'While the job’s pages sit outside its dest, the Jobs tab and the Overview offer it again' })
       })
       notice = new Notice(frag, 0)
     }

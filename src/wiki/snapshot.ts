@@ -221,17 +221,19 @@ export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now(
   const needsYou = typeof whereami?.needs_you === 'number' ? whereami.needs_you : null
   const parts = whereami?.needs_you_parts ?? null
   const readHeld = Boolean(needsYou) || !light
-  // Where each job's pages sit, and the updates waiting, walk every page: a full pass reads them, a light one keeps the last.
-  // A page conflict is an update waiting too, so a count above zero reads them again.
+  // Where each job's pages sit, and the updates waiting, walk every page: a full pass reads them, a light one keeps the
+  // last. A light pass reads the updates again while any is known (a page resolved elsewhere must leave the list) or a
+  // page conflict is counted (it is an update waiting too).
+  const readUpdates = !light || Boolean(parts?.page_conflicts?.length) || Boolean(previous?.updatesWaiting?.length)
   const [heldPages, heldRoots, conflictRecords, jobsCheck, waitingPages] = await Promise.all([
     readHeld ? soft<{ pages?: PageRow[] }>('wiki.page.held') : skip<{ pages?: PageRow[] }>(),
     readHeld ? soft<{ pages?: PageRow[] }>('wiki.page.heldRoots') : skip<{ pages?: PageRow[] }>(),
     needsYou ? soft<InboxLsAnswer>('wiki.inboxes.conflicts') : skip<InboxLsAnswer>(),
     light ? skip<JobsCheckAnswer>() : soft<JobsCheckAnswer>('wiki.jobs.check'),
-    readHeld ? soft<{ pages?: PageRow[] }>('wiki.page.updatesWaiting') : skip<{ pages?: PageRow[] }>(),
+    readUpdates ? soft<{ pages?: PageRow[] }>('wiki.page.updatesWaiting') : skip<{ pages?: PageRow[] }>(),
   ])
   const dests = light ? (previous?.dests ?? null) : jobsCheck ? destChecks(jobsCheck) : null
-  const updatesWaiting = readHeld ? pathsOf(waitingPages) : (previous?.updatesWaiting ?? null)
+  const updatesWaiting = readUpdates ? pathsOf(waitingPages) : (previous?.updatesWaiting ?? null)
   const heldPagesByStatus = heldCountsOf(status?.held)
   const waiting = new Set((parts?.held ?? []).map((h) => h.path))
   const held = heldPages && heldRoots
@@ -300,7 +302,7 @@ export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now(
   const errors_ = attention.filter((a) => a.severity === 'error').length
   const count = errors_ + attention.filter((a) => a.severity === 'warn').length
   // The reads a light pass skipped keep their last verdict, so a known hole does not look healed.
-  if (previous) for (const [k, v] of Object.entries(previous.errors)) if (!(k in errors) && /^(wiki\.skills|wiki\.credentials|wiki\.packages|machine\.runner|wiki\.jobs\.check)/.test(k)) errors[k] = v
+  if (previous) for (const [k, v] of Object.entries(previous.errors)) if (!(k in errors) && /^(wiki\.skills|wiki\.credentials|wiki\.packages|machine\.runner|wiki\.jobs\.check|wiki\.page\.updatesWaiting)/.test(k)) errors[k] = v
   return {
     takenAt: now,
     wikiKey,

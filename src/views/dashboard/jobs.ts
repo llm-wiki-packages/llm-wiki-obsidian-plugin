@@ -5,7 +5,7 @@ import { openJobModal } from '../../ui/jobModal'
 import type { Action, JobView, NextKind, PipelineView } from '../../wiki/model'
 import type { TabContext } from './index'
 import { slash } from '../../chat/skills'
-import { destStuck, destWords, repointTo } from '../../wiki/dest'
+import { destOf, destStuck, destWords, repointTo } from '../../wiki/dest'
 
 /** The jobs, what each is waiting on, and the one button that matters on each row; then what a job can run. */
 export function renderJobs(root: HTMLElement, ctx: TabContext): void {
@@ -161,7 +161,7 @@ function jobRow(tr: HTMLElement, j: JobView, ctx: TabContext): void {
 
 /** Where the job's pages sit, when it is not where its record says: the claim gate skips a renamed or scattered job. */
 export function destLine(parent: HTMLElement, j: JobView, ctx: TabContext): void {
-  const c = ctx.snapshot.dests?.find((d) => d.slug === j.slug)
+  const c = destOf(ctx.snapshot.dests, j.slug)
   const words = c ? destWords(c) : null
   if (!c || !words) return
   const line = parent.createDiv({ cls: destStuck(c) ? 'llm-wiki-failed' : 'llm-wiki-muted', text: words })
@@ -234,7 +234,7 @@ export function jobButtons(parent: HTMLElement, j: JobView, ctx: TabContext, ful
   const run = () => ctx.write(() => actions.runJob(j.slug))
   const runTitle = `llm-wiki-ops jobs request ${j.slug}`
   const c = j.credential
-  const moved = ctx.snapshot.dests?.find((d) => d.slug === j.slug)
+  const moved = destOf(ctx.snapshot.dests, j.slug)
   const to = moved ? repointTo(moved) : null
   if (moved && to) button(parent, 'Re-point', () => ctx.act({ kind: 'repoint', slug: j.slug, from: moved.dest, dest: to }), { icon: 'folder-input', cta: true, title: `llm-wiki-ops jobs edit ${j.slug} dest=${to}` })
   else if (j.paused) button(parent, 'Resume', () => ctx.write(() => actions.resumeJob(j.slug), true), { icon: 'play', cta: true })

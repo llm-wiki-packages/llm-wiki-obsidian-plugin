@@ -990,7 +990,8 @@ held, not waiting. The roots read is `filter=under:sources` too.
 ### 1.27 `jobs check` (read)
 
 `OPS/commands/jobs/check.py`, judged by `OPS/lib/jobs/destcheck.py`. One row
-per declared job (real, 0.15.0 on a bench wiki; the states composed from code):
+per declared job (composed from code; the keys are the real 0.15.0 answer's,
+run on a bench wiki whose jobs all read `ok`):
 
 ```json
 { "jobs": [ { "slug": "acme-blog", "dest": "sources/web/acme", "state": "renamed",

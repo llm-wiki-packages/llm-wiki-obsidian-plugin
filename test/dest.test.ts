@@ -128,13 +128,19 @@ describe('takeSnapshot: dests, updates waiting and held pages', () => {
     expect(snap.errors).toEqual({})
   })
   it('a light read keeps the last dests and updates and re-reads neither while nothing waits', async () => {
-    const full = await takeSnapshot(reader(answers), 'kb', NOW)
+    const none = { ...answers, 'wiki.page.updatesWaiting': { pages: [] } }
+    const full = await takeSnapshot(reader(none), 'kb', NOW)
     const calls: Verb[] = []
-    const light = await takeSnapshot(reader({ ...answers, 'wiki.jobs.check': { jobs: [] } }, calls), 'kb', NOW + 10_000, undefined, full)
+    const light = await takeSnapshot(reader({ ...none, 'wiki.jobs.check': { jobs: [] } }, calls), 'kb', NOW + 10_000, undefined, full)
     expect(calls).not.toContain('wiki.jobs.check')
     expect(calls).not.toContain('wiki.page.updatesWaiting')
     expect(light.dests).toEqual(full.dests)
-    expect(light.updatesWaiting).toEqual(full.updatesWaiting)
+    expect(light.updatesWaiting).toEqual([])
+    // One known, and the light read asks again: it may have been resolved elsewhere.
+    const withOne = await takeSnapshot(reader(answers), 'kb', NOW)
+    const again: Verb[] = []
+    await takeSnapshot(reader(answers, again), 'kb', NOW + 10_000, undefined, withOne)
+    expect(again).toContain('wiki.page.updatesWaiting')
   })
   it('a CLI without the verbs leaves them unknown, and says so', async () => {
     const { ['wiki.jobs.check']: _c, ['wiki.page.updatesWaiting']: _u, ...older } = answers
@@ -144,5 +150,39 @@ describe('takeSnapshot: dests, updates waiting and held pages', () => {
     expect(snap.heldPages).toBeNull()
     expect(Object.keys(snap.errors).sort()).toEqual(['wiki.jobs.check', 'wiki.page.updatesWaiting'])
     expect(snap.errors['wiki.page.updatesWaiting']).toBe('refused')
+  })
+})
+
+describe('review: updates waiting and renames that move twice', () => {
+  const answers = {
+    ...QUIET,
+    'wiki.jobs.check': CHECK,
+    'wiki.status': { machine: 'mac', git: { dirty: 0, untracked: 0, unpushed: 0, behind: 0 }, peers: [] },
+    'wiki.whereami': { needs_you: 1, needs_you_parts: { held: [], curate: [], conflicts: [], page_conflicts: [{ id: 'pc-1', page: 'sources/acme/a.md' }] } },
+    'wiki.page.updatesWaiting': { pages: [{ path: 'sources/acme/a.md' }] },
+  }
+  it('a page resolved elsewhere leaves the list on the next light read, never coming back as an update waiting', async () => {
+    const full = await takeSnapshot(reader(answers), 'kb', NOW)
+    expect(updatesOnly(full.updatesWaiting, full.parts)).toEqual([])
+    const resolved = { ...answers, 'wiki.whereami': { needs_you: 0, needs_you_parts: { held: [], curate: [], conflicts: [], page_conflicts: [] } }, 'wiki.page.updatesWaiting': { pages: [] } }
+    const calls: Verb[] = []
+    const light = await takeSnapshot(reader(resolved, calls), 'kb', NOW + 10_000, undefined, full)
+    expect(calls).toContain('wiki.page.updatesWaiting')
+    expect(light.updatesWaiting).toEqual([])
+    expect(light.attention.some((a) => a.id === 'inbox:updates-waiting')).toBe(false)
+  })
+  it('a light read keeps a failed updates read named, so the hole does not look healed', async () => {
+    const { ['wiki.page.updatesWaiting']: _u, ...failing } = answers
+    const full = await takeSnapshot(reader({ ...failing, 'wiki.whereami': { needs_you: 0 } }), 'kb', NOW)
+    expect(full.errors['wiki.page.updatesWaiting']).toBe('refused')
+    const light = await takeSnapshot(reader({ ...failing, 'wiki.whereami': { needs_you: 0 } }), 'kb', NOW + 10_000, undefined, full)
+    expect(light.errors['wiki.page.updatesWaiting']).toBe('refused')
+  })
+  it('a renamed job whose new folder is moved again follows it; a dest written with a slash still matches', () => {
+    const checks = destChecks(CHECK)
+    expect(renamedDests('sources/acme', 'sources/blogs/acme', checks)).toEqual([{ slug: 'acme-blog', from: 'sources/web/acme', dest: 'sources/blogs/acme' }])
+    const slashed = destChecks({ jobs: [{ slug: 'x', dest: 'sources/x/', state: 'fresh' }] })
+    expect(slashed[0]?.dest).toBe('sources/x')
+    expect(renamedDests('sources/x', 'sources/y', slashed)).toEqual([{ slug: 'x', from: 'sources/x', dest: 'sources/y' }])
   })
 })

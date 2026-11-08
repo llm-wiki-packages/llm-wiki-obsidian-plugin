@@ -2,6 +2,7 @@ import { Modal, type App } from 'obsidian'
 import type { TabContext } from '../views/dashboard/index'
 import { askAbout, credentialAction, destLine, jobButtons, nextText } from '../views/dashboard/jobs'
 import { slotWords } from '../wiki/slots'
+import { destOf } from '../wiki/dest'
 import type { JobView } from '../wiki/model'
 import { button, clockTime, relativeTime } from './dom'
 
@@ -36,7 +37,7 @@ export function openJobModal(app: App, job: JobView, ctx: TabContext): void {
       if (j.running) line.title = `ticket ${j.running.ticket}`
       if (j.next.detail && !j.running) state.createDiv({ cls: 'llm-wiki-muted', text: j.next.detail })
       else if (j.reasons.length) state.createDiv({ cls: 'llm-wiki-muted', text: j.reasons.join('; ') })
-      const dest = ctx.snapshot.dests?.find((d) => d.slug === j.slug)
+      const dest = destOf(ctx.snapshot.dests, j.slug)
       if (dest?.dest) state.createDiv({ cls: 'llm-wiki-muted', text: `Lands in ${dest.dest}` })
       destLine(state, j, ctx)
       // A renamed job's fix is the Re-point button below; any other names the command to run.

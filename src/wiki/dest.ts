@@ -25,7 +25,8 @@ const STATES: readonly DestState[] = ['ok', 'fresh', 'renamed', 'scattered', 'mo
 export function destChecks(a: JobsCheckAnswer): DestCheck[] {
   return (a.jobs ?? []).filter((r) => typeof r.slug === 'string').map((r) => ({
     slug: r.slug,
-    dest: r.dest ?? '',
+    // A dest may be written with a trailing slash; a folder path never has one.
+    dest: (r.dest ?? '').replace(/\/+$/, ''),
     state: (STATES as readonly string[]).includes(r.state ?? '') ? (r.state as DestState) : 'ok',
     why: r.why ?? '',
     inside: r.inside ?? 0,
@@ -87,15 +88,29 @@ export function destAttention(checks: DestCheck[] | null, jobs: JobView[]): Atte
   return out
 }
 
-/** A folder Obsidian renamed or moved, against the jobs: each job whose dest was it, or sat under it, and the dest it has now. */
+/** `path` with the folder `oldPath` (or one above it) renamed to `newPath`; null when it is not under `oldPath`. */
+function moved(path: string, oldPath: string, newPath: string): string | null {
+  if (!path || !oldPath) return null
+  if (path === oldPath) return newPath
+  return path.startsWith(`${oldPath}/`) ? `${newPath}${path.slice(oldPath.length)}` : null
+}
+
+/**
+ * A folder Obsidian renamed or moved, against the jobs: each job whose dest was it or sat under it, and each renamed job
+ * whose pages had moved there already (moved twice before a re-point), with the dest it has now.
+ */
 export function renamedDests(oldPath: string, newPath: string, checks: DestCheck[] | null): { slug: string; from: string; dest: string }[] {
   const out: { slug: string; from: string; dest: string }[] = []
   for (const c of checks ?? []) {
-    if (!c.dest) continue
-    if (c.dest === oldPath) out.push({ slug: c.slug, from: c.dest, dest: newPath })
-    else if (c.dest.startsWith(`${oldPath}/`)) out.push({ slug: c.slug, from: c.dest, dest: `${newPath}${c.dest.slice(oldPath.length)}` })
+    const dest = moved(c.dest, oldPath, newPath) ?? moved(repointTo(c) ?? '', oldPath, newPath)
+    if (dest) out.push({ slug: c.slug, from: c.dest, dest })
   }
   return out
+}
+
+/** The job's line from `jobs check`, if it was read. */
+export function destOf(checks: DestCheck[] | null, slug: string): DestCheck | undefined {
+  return checks?.find((d) => d.slug === slug)
 }
 
 /** The pages of one `page ls` answer. */
