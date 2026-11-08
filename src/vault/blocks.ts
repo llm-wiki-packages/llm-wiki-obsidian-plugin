@@ -12,9 +12,12 @@ const OPEN = new RegExp(`^[ \\t]*<!--[ \\t]+ops[ \\t]+${ADDRESS}(?<attrs>(?:[ \\
 const CLOSE = new RegExp(`^[ \\t]*<!--[ \\t]+/ops[ \\t]+${ADDRESS}[ \\t]+-->[ \\t]*$`)
 const ATTR = new RegExp(`(${KEY})=(${VALUE})`, 'g')
 // The CLI's fence (`OPS/lib/fences.py`): a run of three or more backticks or tildes behind any indent, quote or list
-// marker, no backtick in a backtick fence's info, closed by a bare run of its own character at least as long.
-const FENCE_OPEN = /^[ \t]*>?[ \t>]*(?:(?:[-*+]|\d{1,9}[.)])[ \t]+)*((`|~)\2{2,})(.*)$/
+// marker, no backtick in a backtick fence's info, closed by a bare run of its own character at least as long, in the
+// same quote state. A fence opened in a quote ends with the quote.
+const FENCE_OPEN = /^[ \t]*(>)?[ \t>]*(?:(?:[-*+]|\d{1,9}[.)])[ \t]+)*((`|~)\3{2,})(.*)$/
 const FENCE_CLOSE = /^[ \t>]*((`|~)\2{2,})[ \t]*$/
+const QUOTED = /^[ \t]*>/
+const FRONTMATTER = /^---\r?\n[\s\S]*?\r?\n---\r?(?:\n|$)/
 
 export interface Block {
   writer: string
@@ -31,22 +34,27 @@ export interface Block {
 }
 
 /** The lines inside a fenced code block, fences included, by index: markers there are examples, not blocks. */
-function fenced(lines: string[]): Set<number> {
+function fenced(lines: string[], from = 0): Set<number> {
   const inside = new Set<number>()
-  let open: { char: string; len: number } | null = null
-  lines.forEach((raw, i) => {
-    const line = raw.replace(/\r$/, '')
-    if (open) {
-      inside.add(i)
-      const m = FENCE_CLOSE.exec(line)
-      if (m && m[2] === open.char && m[1]!.length >= open.len) open = null
-      return
+  let i = from
+  while (i < lines.length) {
+    const open = FENCE_OPEN.exec(lines[i]!.replace(/\r$/, ''))
+    if (!open || (open[3] === '`' && open[4]!.includes('`'))) {
+      i++
+      continue
     }
-    const m = FENCE_OPEN.exec(line)
-    if (!m || (m[2] === '`' && m[3]!.includes('`'))) return
-    inside.add(i)
-    open = { char: m[2]!, len: m[1]!.length }
-  })
+    const quoted = open[1] !== undefined
+    let end = i + 1
+    while (end < lines.length) {
+      const line = lines[end]!.replace(/\r$/, '')
+      if (quoted && !QUOTED.test(line)) break
+      end++
+      const close = quoted === QUOTED.test(line) ? FENCE_CLOSE.exec(line) : null
+      if (close && close[2] === open[3] && close[1]!.length >= open[2]!.length) break
+    }
+    for (let k = i; k < end; k++) inside.add(k)
+    i = end
+  }
   return inside
 }
 
@@ -54,7 +62,11 @@ function fenced(lines: string[]): Set<number> {
 export function parseBlocks(text: string): Block[] {
   if (!text.includes('<!--')) return []
   const lines = text.split('\n')
-  const inside = fenced(lines)
+  // The CLI reads the body: frontmatter lines are never markers, and never open a fence.
+  const head = FRONTMATTER.exec(text)?.[0].split('\n').length ?? 1
+  const skip = head - 1
+  const inside = fenced(lines, skip)
+  for (let k = 0; k < skip; k++) inside.add(k)
   const stack: { writer: string; id: string; attrs: Record<string, string>; first: number }[] = []
   const seen = new Set<string>()
   const bad = new Set<string>()
@@ -92,9 +104,30 @@ export function parseBlocks(text: string): Block[] {
   return kept.map((b) => ({ ...b, parent: [...kept].reverse().find((o) => o.first < b.first && b.last < o.last)?.address ?? null }))
 }
 
-/** The block's own text: the lines between its markers. */
-export function blockText(text: string, b: Pick<Block, 'first' | 'last'>): string {
-  return text.split('\n').slice(b.first + 1, b.last).join('\n')
+/**
+ * The block's own text, as the CLI files it when it sets a person's edit aside (`blocks.own_text`): the lines between
+ * its markers with its children cut out (one blank line dropped where a cut leaves two), CRLF folded, blank lines at
+ * the edges and trailing space dropped.
+ */
+export function blockText(text: string, b: Pick<Block, 'first' | 'last' | 'address'>, blocks: Block[] = parseBlocks(text)): string {
+  const lines = text.split('\n')
+  const inner = lines.slice(b.first + 1, b.last)
+  const base = b.first + 1
+  const kids = blocks.filter((k) => k.parent === b.address).map((k) => [k.first - base, k.last - base] as const).sort((x, y) => x[0] - y[0])
+  const out: string[] = []
+  let cursor = 0
+  for (const [first, last] of kids) {
+    out.push(...inner.slice(cursor, first))
+    cursor = last + 1
+    if (cursor < inner.length && !inner[cursor]!.trim() && (!out.length || !out.at(-1)!.trim())) cursor++
+  }
+  out.push(...inner.slice(cursor))
+  return normalize(out.join('\n'))
+}
+
+/** A block's text as its hash reads it (`blocks.normalize`). */
+export function normalize(text: string): string {
+  return text.replace(/\r\n/g, '\n').replace(/^\n+|\n+$/g, '').replace(/\s+$/, '')
 }
 
 /** One `ops.set_aside` entry: a person's text a writer replaced, filed under `_versions/` (`OPS/lib/jobs/refresh.py`). */
@@ -118,15 +151,11 @@ export function setAsideOf(fm: Record<string, unknown> | null | undefined): SetA
   })
 }
 
-/** The newest entry for each block on the page: the text the writer's last landing set aside. */
+/** The latest entry for each block on the page: the CLI appends (`refresh.with_entry`), so the last listed is the newest. */
 export function setAsideByBlock(entries: SetAside[], blocks: Block[]): Map<string, SetAside> {
   const out = new Map<string, SetAside>()
   const addresses = new Set(blocks.map((b) => b.address))
-  for (const e of entries) {
-    if (!addresses.has(e.from)) continue
-    const had = out.get(e.from)
-    if (!had || (e.at ?? '') >= (had.at ?? '')) out.set(e.from, e)
-  }
+  for (const e of entries) if (addresses.has(e.from)) out.set(e.from, e)
   return out
 }
 

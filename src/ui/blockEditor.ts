@@ -2,17 +2,35 @@
 // landing writes its own text there, setting a person's edit aside to `_versions/` and listing it in `ops.set_aside`.
 // So the editor tints each block and names its writer, warns once when a person starts editing one, keeps an
 // `edits=discard` block read-only, and offers the diff against the text a landing set aside.
-import { EditorState, StateEffect, StateField, type Extension, type Text, type Transaction } from '@codemirror/state'
+import { EditorState, StateEffect, StateField, Transaction, type ChangeSpec, type Extension, type Text } from '@codemirror/state'
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from '@codemirror/view'
 import { editorInfoField, MarkdownView, Modal, Notice, TFile, type App } from 'obsidian'
 import type LlmWikiPlugin from '../main'
 import { blockText, bodyOf, lineDiff, parseBlocks, setAsideByBlock, setAsideOf, type Block, type SetAside } from '../vault/blocks'
 import { button, relativeTime } from './dom'
 
-/** The blocks of the document, re-read on every change to it. */
+/** A fence run or a marker on a line: a change there may move what is a block. */
+const STRUCTURE = /<!--|`{3}|~{3}/
+
+/**
+ * Whether a change leaves every block where it was: no line added or removed, nothing typed or deleted that could make
+ * or break a marker or a fence, on a line that holds neither. Then the blocks are kept, not parsed again.
+ */
+export function keepsBlocks(tr: Transaction): boolean {
+  let keeps = true
+  tr.changes.iterChanges((fromA, toA, fromB, toB, inserted) => {
+    if (!keeps) return
+    const changed = tr.startState.doc.sliceString(fromA, toA) + inserted.toString()
+    if (/[\n<>`~]/.test(changed)) keeps = false
+    else if (STRUCTURE.test(tr.startState.doc.lineAt(fromA).text) || STRUCTURE.test(tr.state.doc.lineAt(fromB).text) || STRUCTURE.test(tr.state.doc.lineAt(toB).text)) keeps = false
+  })
+  return keeps
+}
+
+/** The blocks of the document, parsed again on a change that may move them. */
 export const blocksField = StateField.define<Block[]>({
   create: (state) => parseBlocks(state.doc.toString()),
-  update: (value, tr) => (tr.docChanged ? parseBlocks(tr.newDoc.toString()) : value),
+  update: (value, tr) => (!tr.docChanged || keepsBlocks(tr) ? value : parseBlocks(tr.newDoc.toString())),
 })
 
 /** The page's metadata moved (a landing wrote `ops.set_aside`): redraw the labels. */
@@ -29,13 +47,15 @@ function span(doc: Text, b: Block): { start: number; end: number } {
 }
 
 /**
- * Whether a change of `[from, to)` in `doc` reaches into the block. Typing right before its opening marker or right
- * after its closing one is outside it: that is how a person adds a line around a block.
+ * Whether one change, `[from, to)` in `doc` replaced by `text`, reaches into the block or breaks its markers. Text
+ * typed on a new line right before the opening marker, or right after the closing one, is outside it; anything that
+ * joins a marker to the line beside it, or types onto a marker line, is not.
  */
-export function reaches(doc: Text, b: Block, from: number, to: number): boolean {
+export function reaches(doc: Text, b: Block, from: number, to: number, text = ''): boolean {
   const { start, end } = span(doc, b)
-  if (from === to) return from > start && from < end
-  return from < end && to > start
+  if (from === to) return (from > start && from < end) || (from === start && !text.endsWith('\n')) || (from === end && !text.startsWith('\n'))
+  // A deletion reaching the newline before the opening marker or after the closing one joins a marker to its neighbour.
+  return from < end + 1 && to > start - 1
 }
 
 /** The blocks a transaction's changes reach, read off the document before them. */
@@ -43,10 +63,28 @@ export function reached(tr: Transaction): Block[] {
   const blocks = tr.startState.field(blocksField, false) ?? []
   if (!blocks.length) return []
   const hit = new Set<Block>()
-  tr.changes.iterChangedRanges((from, to) => {
-    for (const b of blocks) if (reaches(tr.startState.doc, b, from, to)) hit.add(b)
+  tr.changes.iterChanges((from, to, _fb, _tb, inserted) => {
+    for (const b of blocks) if (reaches(tr.startState.doc, b, from, to, inserted.toString())) hit.add(b)
   })
   return [...hit]
+}
+
+/**
+ * The transaction with every change that reaches a read-only block dropped and the rest kept, or null when none
+ * does. A multi-cursor edit or a replace-all keeps its other changes.
+ */
+export function withoutReadOnly(tr: Transaction): { kept: ChangeSpec[]; hit: Block } | null {
+  const blocks = (tr.startState.field(blocksField, false) ?? []).filter((b) => b.discard)
+  if (!blocks.length) return null
+  const kept: ChangeSpec[] = []
+  let hit: Block | null = null
+  tr.changes.iterChanges((from, to, _fb, _tb, inserted) => {
+    const text = inserted.toString()
+    const into = blocks.filter((b) => reaches(tr.startState.doc, b, from, to, text))
+    if (into.length) hit = innermost([...(hit ? [hit] : []), ...into])
+    else kept.push({ from, to, insert: text })
+  })
+  return hit ? { kept, hit } : null
 }
 
 /** The innermost of several blocks reached: the one whose writer rewrites the text typed. */
@@ -140,20 +178,24 @@ export function blockExtension(plugin: LlmWikiPlugin): Extension {
         this.decorations = decorations(plugin, view)
       }
       update(u: ViewUpdate): void {
-        if (u.docChanged || u.transactions.some((t) => t.effects.some((e) => e.is(refreshBlocks)))) this.decorations = decorations(plugin, u.view)
+        const moved = u.startState.field(blocksField, false) !== u.state.field(blocksField, false)
+        if (moved || u.transactions.some((t) => t.effects.some((e) => e.is(refreshBlocks)))) this.decorations = decorations(plugin, u.view)
+        else if (u.docChanged) this.decorations = this.decorations.map(u.changes)
       }
     },
     { decorations: (v) => v.decorations },
   )
-  // An `edits=discard` block takes no person's edit: the next run would drop it anyway.
+  // An `edits=discard` block takes no person's edit: the next run would drop it anyway. Undo and redo pass: refusing
+  // one would leave it at the top of the history, and every later undo would be refused with it.
   const readOnly = EditorState.transactionFilter.of((tr) => {
     if (!tr.docChanged || !personEdit(tr)) return tr
-    const hit = reached(tr).filter((b) => b.discard)
-    if (!hit.length) return tr
-    const b = innermost(hit)!
-    const key = `${fileOf(tr.startState)?.path ?? ''}#${b.address}`
-    if (refused.first(key)) new Notice(`${ownerWords(b)} Edit the page around it instead.`, 8000)
-    return []
+    const out = withoutReadOnly(tr)
+    if (!out) return tr
+    const key = `${fileOf(tr.startState)?.path ?? ''}#${out.hit.address}`
+    if (refused.first(key)) new Notice(`${ownerWords(out.hit)} Edit the page around it instead.`, 8000)
+    if (!out.kept.length) return []
+    const event = tr.annotation(Transaction.userEvent)
+    return { changes: out.kept, ...(event ? { userEvent: event } : {}), scrollIntoView: tr.scrollIntoView }
   })
   // The first edit a person makes in a block a writer owns gets one notice, per page and block, per session.
   const warn = EditorView.updateListener.of((u) => {
@@ -209,7 +251,8 @@ class SetAsideModal extends Modal {
       return
     }
     const mine = bodyOf(await app.vault.cachedRead(file))
-    const theirs = block ? blockText(this.view.state.doc.toString(), block) : ''
+    const blocks = this.view.state.field(blocksField, false) ?? []
+    const theirs = block ? blockText(this.view.state.doc.toString(), block, blocks) : ''
     const hunk = el.createDiv({ cls: 'llm-wiki-diff-hunk' })
     const diff = lineDiff(mine, theirs)
     if (diff.every((d) => d.kind === 'same')) hunk.createDiv({ cls: 'llm-wiki-diff-at', text: 'Your text and the block read the same now.' })

@@ -108,3 +108,61 @@ describe('the editor rules', () => {
     expect(ownerWords({ writer: 'course-summary', discard: true })).toContain('read-only')
   })
 })
+
+describe('review: the edges of a read-only block, partial edits, fences and the diff text', () => {
+  const plugin = { app: { metadataCache: { getFileCache: () => null } } } as unknown as LlmWikiPlugin
+  const state = () => EditorState.create({ doc: PAGE, extensions: [EditorState.allowMultipleSelections.of(true), editorInfoField, blockExtension(plugin)] })
+  const line = (s: EditorState, n: number) => s.doc.line(n + 1)
+  const type = (s: EditorState, changes: { from: number; to?: number; insert?: string } | { from: number; to?: number; insert?: string }[], userEvent = 'input.type') => s.update({ changes, userEvent }).state
+
+  it('refuses a keystroke onto a marker line or one that joins a marker to its neighbour', () => {
+    const s = state()
+    // The read-only block is lines 3..5.
+    expect(type(s, { from: line(s, 5).to, insert: 'x' }).doc.toString()).toBe(PAGE)
+    expect(type(s, { from: line(s, 3).from, insert: 'x' }).doc.toString()).toBe(PAGE)
+    expect(type(s, { from: line(s, 5).to, to: line(s, 5).to + 1 }, 'delete.forward').doc.toString()).toBe(PAGE)
+    expect(type(s, { from: line(s, 3).from - 1, to: line(s, 3).from }, 'delete.backward').doc.toString()).toBe(PAGE)
+    expect(type(s, { from: line(s, 3).from - 1, insert: '!' }).doc.line(3).text).toBe('The summary.!')
+  })
+  it('keeps the changes outside a read-only block when one of several reaches into it', () => {
+    const s = state()
+    const out = type(s, [{ from: line(s, 7).from, insert: '> ' }, { from: line(s, 4).from, insert: '> ' }])
+    expect(out.doc.line(8).text).toBe('> My own line.')
+    expect(out.doc.line(5).text).toBe('A generated note.[^1]')
+    const replaced = type(s, [{ from: line(s, 2).from, to: line(s, 2).from + 3, insert: 'A' }, { from: line(s, 4).from, to: line(s, 4).from + 1, insert: 'B' }], 'input.replace.all')
+    expect(replaced.doc.line(3).text).toBe('A summary.')
+    expect(replaced.doc.line(5).text).toBe('A generated note.[^1]')
+  })
+  it('lets undo and redo through, so the history never jams', () => {
+    const s = state()
+    expect(type(s, { from: line(s, 4).from, insert: 'u' }, 'undo').doc.line(5).text).toBe('uA generated note.[^1]')
+  })
+  it('keeps the parsed blocks on plain typing and parses again when a line or a marker moves', () => {
+    let s = state()
+    const before = s.field(blocksField)
+    s = type(s, { from: line(s, 7).from, insert: 'abc' })
+    expect(s.field(blocksField)).toBe(before)
+    s = type(s, { from: line(s, 0).to, insert: '\nnew line' })
+    expect(s.field(blocksField)).not.toBe(before)
+    expect(s.field(blocksField).map((b) => b.first)).toEqual([2, 4])
+  })
+  it('quoted fences end with the quote and close only in it, as the CLI reads them', () => {
+    expect(parseBlocks('> ```\n> code\ntext\n<!-- ops a:1 -->\nx\n<!-- /ops a:1 -->').map((b) => b.address)).toEqual(['a:1'])
+    expect(parseBlocks('```\n> ```\n<!-- ops a:1 -->\nx\n<!-- /ops a:1 -->')).toEqual([])
+    expect(parseBlocks('> ```\n```\n<!-- ops a:1 -->\nx\n<!-- /ops a:1 -->')).toEqual([])
+  })
+  it('frontmatter is never body: a fence-looking value opens nothing', () => {
+    expect(parseBlocks('---\nnote: |\n  ```\n---\n<!-- ops a:1 -->\nx\n<!-- /ops a:1 -->').map((b) => [b.address, b.first])).toEqual([['a:1', 4]])
+  })
+  it('the diff compares the block’s own text, children cut out, as the CLI set it aside', () => {
+    const blocks = parseBlocks(PAGE)
+    expect(blockText(PAGE, blocks[0]!, blocks)).toBe('The summary.')
+    const crlf = '<!-- ops a:1 -->\n\nline one  \n\n<!-- /ops a:1 -->'
+    expect(blockText(crlf, parseBlocks(crlf)[0]!)).toBe('line one')
+  })
+  it('takes the last set-aside entry listed for a block, the one the CLI appended last', () => {
+    const blocks = parseBlocks(PAGE)
+    const by = setAsideByBlock([{ path: 'b.md', from: 'course-summary:s1', at: '2026-11-07T10:00:00+00:00' }, { path: 'a.md', from: 'course-summary:s1', at: null }], blocks)
+    expect(by.get('course-summary:s1')?.path).toBe('a.md')
+  })
+})
