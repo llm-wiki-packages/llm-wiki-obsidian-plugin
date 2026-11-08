@@ -25,6 +25,7 @@ import { TitleFollowsName } from './vault/titles'
 import { TidyProperties } from './vault/properties'
 import { SourceLinks } from './vault/sourceLinks'
 import { SourcesPanel } from './ui/sourcesPanel'
+import { DestRename } from './vault/destRename'
 import { DEFAULT_LAYOUT, layout, layoutFrom, setLayout, type LayoutAnswer } from './wiki/layout'
 import { button } from './ui/dom'
 import { applySetup, nothingMissing, vaultMissing } from './vault/editorSetup'
@@ -64,6 +65,7 @@ export default class LlmWikiPlugin extends Plugin {
   readonly properties = new TidyProperties(this)
   readonly sourceLinks = new SourceLinks(this)
   readonly sourcesPanel = new SourcesPanel(this)
+  private readonly destRename = new DestRename(this)
 
   async onload(): Promise<void> {
     await this.loadSettings()
@@ -139,6 +141,7 @@ export default class LlmWikiPlugin extends Plugin {
     this.properties.register()
     this.sourceLinks.register()
     this.sourcesPanel.register()
+    this.destRename.register()
     this.registerEvent(this.app.workspace.on('llm-wiki:saved' as 'layout-change', () => this.showStatus()))
     this.addCommand({ id: 'redetect', name: 'Re-detect wiki and binaries', callback: () => void this.detect(true) })
     this.addCommand({ id: 'apply-editor-setup', name: 'Apply the wiki’s Obsidian settings (exclude raw captures, checkbox properties)', checkCallback: (checking) => {
@@ -390,6 +393,24 @@ export default class LlmWikiPlugin extends Plugin {
   async addJob(): Promise<void> {
     const text = await this.promptAddJob()
     if (text) await this.openChat(slash('add', text))
+  }
+
+  /**
+   * Re-point a job's dest at a folder: `ask` puts the question first (a row's button); the rename offer has already
+   * asked it. Either way the click is the yes the CLI's confirm question wants.
+   */
+  async repoint(r: { slug: string; from: string; dest: string }, ask = true): Promise<void> {
+    const actions = this.actions
+    if (!actions) return
+    const name = this.snapshot?.jobs.find((j) => j.slug === r.slug)?.name ?? r.slug
+    if (ask && !(await confirm(this.app, {
+      title: `Re-point ${name}?`,
+      body: `Its next run lands in ${r.dest}, not ${r.from}. Only the job’s record changes; no folder or page moves.`,
+      cta: 'Re-point',
+    }))) return
+    const out = await actions.repointJob(r.slug, r.dest)
+    new Notice(out.message, out.ok ? 5000 : 10_000)
+    await this.refreshSnapshot()
   }
 
   /** The credential dialog; after a save the dashboard re-reads, since the binding is the CLI's to confirm. */

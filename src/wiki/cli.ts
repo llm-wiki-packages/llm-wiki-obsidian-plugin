@@ -48,6 +48,8 @@ export interface Args {
   answered?: boolean
   /** `page resolve`: keep the person's page, or write the pipeline's render over it. */
   choice?: 'mine' | 'theirs'
+  /** `jobs edit dest=`: the folder a job's pages now sit under, vault-relative. */
+  dest?: string
   /** `page fix`: re-mint a copy's shared id, which the CLI asks a person for. */
   force?: boolean
   /** `config set|unset`: a TOML dotted key, and for `set` its value. */
@@ -93,7 +95,7 @@ export class CliError extends Error {
 
   /** The message without the `wiki.verb: ` prefix, for a Notice. */
   get short(): string {
-    return this.message.replace(/^[a-z]+(\.[a-z]+)+: /, '')
+    return this.message.replace(/^[a-z]+(\.[A-Za-z]+)+: /, '')
   }
 }
 
@@ -288,6 +290,13 @@ function resolveChoice(c: unknown): 'mine' | 'theirs' {
   throw new CliError(`bad choice: ${String(c)}`, 'args')
 }
 
+/** A job's dest: a vault-relative folder, no trailing slash, one line; the CLI judges the rest (`jobs.dest_problem`). */
+function dest(v: string | undefined): string {
+  const t = (v ?? '').replace(/\/+$/, '')
+  if (!t || /[=\s]$/.test(t)) throw new CliError(`bad dest: ${String(v)}`, 'args')
+  return rel(t)
+}
+
 function topK(a: Args): string {
   const k = a.k ?? 20
   if (!Number.isInteger(k) || k < 1 || k > 100) throw new CliError(`bad k: ${String(a.k)}`, 'args')
@@ -307,6 +316,8 @@ export const VERBS = {
   'wiki.search.status': (a: Args) => wiki(a, 'search', 'status'),
   'wiki.jobs.ls': (a: Args) => wiki(a, 'jobs', 'ls', '--verbose'),
   'wiki.jobs.due': (a: Args) => wiki(a, 'jobs', 'due'),
+  /** Where each job's pages sit against its dest: ok, fresh, renamed, scattered or moved-out, with the `jobs edit` that re-points one. */
+  'wiki.jobs.check': (a: Args) => wiki(a, 'jobs', 'check'),
   'wiki.tickets.ls': (a: Args) => wiki(a, 'tickets', 'ls'),
   'wiki.page.ls': (a: Args) => wiki(a, 'page', 'ls'),
   'wiki.git.conflicts': (a: Args) => wiki(a, 'git', 'conflicts'),
@@ -331,6 +342,8 @@ export const VERBS = {
   'wiki.page.held': (a: Args) => wiki(a, 'page', 'ls', 'filter=under:sources', 'filter=lever:ingest=hold'),
   /** The bundle roots whose subtree reads `ingest: hold`, to group the held pages under. A root says so in its `ops` object (page shape 3). */
   'wiki.page.heldRoots': (a: Args) => wiki(a, 'page', 'ls', 'filter=under:sources', 'filter=prop:ops.root', 'filter=lever:ingest=hold'),
+  /** The pages a job's update waits on: the incoming copy is in `_versions/`, and `page resolve` clears it. */
+  'wiki.page.updatesWaiting': (a: Args) => wiki(a, 'page', 'ls', 'filter=prop:ops.updates_waiting'),
   /** Each uncommitted path under the swept trees, with how it changed. */
   'wiki.git.status': (a: Args) => wiki(a, 'git', 'status'),
   /** The frontmatter and body a template would add to a page; writes nothing. */
@@ -372,6 +385,9 @@ export const VERBS = {
     a.subject === 'job' ? slug(a.slug) : unit(a.name), `${bindSlot(a.slot)}=${credential(a.credential)}`),
   'wiki.credentials.login': (a: Args) => write(a, 'credentials', 'login', credential(a.name)),
   'wiki.credentials.remove': (a: Args) => write(a, 'credentials', 'remove', credential(a.name)),
+  // Re-point a job at the folder its pages moved to; the record only, never a folder move. `jobs edit:dest` asks a
+  // confirm question, and the click is the yes: `--confirm` goes right after the verb path, where the CLI reads it.
+  'wiki.jobs.repoint': (a: Args) => write(a, 'jobs', 'edit', '--confirm', slug(a.slug), `dest=${dest(a.dest)}`),
   // Mint identity into pages the wiki does not know yet.
   'wiki.page.adopt': (a: Args) => write(a, 'page', 'adopt', ...paths(a.paths)),
   // Frontmatter repairs; with `force`, a copy Obsidian just made gets its own id (the CLI refuses the older copy by name).
@@ -404,7 +420,7 @@ export const VERBS = {
 export type Verb = keyof typeof VERBS
 
 /** Writes a person asked for by clicking; the ones the CLI would otherwise ask a terminal to confirm are marked attended. */
-const ATTENDED: ReadonlySet<Verb> = new Set<Verb>(['wiki.credentials.set', 'wiki.credentials.bind', 'wiki.credentials.login', 'wiki.credentials.remove'])
+const ATTENDED: ReadonlySet<Verb> = new Set<Verb>(['wiki.credentials.set', 'wiki.credentials.bind', 'wiki.credentials.login', 'wiki.credentials.remove', 'wiki.jobs.repoint'])
 
 /**
  * Page writes from the editor itself: a click, or the sweep of what was typed here. Under the `editor` origin the
@@ -499,7 +515,7 @@ export class Cli {
 
   /**
    * One verb, answered. A protected write a person clicked that the gate asks to approve (`credentials set`, `bind`,
-   * `login`, `remove`) is run again once with the code it minted: the click was the person's yes, and the dialog it
+   * `login`, `remove`, and `jobs edit dest=` in a posture that asks an approval of it) is run again once with the code it minted: the click was the person's yes, and the dialog it
    * came from said what it does. The code goes right after the CLI's name, where the gate reads it.
    */
   async run<T = unknown>(verb: Verb, args: Args = {}, opts: RunOptions = {}): Promise<T> {

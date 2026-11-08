@@ -97,6 +97,19 @@ export class Actions {
     }
   }
 
+  /**
+   * Re-point a job at the folder its pages moved to: the record only (`jobs edit <slug> dest=<dest>`). The CLI refuses
+   * while the old dest still holds the job's pages, and names the command that moves them; that sentence is the Notice.
+   */
+  async repointJob(slug: string, dest: string): Promise<Outcome> {
+    try {
+      await this.cli.run('wiki.jobs.repoint', { wiki: this.wiki, slug, dest })
+      return { ok: true, message: `${slug} now lands in ${dest}` }
+    } catch (e) {
+      return failed(`${slug} still lands where it did`, e)
+    }
+  }
+
   /** Back to pending, or the truth that it had already landed and there is nothing to retry. */
   async retryTicket(id: string): Promise<Outcome & { landed?: boolean }> {
     try {

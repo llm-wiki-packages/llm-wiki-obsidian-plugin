@@ -16,6 +16,8 @@ export type Action =
   | { kind: 'inspect'; skill: string }
   /** Open a dashboard tab: the Overview's way into the inbox. */
   | { kind: 'goto'; tab: 'inbox'; label?: string }
+  /** Re-point a job's dest at the folder its pages now sit under (`jobs edit <slug> dest=<dest>`), asked first. */
+  | { kind: 'repoint'; slug: string; from: string; dest: string }
 
 export interface AttentionItem {
   id: string
@@ -240,6 +242,28 @@ export interface NeedsYouParts {
   page_conflicts?: { id: string; page: string }[]
 }
 
+/** Where a job's pages sit against its dest, as `jobs check` judges it (`OPS/lib/jobs/destcheck.py`). */
+export type DestState = 'ok' | 'fresh' | 'renamed' | 'scattered' | 'moved-out'
+
+export interface DestCheck {
+  slug: string
+  dest: string
+  state: DestState
+  /** The CLI's own sentence for the state. */
+  why: string
+  inside: number
+  outside: number
+  /** The folders its outside pages sit in; for `renamed`, the one folder they all share. */
+  folders: string[]
+  /** The exact command that fixes it, as the CLI prints it; null when nothing needs fixing. */
+  next: string | null
+  /** The other jobs whose dest overlaps this one's, in the CLI's words. */
+  overlaps: string[]
+}
+
+/** The job pages dispatch leaves alone, per status, as `status` counts them (`held`); the boxes and `off` are a person's choice. */
+export type HeldCounts = Partial<Record<'edited' | 'settling' | 'unstamped' | 'conflict' | 'draft' | 'deprecated' | 'off', number>>
+
 /** A job this machine blocked, as `whereami` lists it: why, and the one command that clears it. */
 export interface BlockedJob {
   job: string
@@ -299,6 +323,12 @@ export interface Snapshot {
   held: HeldGroup[] | null
   /** The open `conflicts` records; read only while the count is above zero. */
   conflicts: InboxMessage[] | null
+  /** Each job's pages against its dest, from `jobs check`; null when it could not be read, or from a CLI without it. */
+  dests: DestCheck[] | null
+  /** Pages carrying `ops.updates_waiting`: a job's update waits in `_versions/` for `page resolve`; null when unread. */
+  updatesWaiting: string[] | null
+  /** `status`'s `held`: the job pages dispatch leaves alone, per status; null from a CLI without it. */
+  heldPages: HeldCounts | null
   /** Whether this CLI closes one message with `inboxes done`; an older one is closed by a tick and a sweep. */
   inboxDone: boolean
   /** Reads that failed, by verb, so a half-empty dashboard says why. */

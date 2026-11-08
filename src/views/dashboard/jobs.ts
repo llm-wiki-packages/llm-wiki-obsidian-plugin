@@ -5,6 +5,7 @@ import { openJobModal } from '../../ui/jobModal'
 import type { Action, JobView, NextKind, PipelineView } from '../../wiki/model'
 import type { TabContext } from './index'
 import { slash } from '../../chat/skills'
+import { destStuck, destWords, repointTo } from '../../wiki/dest'
 
 /** The jobs, what each is waiting on, and the one button that matters on each row; then what a job can run. */
 export function renderJobs(root: HTMLElement, ctx: TabContext): void {
@@ -151,10 +152,20 @@ function jobRow(tr: HTMLElement, j: JobView, ctx: TabContext): void {
   const name = tr.createEl('td')
   name.createDiv({ cls: 'llm-wiki-row-title', text: j.name })
   name.createDiv({ cls: 'llm-wiki-muted', text: j.name === j.slug ? j.kind : `${j.slug} · ${j.kind}` })
+  destLine(name, j, ctx)
   tr.createEl('td', { text: j.schedule })
   lastCell(tr.createEl('td'), j)
   nextCell(tr.createEl('td', { cls: `llm-wiki-next is-${j.next.kind}` }), j, ctx)
   jobButtons(tr.createEl('td').createDiv({ cls: 'llm-wiki-row-actions' }), j, ctx)
+}
+
+/** Where the job's pages sit, when it is not where its record says: the claim gate skips a renamed or scattered job. */
+export function destLine(parent: HTMLElement, j: JobView, ctx: TabContext): void {
+  const c = ctx.snapshot.dests?.find((d) => d.slug === j.slug)
+  const words = c ? destWords(c) : null
+  if (!c || !words) return
+  const line = parent.createDiv({ cls: destStuck(c) ? 'llm-wiki-failed' : 'llm-wiki-muted', text: words })
+  line.title = [c.why, c.next].filter(Boolean).join(' · ')
 }
 
 /** One job as a card, for the Overview strip. */
@@ -223,7 +234,10 @@ export function jobButtons(parent: HTMLElement, j: JobView, ctx: TabContext, ful
   const run = () => ctx.write(() => actions.runJob(j.slug))
   const runTitle = `llm-wiki-ops jobs request ${j.slug}`
   const c = j.credential
-  if (j.paused) button(parent, 'Resume', () => ctx.write(() => actions.resumeJob(j.slug), true), { icon: 'play', cta: true })
+  const moved = ctx.snapshot.dests?.find((d) => d.slug === j.slug)
+  const to = moved ? repointTo(moved) : null
+  if (moved && to) button(parent, 'Re-point', () => ctx.act({ kind: 'repoint', slug: j.slug, from: moved.dest, dest: to }), { icon: 'folder-input', cta: true, title: `llm-wiki-ops jobs edit ${j.slug} dest=${to}` })
+  else if (j.paused) button(parent, 'Resume', () => ctx.write(() => actions.resumeJob(j.slug), true), { icon: 'play', cta: true })
   else if (c && j.skill) button(parent, c.name ? 'Replace credential' : 'Set credential', () => ctx.act(credentialAction(j)), { icon: 'key-round', cta: true })
   else if (j.next.kind === 'due') button(parent, 'Run', run, { icon: 'play', cta: true, title: runTitle })
   // Without a runner a scheduled job only runs by hand, so the row says so and offers the button.

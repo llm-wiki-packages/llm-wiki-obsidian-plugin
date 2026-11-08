@@ -359,6 +359,9 @@ export class DashboardView extends ItemView {
       case 'goto':
         this.goTo(action.tab)
         return
+      case 'repoint':
+        if (actions) await this.plugin.repoint(action)
+        return
       case 'inspect': {
         const s = this.plugin.snapshot?.skills.find((x) => x.name === action.skill)
         if (s && this.plugin.snapshot) openSkillModal(this.app, s, this.context(this.plugin.snapshot))

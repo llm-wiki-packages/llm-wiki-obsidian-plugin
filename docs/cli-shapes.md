@@ -987,6 +987,42 @@ held, not waiting. The roots read is `filter=under:sources` too.
   `int` row from the `runner.caps.*` pattern and once as `runner.caps.high (2)`,
   the table. The tab reads neither.
 
+### 1.27 `jobs check` (read)
+
+`OPS/commands/jobs/check.py`, judged by `OPS/lib/jobs/destcheck.py`. One row
+per declared job (real, 0.15.0 on a bench wiki; the states composed from code):
+
+```json
+{ "jobs": [ { "slug": "acme-blog", "dest": "sources/web/acme", "state": "renamed",
+  "why": "none of its 4 page(s) sit under 'sources/web/acme'; they sit under 'sources/acme'",
+  "inside": 0, "outside": 4, "folders": ["sources/acme"],
+  "next": "llm-wiki-ops jobs edit acme-blog dest=sources/acme", "overlaps": [] } ] }
+```
+
+`state` is `ok` | `fresh` (no pages) | `renamed` (every page outside `dest`,
+under one folder: `folders` is that one) | `scattered` (outside, in several:
+`next` names the biggest) | `moved-out` (some outside, `next` null). The claim
+gate skips every stage of a `renamed` or `scattered` job. `--edits` answers
+`{held: {...}}` instead, the counts `status` carries (1.29).
+
+### 1.28 `page ls filter=prop:ops.updates_waiting`
+
+A `prop:` group with no value matches a key that is set and not `false`
+(`OPS/lib/page/properties.py` `matches`), so this lists every page carrying
+`ops.updates_waiting` (`page ls` rows, 1.4). The landing sets it under the
+`hold` edits policy, or on a key clash (`OPS/lib/page/keymerge.py`), and
+always files the incoming copy at `<dir>/_versions/<stem>.incoming.md`;
+`page resolve <page> mine|theirs` clears it, with or without a page-conflicts
+record (`OPS/lib/page/resolve.py`).
+
+### 1.29 `status` → `held`
+
+`{status: count}` for the job pages dispatch holds (`OPS/lib/page/rendered.py`
+`held_counts`), keys in order `draft`, `deprecated`, `off`, `conflict`,
+`unstamped`, `edited`, `settling`, a status with none left out; null where the
+pages could not be read (real, 0.15.0: `{"unstamped": 463}`). `unstamped` is
+repaired by `doctor --fix` (`OPS/lib/page/renderedfix.py`), a confirm row.
+
 ### 1.21 `page template <path>`
 
 - argv: `wiki --read-only <key> page template <path> --json`. Answer
@@ -1319,6 +1355,16 @@ detached | ...)`, plus push recovery notes. Refusals (rc 2): jailed
   frontmatter writer) and sweeps, or runs `rm` when there is no `reply_to`.
   It tells the two apart by `whereami`'s `needs_you_parts`, which came in the
   same change.
+
+### 2.15 `jobs edit <slug> dest=<folder>` (record-only re-point)
+
+`OPS/commands/jobs/edit.py` `_repoint` (0.15.0). Asks the `jobs edit:dest` posture row, class CONFIRM:
+refused unattended, and an attended caller passes `--confirm` right after the
+verb path (`jobs edit --confirm <slug> dest=<x>`); a posture that maps it to
+an approval mints a code (2.x approval gate). Refused, naming the next command,
+while the old `dest` still holds the job's pages (pass `--move-folder` to move
+them, or `jobs check <slug>`). The plugin sends `--confirm` with the attended
+mark: the click, or the rename notice, is the person's yes.
 
 ## 3. Answers to the four questions
 

@@ -8,6 +8,7 @@ import type { AttentionItem, Commit, CommitFile, CredentialView, JobView, Machin
 import { isFeed } from './layout'
 import { slash } from '../chat/skills'
 import { heldGroups, inboxAttention, messageOf, USER_INBOX, type InboxLsAnswer, type NeedsYouAnswer } from './inbox'
+import { destAttention, destChecks, heldAttention, heldCountsOf, pathsOf, type JobsCheckAnswer } from './dest'
 
 /** What the builder needs of a Cli, so a test can hand it fixtures. */
 export interface Reader {
@@ -82,6 +83,8 @@ export interface StatusAnswer {
   machine?: string | null
   git?: { dirty?: number | null; untracked?: number | null; unpushed?: number | null; behind?: number; upstream?: string | null }
   peers?: { machine: string; state: string; last_seen?: string | null; capabilities?: Record<string, string | Record<string, string>>; detail?: string }[] | null
+  /** The job pages dispatch leaves alone, per status (`unstamped`, `edited`, `settling`, `conflict`, the boxes); absent from an older CLI. */
+  held?: Record<string, number> | null
 }
 export interface GitLogAnswer {
   commits?: { sha: string; at: string; subject: string; op?: string; actor?: string; files?: CommitFile[] }[]
@@ -179,7 +182,7 @@ export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now(
     try {
       return await cli.run<T>(verb, { wiki: wikiKey, ...args })
     } catch (e) {
-      errors[verb] = (e instanceof Error ? e.message : String(e)).replace(/^wiki\.[a-z.]+: /, '')
+      errors[verb] = (e instanceof Error ? e.message : String(e)).replace(/^wiki\.[A-Za-z.]+: /, '')
       return null
     } finally {
       release()
@@ -218,11 +221,18 @@ export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now(
   const needsYou = typeof whereami?.needs_you === 'number' ? whereami.needs_you : null
   const parts = whereami?.needs_you_parts ?? null
   const readHeld = Boolean(needsYou) || !light
-  const [heldPages, heldRoots, conflictRecords] = await Promise.all([
+  // Where each job's pages sit, and the updates waiting, walk every page: a full pass reads them, a light one keeps the last.
+  // A page conflict is an update waiting too, so a count above zero reads them again.
+  const [heldPages, heldRoots, conflictRecords, jobsCheck, waitingPages] = await Promise.all([
     readHeld ? soft<{ pages?: PageRow[] }>('wiki.page.held') : skip<{ pages?: PageRow[] }>(),
     readHeld ? soft<{ pages?: PageRow[] }>('wiki.page.heldRoots') : skip<{ pages?: PageRow[] }>(),
     needsYou ? soft<InboxLsAnswer>('wiki.inboxes.conflicts') : skip<InboxLsAnswer>(),
+    light ? skip<JobsCheckAnswer>() : soft<JobsCheckAnswer>('wiki.jobs.check'),
+    readHeld ? soft<{ pages?: PageRow[] }>('wiki.page.updatesWaiting') : skip<{ pages?: PageRow[] }>(),
   ])
+  const dests = light ? (previous?.dests ?? null) : jobsCheck ? destChecks(jobsCheck) : null
+  const updatesWaiting = readHeld ? pathsOf(waitingPages) : (previous?.updatesWaiting ?? null)
+  const heldPagesByStatus = heldCountsOf(status?.held)
   const waiting = new Set((parts?.held ?? []).map((h) => h.path))
   const held = heldPages && heldRoots
     ? heldGroups((heldPages.pages ?? []).map((p) => p.path), (heldRoots.pages ?? []).map((p) => p.path), waiting)
@@ -275,7 +285,12 @@ export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now(
     : pipelineViews(listed, modes, skills, jobRows)
   const jobs = jobRows.map((j) => jobView(j, ticketRows, now, skills))
   const inbox = userInbox === null ? null : (userInbox.messages ?? []).map((r) => messageOf(USER_INBOX, r)).sort((a, b) => (a.at ?? '').localeCompare(b.at ?? ''))
-  const attention = [...inboxAttention(inbox, needsYou, whereami?.needs_you_parts ?? null, whereami?.blocked ?? []), ...attentionItems({ doctor, due, jobsLs, jobs, skills, skillsDoctor, search, conflicts: conflicts?.pages ?? [], ticketRows })]
+  const attention = [
+    ...inboxAttention(inbox, needsYou, whereami?.needs_you_parts ?? null, whereami?.blocked ?? [], updatesWaiting),
+    ...attentionItems({ doctor, due, jobsLs, jobs, skills, skillsDoctor, search, conflicts: conflicts?.pages ?? [], ticketRows }),
+    ...destAttention(dests, jobs),
+    ...heldAttention(heldPagesByStatus),
+  ]
   // The skills doctor was not re-read on a light pass; its findings stand until the next full one, so the count does not flicker.
   if (previous) for (const a of previous.attention) if (a.id.startsWith('skill:') && !attention.some((x) => x.id === a.id)) attention.push(a)
   const rank = { error: 0, warn: 1, info: 2 }
@@ -285,7 +300,7 @@ export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now(
   const errors_ = attention.filter((a) => a.severity === 'error').length
   const count = errors_ + attention.filter((a) => a.severity === 'warn').length
   // The reads a light pass skipped keep their last verdict, so a known hole does not look healed.
-  if (previous) for (const [k, v] of Object.entries(previous.errors)) if (!(k in errors) && /^(wiki\.skills|wiki\.credentials|wiki\.packages|machine\.runner)/.test(k)) errors[k] = v
+  if (previous) for (const [k, v] of Object.entries(previous.errors)) if (!(k in errors) && /^(wiki\.skills|wiki\.credentials|wiki\.packages|machine\.runner|wiki\.jobs\.check)/.test(k)) errors[k] = v
   return {
     takenAt: now,
     wikiKey,
@@ -311,6 +326,9 @@ export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now(
     blocked: whereami?.blocked ?? [],
     held,
     conflicts: conflictRecords ? (conflictRecords.messages ?? []).map((r) => messageOf('conflicts', r)) : null,
+    dests,
+    updatesWaiting,
+    heldPages: heldPagesByStatus,
     // The breakdown and the verb came in one CLI change (llm-wiki-plugins #3940).
     inboxDone: whereami !== null && 'needs_you_parts' in whereami,
     errors,
