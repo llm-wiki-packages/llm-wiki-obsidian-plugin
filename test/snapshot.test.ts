@@ -42,7 +42,11 @@ describe('jobView: the Next column in plain words', () => {
   })
 })
 
-function reader(answers: Partial<Record<Verb, unknown>>): Reader {
+/** The reads every pass makes that no fixture here is about: answered empty unless a test names them. */
+const QUIET_READS: Partial<Record<Verb, unknown>> = { 'wiki.jobs.check': { jobs: [] }, 'wiki.page.updatesWaiting': { pages: [] } }
+
+function reader(given: Partial<Record<Verb, unknown>>): Reader {
+  const answers = { ...QUIET_READS, ...given }
   return {
     run<T>(verb: Verb, _args?: Args): Promise<T> {
       if (!(verb in answers)) return Promise.reject(new Error(`${verb}: refused`))

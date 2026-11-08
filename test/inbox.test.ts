@@ -124,7 +124,8 @@ describe('inbox answers into the model', () => {
 })
 
 /** Records each verb it was asked, and answers from the table. */
-function reader(answers: Partial<Record<Verb, unknown>>, calls: { verb: Verb; args?: Args }[] = []): Reader {
+function reader(given: Partial<Record<Verb, unknown>>, calls: { verb: Verb; args?: Args }[] = []): Reader {
+  const answers: Partial<Record<Verb, unknown>> = { 'wiki.jobs.check': { jobs: [] }, 'wiki.page.updatesWaiting': { pages: [] }, ...given }
   return {
     run<T>(verb: Verb, args?: Args): Promise<T> {
       calls.push({ verb, args })

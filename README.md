@@ -38,11 +38,16 @@ the gear opens the plugin settings.
   an answer with nowhere to go, or removes the message; the chat icon hands it to the agent. Below, **Waiting on your
   judgment**, exactly what the CLI counts: blocked jobs with the command that
   clears them, held sources a record waits on, open conflicts, curate's groups
-  (on Changes), pages whose job update did not merge with your edits
-  (**Compare** opens the job's version in `_versions/`, then **Keep mine** or
-  **Take theirs**, `page resolve`), and **Answer in chat** (`/brain:ingest`). Then **Held
-  sources** nothing waits on yet. The Overview's Needs you carries both counts
-  with **Open inbox**.
+  (on Changes), pages a job's update waits on because you changed them too
+  (`ops.updates_waiting`: a body that did not merge, or a key the job sets
+  that you had changed; with or without a page-conflicts record, **Compare**
+  opens the job's version in `_versions/`, then **Keep mine** or **Take
+  theirs**, `page resolve`), and **Answer in chat** (`/brain:ingest`). Then **Held
+  sources** nothing waits on yet. The Overview's Needs you carries these counts
+  with **Open inbox**, and one line under **Also** for the job pages the jobs
+  leave alone (`status`'s `held`: in conflict, unstamped, edited, still being
+  edited); unstamped ones name `llm-wiki-ops doctor --fix`, which **Stamp
+  them** hands to the agent.
 - **Reports**: the briefs the agents wrote under `wiki/reports/`, newest
   first, read from the vault with no CLI call. The daily-report skill writes
   a markdown record, `YYYY-MM-DD.md`, and a standalone HTML brief beside it,
@@ -62,8 +67,14 @@ the gear opens the plugin settings.
   not in history yet, with **Save now**. Every file name opens its diff.
 - **Jobs**: grouped by state (needs you, running, due, scheduled, manual,
   paused), each row with its schedule, last run (a failure shows its reason)
-  and what it is waiting on in plain words, one primary button (Set or
-  Replace credential, Run, Resume) and a menu for the rest. Click a row for
+  and what it is waiting on in plain words, one primary button (Re-point,
+  Set or Replace credential, Run, Resume) and a menu for the rest. A job whose
+  pages are not under its `dest` says so (`jobs check`): **renamed** (every page
+  left for one folder) gets **Re-point**, `jobs edit <slug> dest=<folder>`,
+  asked first, the record only; **scattered** shows the CLI's command and asks
+  the agent; both are on the Overview's Needs you too, since the scheduler skips
+  the job until its dest is fixed. Rename or move a job's `dest` folder in
+  Obsidian and a notice offers the same re-point at once. Click a row for
   the **job detail dialog**: state and reasons, what it needs on this
   machine, its last runs with Retry, Ask the agent with the failure attached.
   **Add a source…** asks one question and hands it to the agent in chat as

@@ -3,7 +3,7 @@ import { slash } from '../../chat/skills'
 import { button, empty, relativeTime, section } from '../../ui/dom'
 import { setBox, stem } from '../../vault/pages'
 import type { Actions, Outcome } from '../../wiki/actions'
-import { answerTyped, doneWords, incomingPath, type InboxReadAnswer } from '../../wiki/inbox'
+import { answerTyped, doneWords, incomingPath, updatesOnly, type InboxReadAnswer } from '../../wiki/inbox'
 import { confirm } from '../../ui/modals'
 import type { BlockedJob, HeldGroup, InboxMessage, NeedsYouParts } from '../../wiki/model'
 import type { TabContext } from './index'
@@ -232,12 +232,14 @@ async function body(el: HTMLElement, m: InboxMessage, ctx: TabContext): Promise<
  * CLI) the count stands alone over the conflicts, and the held sources go below as held, not as waiting.
  */
 function judgment(root: HTMLElement, ctx: TabContext): void {
-  const { needsYou, parts, blocked, held, conflicts } = ctx.snapshot
+  const { needsYou, parts, blocked, held, conflicts, updatesWaiting } = ctx.snapshot
   const pageConflicts = parts?.page_conflicts ?? []
-  if (!needsYou && !blocked.length && !pageConflicts.length) return
+  // A wiki without the conflicts inbox marks the page and files no record, so `whereami` counts none of these.
+  const updates = updatesOnly(updatesWaiting, parts)
+  if (!needsYou && !blocked.length && !pageConflicts.length && !updates.length) return
   const ingest = slash('ingest')
   const body = section(root, 'Waiting on your judgment', {
-    count: Math.max(needsYou ?? 0, blocked.length, pageConflicts.length),
+    count: Math.max(needsYou ?? 0, blocked.length, pageConflicts.length) + updates.length,
     actions: (bar) => button(bar, 'Answer in chat', () => ctx.act({ kind: 'ask', prompt: ingest }), { icon: 'message-square', cta: true, title: `Starts ${ingest} in chat` }),
   })
   body.createDiv({ cls: 'llm-wiki-muted', text: 'What the wiki will not decide without you. The agent walks through the held sources and conflicts with you; a blocked job names the command that clears it.' })
@@ -252,7 +254,8 @@ function judgment(root: HTMLElement, ctx: TabContext): void {
     main.createDiv({ cls: 'llm-wiki-row-detail', text: ['Conflict between a new source and the wiki', relativeTime(c.at)].filter(Boolean).join(' · ') })
     button(row.createDiv({ cls: 'llm-wiki-row-actions' }), '', () => chatAbout(ctx, c), { icon: 'message-square', title: 'Chat about this' })
   }
-  for (const p of pageConflicts) pageConflictRow(body, p, ctx)
+  for (const p of pageConflicts) pageConflictRow(body, p.page, ctx)
+  for (const page of updates) pageConflictRow(body, page, ctx)
   if (parts?.curate.length) {
     const row = body.createDiv({ cls: 'llm-wiki-row is-link' })
     row.addEventListener('click', () => ctx.goTo('changes'))
@@ -270,29 +273,30 @@ function judgment(root: HTMLElement, ctx: TabContext): void {
 }
 
 /**
- * A page a job refreshed while you had edited it, whose update did not merge: the job's version waits beside it in
- * `_versions/`. Keep mine closes the record; Take theirs writes the update over the page and sets yours aside.
+ * A page a job refreshed while you had edited it (`ops.updates_waiting`, and a page-conflicts record where the wiki
+ * keeps that inbox): the body did not merge, or a key the job sets you had changed too. The job's version waits beside
+ * it in `_versions/`. Keep mine clears it; Take theirs writes the update over the page and sets yours aside.
  */
-function pageConflictRow(parent: HTMLElement, p: { id: string; page: string }, ctx: TabContext): void {
+function pageConflictRow(parent: HTMLElement, page: string, ctx: TabContext): void {
   const row = parent.createDiv({ cls: 'llm-wiki-row is-link' })
-  row.addEventListener('click', () => void ctx.act({ kind: 'open', path: p.page }))
+  row.addEventListener('click', () => void ctx.act({ kind: 'open', path: page }))
   row.createSpan({ cls: 'llm-wiki-dot is-warn' })
   const main = row.createDiv({ cls: 'llm-wiki-row-main' })
-  main.createDiv({ cls: 'llm-wiki-row-title', text: stem(p.page) })
-  main.createDiv({ cls: 'llm-wiki-row-detail', text: 'A job’s update did not merge with your edits' })
+  main.createDiv({ cls: 'llm-wiki-row-title', text: stem(page) })
+  main.createDiv({ cls: 'llm-wiki-row-detail', text: 'A job’s update waits: you had changed this page too' })
   const bar = row.createDiv({ cls: 'llm-wiki-row-actions' })
   const actions = ctx.plugin.actions
   // Opened only when it is there: a link that resolves to nothing would make an empty note of that name.
-  const incoming = incomingPath(p.page)
+  const incoming = incomingPath(page)
   button(bar, 'Compare', () => {
     if (ctx.plugin.app.vault.getAbstractFileByPath(incoming) instanceof TFile) return ctx.act({ kind: 'open', path: incoming })
     new Notice(`The job’s version is not in the vault yet (${incoming}); sync, then try again.`, 6000)
   }, { icon: 'git-compare', title: 'Opens the job’s version' })
   if (!actions) return
-  button(bar, 'Keep mine', () => ctx.write(() => actions.resolvePage(p.page, 'mine')), { title: 'Keeps the page as it is; the next update merges against it' })
+  button(bar, 'Keep mine', () => ctx.write(() => actions.resolvePage(page, 'mine')), { title: 'Keeps the page as you have it; the next update merges against it' })
   button(bar, 'Take theirs', async () => {
-    const ok = await confirm(ctx.plugin.app, { title: `Take the update for ${stem(p.page)}?`, body: 'The job’s version replaces the page. Your version is set aside in _versions/.', cta: 'Take theirs' })
-    if (ok) await ctx.write(() => actions.resolvePage(p.page, 'theirs'))
+    const ok = await confirm(ctx.plugin.app, { title: `Take the update for ${stem(page)}?`, body: 'The job’s version replaces the page. Your version is set aside in _versions/.', cta: 'Take theirs' })
+    if (ok) await ctx.write(() => actions.resolvePage(page, 'theirs'))
   }, { title: 'Writes the job’s version over the page' })
 }
 

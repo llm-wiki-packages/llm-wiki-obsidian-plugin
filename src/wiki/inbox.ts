@@ -179,15 +179,25 @@ function plural(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`
 }
 
-/** What the inbox counts: messages to answer and the listed parts. Curate's groups are judged on Changes, so they are not. */
-export function inboxCount(s: { inbox: InboxMessage[] | null; parts: NeedsYouParts | null; blocked: BlockedJob[]; conflicts: InboxMessage[] | null }): number {
-  const open = (s.inbox ?? []).filter((m) => !m.done).length
-  if (s.parts) return open + s.parts.held.length + s.parts.conflicts.length + (s.parts.page_conflicts?.length ?? 0) + s.blocked.length
-  return open + (s.conflicts?.length ?? 0) + s.blocked.length
+/**
+ * The pages a job's update waits on that no page-conflicts record already lists: in a wiki without the conflicts
+ * inbox the page's `ops.updates_waiting` is all there is, and `whereami` counts none of them.
+ */
+export function updatesOnly(updatesWaiting: string[] | null, parts: NeedsYouParts | null): string[] {
+  const listed = new Set((parts?.page_conflicts ?? []).map((p) => p.page))
+  return (updatesWaiting ?? []).filter((p) => !listed.has(p))
 }
 
-/** The Overview's rows for the inbox: one for the messages, one for what waits on a judgment. Both open the inbox. */
-export function inboxAttention(inbox: InboxMessage[] | null, needsYou: number | null, parts: NeedsYouParts | null = null, blocked: BlockedJob[] = []): AttentionItem[] {
+/** What the inbox counts: messages to answer and the listed parts. Curate's groups are judged on Changes, so they are not. */
+export function inboxCount(s: { inbox: InboxMessage[] | null; parts: NeedsYouParts | null; blocked: BlockedJob[]; conflicts: InboxMessage[] | null; updatesWaiting?: string[] | null }): number {
+  const open = (s.inbox ?? []).filter((m) => !m.done).length
+  const updates = updatesOnly(s.updatesWaiting ?? null, s.parts).length
+  if (s.parts) return open + s.parts.held.length + s.parts.conflicts.length + (s.parts.page_conflicts?.length ?? 0) + s.blocked.length + updates
+  return open + (s.conflicts?.length ?? 0) + s.blocked.length + updates
+}
+
+/** The Overview's rows for the inbox: one for the messages, one for what waits on a judgment, one for updates waiting no record lists. All open the inbox. */
+export function inboxAttention(inbox: InboxMessage[] | null, needsYou: number | null, parts: NeedsYouParts | null = null, blocked: BlockedJob[] = [], updatesWaiting: string[] | null = null): AttentionItem[] {
   const out: AttentionItem[] = []
   const open = (inbox ?? []).filter((m) => !m.done)
   if (open.length) {
@@ -206,6 +216,17 @@ export function inboxAttention(inbox: InboxMessage[] | null, needsYou: number | 
       severity: 'warn',
       title: needsYou === 1 ? '1 thing waits on your judgment' : `${needsYou} things wait on your judgment`,
       detail: judgmentDetail(parts, blocked),
+      action: { kind: 'goto', tab: 'inbox', label: 'Open inbox' },
+    })
+  }
+  const updates = updatesOnly(updatesWaiting, parts)
+  if (updates.length) {
+    const names = updates.slice(0, 3).map((p) => p.split('/').at(-1)!.replace(/\.md$/, '')).join(', ')
+    out.push({
+      id: 'inbox:updates-waiting',
+      severity: 'warn',
+      title: updates.length === 1 ? 'A job’s update waits on 1 page you changed' : `Jobs’ updates wait on ${updates.length} pages you changed`,
+      detail: `${names}${updates.length > 3 ? ` and ${updates.length - 3} more` : ''}: keep yours, or take the job’s`,
       action: { kind: 'goto', tab: 'inbox', label: 'Open inbox' },
     })
   }

@@ -191,8 +191,8 @@ export function healthSentence(s: Snapshot): string {
   return parts.join(' ')
 }
 
-const LABEL: Record<Exclude<AttentionItem['action'], undefined>['kind'], string> = { ask: 'Ask the agent', open: 'Open', retry: 'Retry', reindex: 'Review index', credential: 'Set credential', inspect: 'Inspect', goto: 'Open' }
-const ICON: Record<Exclude<AttentionItem['action'], undefined>['kind'], string | undefined> = { ask: 'message-square', open: undefined, retry: 'rotate-ccw', reindex: 'refresh-cw', credential: 'key-round', inspect: 'file-text', goto: 'inbox' }
+const LABEL: Record<Exclude<AttentionItem['action'], undefined>['kind'], string> = { ask: 'Ask the agent', open: 'Open', retry: 'Retry', reindex: 'Review index', credential: 'Set credential', inspect: 'Inspect', goto: 'Open', repoint: 'Re-point' }
+const ICON: Record<Exclude<AttentionItem['action'], undefined>['kind'], string | undefined> = { ask: 'message-square', open: undefined, retry: 'rotate-ccw', reindex: 'refresh-cw', credential: 'key-round', inspect: 'file-text', goto: 'inbox', repoint: 'folder-input' }
 
 function attentionRow(parent: HTMLElement, item: AttentionItem, ctx: TabContext): void {
   const row = parent.createDiv({ cls: 'llm-wiki-row' })
@@ -205,7 +205,7 @@ function attentionRow(parent: HTMLElement, item: AttentionItem, ctx: TabContext)
   const a = item.action
   if (!a) return
   const label = a.kind === 'ask' || a.kind === 'goto' ? (a.label ?? LABEL[a.kind]) : a.kind === 'credential' && a.name ? 'Replace credential' : LABEL[a.kind]
-  button(actions, label, () => ctx.act(a), { icon: ICON[a.kind], cta: a.kind === 'credential' || a.kind === 'goto' })
+  button(actions, label, () => ctx.act(a), { icon: ICON[a.kind], cta: a.kind === 'credential' || a.kind === 'goto' || a.kind === 'repoint' })
   // A stopped job can also simply be retried; the credential button is the fix, this is the escape hatch.
   if (a.kind === 'credential' && a.retry) button(actions, 'Retry', () => ctx.act({ kind: 'retry', ticket: a.retry!, slug: a.job }), { icon: 'rotate-ccw' })
 }

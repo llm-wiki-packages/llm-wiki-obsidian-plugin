@@ -62,6 +62,7 @@ const READ_NAMES: Record<string, string> = {
   'wiki.skills.doctor': 'the skills doctor', 'wiki.packages.ls': 'the packages', 'wiki.credentials.ls': 'the credentials', 'wiki.credentials.bindings': 'the credential bindings',
   'wiki.status': 'the sync state', 'wiki.git.log': 'the history', 'wiki.git.status': 'the unsaved files',
   'wiki.whereami': 'what needs you', 'wiki.inboxes.ls': 'the inbox', 'wiki.inboxes.conflicts': 'the open conflicts', 'wiki.page.held': 'the held sources', 'wiki.page.heldRoots': 'the bundle roots',
+  'wiki.jobs.check': 'where each job’s pages sit', 'wiki.page.updatesWaiting': 'the updates waiting',
 }
 
 export class DashboardView extends ItemView {
@@ -358,6 +359,9 @@ export class DashboardView extends ItemView {
         return
       case 'goto':
         this.goTo(action.tab)
+        return
+      case 'repoint':
+        if (actions) await this.plugin.repoint(action)
         return
       case 'inspect': {
         const s = this.plugin.snapshot?.skills.find((x) => x.name === action.skill)
