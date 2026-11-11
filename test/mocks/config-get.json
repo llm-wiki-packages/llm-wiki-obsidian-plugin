@@ -198,7 +198,7 @@
    "combine": "wiki_only",
    "type": "bool",
    "default": false,
-   "doc": "Keep what `inboxes rm` takes under the inbox's `_archive/`."
+   "doc": "Keep what `inboxes remove` takes under the inbox's `_archive/`."
   },
   "edits.settle_seconds": {
    "value": 300,

@@ -40,7 +40,7 @@ const WIKI = (rows: unknown[]): Partial<Record<Verb, unknown>> => ({
   'wiki.skills.ls': { skills: rows },
   'wiki.skills.doctor': { findings: [] },
   'wiki.packages.ls': { this_wiki: [] },
-  'wiki.credentials.ls': { rows: [] },
+  'wiki.credentials.list': { rows: [] },
   'wiki.credentials.bindings': { skills: [], jobs: [] },
 })
 

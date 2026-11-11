@@ -100,7 +100,7 @@ const QUIET: Partial<Record<Verb, unknown>> = {
   'wiki.page.ls': { pages: [] }, 'wiki.op.since': { runs: [] }, 'wiki.search.status': {}, 'wiki.git.conflicts': { pages: [] }, 'machine.runner.ls': { wikis: [] },
   'wiki.git.log': { commits: [] }, 'wiki.git.status': { files: [] }, 'wiki.whereami': { needs_you: 0, needs_you_parts: { held: [], curate: [], conflicts: [] } },
   'wiki.inboxes.ls': { messages: [] }, 'wiki.page.held': { pages: [] }, 'wiki.page.heldRoots': { pages: [] },
-  'wiki.skills.ls': { skills: [] }, 'wiki.skills.doctor': { findings: [] }, 'wiki.packages.ls': { this_wiki: [] }, 'wiki.credentials.ls': { rows: [] }, 'wiki.credentials.bindings': { skills: [], jobs: [] },
+  'wiki.skills.ls': { skills: [] }, 'wiki.skills.doctor': { findings: [] }, 'wiki.packages.ls': { this_wiki: [] }, 'wiki.credentials.list': { rows: [] }, 'wiki.credentials.bindings': { skills: [], jobs: [] },
 }
 
 function reader(answers: Partial<Record<Verb, unknown>>, calls: Verb[] = []): Reader {

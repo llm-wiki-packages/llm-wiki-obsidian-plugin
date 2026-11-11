@@ -134,7 +134,7 @@ export class Actions {
   /** A message with nowhere to send an answer: removed (or archived, where the wiki keeps them), as the sweep would. */
   async removeMessage(m: Pick<InboxMessage, 'inbox' | 'id' | 'subject'>): Promise<Outcome> {
     try {
-      await this.cli.run('wiki.inboxes.rm', { wiki: this.wiki, name: m.inbox, id: m.id })
+      await this.cli.run('wiki.inboxes.remove', { wiki: this.wiki, name: m.inbox, id: m.id })
       return { ok: true, message: `“${m.subject}” is done` }
     } catch (e) {
       return failed(`could not close “${m.subject}”`, e)

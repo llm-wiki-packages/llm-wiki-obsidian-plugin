@@ -67,7 +67,7 @@ const EMPTY_UNITS: Partial<Record<Verb, unknown>> = {
   'wiki.skills.ls': { skills: [] },
   'wiki.skills.doctor': { findings: [] },
   'wiki.packages.ls': { this_wiki: [] },
-  'wiki.credentials.ls': { rows: [] },
+  'wiki.credentials.list': { rows: [] },
   'wiki.credentials.bindings': { skills: [], jobs: [] },
 }
 
@@ -90,7 +90,7 @@ const GMAIL: Partial<Record<Verb, unknown>> = {
   'wiki.skills.doctor': { findings: [] },
   'wiki.packages.ls': { this_wiki: [{ package: 'llm-wiki-packages/llm-wiki-skills', current: '0.5.0' }] },
   'wiki.packages.show': { shown: '0.5.0', manifest: { artifacts: [{ type: 'skill', name: 'channel-gmail' }, { type: 'skill', name: 'channel-youtube' }, { type: 'skill', name: 'web-page' }] } },
-  'wiki.credentials.ls': { rows: [{ name: 'claude_login', kind: 'harness', login: 'hand', state: 'unverified', verified: null }, { name: 'gmail_token', kind: 'value', login: 'none', state: 'unverified', verified: null }] },
+  'wiki.credentials.list': { rows: [{ name: 'claude_login', kind: 'harness', login: 'hand', state: 'unverified', verified: null }, { name: 'gmail_token', kind: 'value', login: 'none', state: 'unverified', verified: null }] },
   'wiki.credentials.bindings': { skills: [], jobs: [] },
   'wiki.status': { machine: 'mac', git: { dirty: 0, untracked: 0, unpushed: 0, behind: 0 }, peers: [] },
   'wiki.git.log': { commits: [] },
@@ -144,7 +144,7 @@ describe('takeSnapshot: skills and credentials', () => {
     const spy: Reader = { run: (verb, args) => { seen.push(verb); return reader({ ...GMAIL, 'wiki.jobs.ls': { jobs: [job({ slug: 'inbox-joe', skill: 'channel-gmail', state: 'paused', verdict: { due: false, kind: 'paused' } })] } }).run(verb, args) } }
     const light = await takeSnapshot(spy, 'kb', NOW + 10_000, undefined, full)
     expect(seen).not.toContain('wiki.skills.ls')
-    expect(seen).not.toContain('wiki.credentials.ls')
+    expect(seen).not.toContain('wiki.credentials.list')
     expect(seen).toContain('wiki.jobs.ls')
     expect(light.skills).toHaveLength(full.skills.length)
     expect(light.credentials).toEqual(full.credentials)
@@ -161,7 +161,7 @@ describe('takeSnapshot: skills and credentials', () => {
   })
   it('a credential whose own check failed breaks the slot it fills', async () => {
     const snap = await takeSnapshot(reader({ ...GMAIL, 'wiki.doctor': { rows: [] },
-      'wiki.credentials.ls': { rows: [{ name: 'gmail_token', kind: 'value', state: 'failed' }] },
+      'wiki.credentials.list': { rows: [{ name: 'gmail_token', kind: 'value', state: 'failed' }] },
       'wiki.credentials.bindings': { skills: [{ skill: 'channel-gmail', name: 'file', credential: 'gmail_token', state: 'bound' }], jobs: [] } }), 'kb', NOW)
     expect(snap.skills[0]?.slots).toEqual([{ name: 'file', required: true, credential: 'gmail_token', problem: 'failed' }])
     expect(snap.jobs[0]?.next.kind).toBe('unbound')

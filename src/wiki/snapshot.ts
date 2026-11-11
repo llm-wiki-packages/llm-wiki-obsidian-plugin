@@ -208,7 +208,7 @@ export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now(
     light ? skip<SkillsLsAnswer>() : soft<SkillsLsAnswer>('wiki.skills.ls'),
     light ? skip<SkillsDoctorAnswer>() : soft<SkillsDoctorAnswer>('wiki.skills.doctor'),
     light ? skip<PackagesLsAnswer>() : soft<PackagesLsAnswer>('wiki.packages.ls'),
-    light ? skip<CredentialRow[] | { rows?: CredentialRow[] }>() : soft<CredentialRow[] | { rows?: CredentialRow[] }>('wiki.credentials.ls'),
+    light ? skip<CredentialRow[] | { rows?: CredentialRow[] }>() : soft<CredentialRow[] | { rows?: CredentialRow[] }>('wiki.credentials.list'),
     light ? skip<BindingsAnswer>() : soft<BindingsAnswer>('wiki.credentials.bindings'),
   ])
   // A second round, per unit and per package: the manifest names the slots, the package names what else could be installed.

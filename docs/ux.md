@@ -84,7 +84,7 @@ health pill counts kinds of trouble instead, and its hover says so.
   `reply_to` as `Re:` with the answer; with nowhere to go, an answer is
   archived and a message with none removed; a job ask (filed from a landing
   ticket, no `reply_to`) is ticked and stays for the job's next run. On a CLI without `inboxes done`,
-  Done ticks `done` and runs `inboxes sweep`, or runs `inboxes rm` when there
+  Done ticks `done` and runs `inboxes sweep`, or runs `inboxes remove` when there
   is no `reply_to`, asking first when an answer may be in the body. The chat icon hands the message to chat
   (`About the message … [[path]]: `). Under *Answered*: a job ask already
   answered ("job X picks it up next run"), and messages ticked done in the
@@ -393,7 +393,7 @@ It renders the real views over fixture data with a stand-in for Obsidian's API.
 ## Review log
 
 - **Cycle 1 (2026-10-23)**: added the Skills tab (units from `skills ls`, the
-  package's catalog, credentials from `credentials ls` + `bindings`), the
+  package's catalog, credentials from `credentials list` + `bindings`), the
   credential dialog, the skill inspector, the unbound job state, the dynamic
   chat skill list. Fable design memo adopted: credentials live under Skills,
   one pill per row, silence means fine.
