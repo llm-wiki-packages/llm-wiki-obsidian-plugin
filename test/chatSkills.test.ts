@@ -72,7 +72,7 @@ describe('the chat slash skills', () => {
     expect(cache.reads).toBe(0)
   })
 
-  it('come from the plugin cache, read once, from an older CLI or a failed skills ls', async () => {
+  it('come from the plugin cache, read once, from an older CLI or a failed skills list', async () => {
     const plugin = newPlugin()
     plugin.snapshot = snapshot(null)
     expect(await plugin.chatSkills()).toEqual([CURATE])
@@ -102,7 +102,7 @@ describe('Skills…', () => {
     return { plugin, opened }
   }
 
-  it('reads skills ls again, so a unit enabled from a terminal since the last read is in the list', async () => {
+  it('reads skills list again, so a unit enabled from a terminal since the last read is in the list', async () => {
     const { plugin, opened } = ready([ADD])
     wiki.answers = [snapshot([ADD, GITHUB])]
     await plugin.pickSkill()
@@ -157,7 +157,7 @@ describe('Skills…', () => {
     expect(opened).toEqual([[ADD]])
   })
 
-  it('reads the plugin cache again from an older CLI or a failed skills ls, as it did before', async () => {
+  it('reads the plugin cache again from an older CLI or a failed skills list, as it did before', async () => {
     const { plugin, opened } = ready(null)
     expect(await plugin.chatSkills()).toEqual([CURATE])
     cache.skills = [CURATE, ADD]

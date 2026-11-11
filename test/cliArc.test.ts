@@ -1,5 +1,5 @@
 // The plugin side of llm-wiki-plugins #3675 and #3687: the CLI's layout,
-// `git status`, `page diff`, `page ls id=` and `page fix`, and the editor origin.
+// `git status`, `page diff`, `page list id=` and `page fix`, and the editor origin.
 // The answers below are real ones, captured from a scratch wiki on the CLI
 // branch (#3689 over main at bca44b6fe).
 import { afterEach, describe, expect, it } from 'vitest'
@@ -35,7 +35,7 @@ describe('the new verbs', () => {
     expect(VERBS['wiki.git.status']({ wiki: 'kb' })).toEqual(['wiki', '--read-only', 'kb', 'git', 'status', '--json'])
     expect(VERBS['wiki.page.diff']({ wiki: 'kb', path: 'sources/notes/Alpha note.md' })).toEqual(['wiki', '--read-only', 'kb', 'page', 'diff', 'sources/notes/Alpha note.md', '--json'])
     expect(VERBS['wiki.page.diff']({ wiki: 'kb', path: 'a.md', commit: '2619488fa93d' })).toEqual(['wiki', '--read-only', 'kb', 'page', 'diff', 'a.md', 'commit=2619488fa93d', '--json'])
-    expect(VERBS['wiki.page.find']({ wiki: 'kb', id: '6f3f9a11-8783-46bf-a9bd-ce76d7a814a1' })).toEqual(['wiki', '--read-only', 'kb', 'page', 'ls', 'id=6f3f9a11-8783-46bf-a9bd-ce76d7a814a1', '--json'])
+    expect(VERBS['wiki.page.find']({ wiki: 'kb', id: '6f3f9a11-8783-46bf-a9bd-ce76d7a814a1' })).toEqual(['wiki', '--read-only', 'kb', 'page', 'list', 'id=6f3f9a11-8783-46bf-a9bd-ce76d7a814a1', '--json'])
   })
   it('refuses what would not be one clean argument', () => {
     expect(() => VERBS['wiki.page.diff']({ wiki: 'kb', path: 'a.md', commit: 'HEAD~1' })).toThrow(/bad commit/)

@@ -123,7 +123,7 @@ export interface SkillRow {
   mode?: string[] | null
   description?: string | null
   argument_hint?: string | null
-  /** Only on an exact `skills ls <name>`. */
+  /** Only on an exact `skills list <name>`. */
   manifest?: {
     requires?: { credentials?: Record<string, string> }
     usage?: string
@@ -192,10 +192,10 @@ export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now(
   const skip = <T>(): Promise<T | null> => Promise.resolve(null)
   const [doctor, jobsLs, due, tickets, pages, ops, search, conflicts, status, gitLog, gitStatus, whereami, userInbox, runnerLs, skillsLs, skillsDoctor, packagesLs, credentialsLs, bindings] = await Promise.all([
     soft<DoctorAnswer>('wiki.doctor'),
-    soft<JobsLsAnswer>('wiki.jobs.ls'),
+    soft<JobsLsAnswer>('wiki.jobs.list'),
     soft<JobsDueAnswer>('wiki.jobs.due'),
-    soft<{ tickets?: TicketRow[] }>('wiki.tickets.ls'),
-    soft<{ pages?: PageRow[] }>('wiki.page.ls'),
+    soft<{ tickets?: TicketRow[] }>('wiki.tickets.list'),
+    soft<{ pages?: PageRow[] }>('wiki.page.list'),
     soft<OpSinceAnswer>('wiki.op.since', { since: '1d' }),
     soft<SearchStatusAnswer>('wiki.search.status'),
     soft<{ pages?: string[] }>('wiki.git.conflicts'),
@@ -203,11 +203,11 @@ export async function takeSnapshot(cli: Reader, wikiKey: string, now = Date.now(
     soft<GitLogAnswer>('wiki.git.log', { since: '7d' }),
     soft<GitStatusAnswer>('wiki.git.status'),
     soft<WhereamiAnswer>('wiki.whereami'),
-    soft<InboxLsAnswer>('wiki.inboxes.ls', { name: USER_INBOX }),
-    light ? skip<RunnerLsAnswer>() : soft<RunnerLsAnswer>('machine.runner.ls'),
-    light ? skip<SkillsLsAnswer>() : soft<SkillsLsAnswer>('wiki.skills.ls'),
+    soft<InboxLsAnswer>('wiki.inboxes.list', { name: USER_INBOX }),
+    light ? skip<RunnerLsAnswer>() : soft<RunnerLsAnswer>('machine.runner.list'),
+    light ? skip<SkillsLsAnswer>() : soft<SkillsLsAnswer>('wiki.skills.list'),
     light ? skip<SkillsDoctorAnswer>() : soft<SkillsDoctorAnswer>('wiki.skills.doctor'),
-    light ? skip<PackagesLsAnswer>() : soft<PackagesLsAnswer>('wiki.packages.ls'),
+    light ? skip<PackagesLsAnswer>() : soft<PackagesLsAnswer>('wiki.packages.list'),
     light ? skip<CredentialRow[] | { rows?: CredentialRow[] }>() : soft<CredentialRow[] | { rows?: CredentialRow[] }>('wiki.credentials.list'),
     light ? skip<BindingsAnswer>() : soft<BindingsAnswer>('wiki.credentials.bindings'),
   ])

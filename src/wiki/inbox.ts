@@ -1,5 +1,5 @@
 // The inbox answers into the model, and the sentences its writes say. The one place that knows
-// `inboxes ls`, `inboxes read`, `inboxes done`, `inboxes sweep` and `whereami`'s needs-you field names
+// `inboxes list`, `inboxes read`, `inboxes done`, `inboxes sweep` and `whereami`'s needs-you field names
 // (docs/cli-shapes.md 1.16, 1.24, 2.14).
 import { slash } from '../chat/skills'
 import type { AttentionItem, BlockedJob, HeldGroup, InboxMessage, NeedsYouParts } from './model'
@@ -7,7 +7,7 @@ import type { AttentionItem, BlockedJob, HeldGroup, InboxMessage, NeedsYouParts 
 /** The inbox a person answers; `init` seeds it and `inboxes sweep` closes it out by default. */
 export const USER_INBOX = 'user'
 
-/** One row of `inboxes ls <inbox> --all`. */
+/** One row of `inboxes list <inbox> --all`. */
 export interface InboxRow {
   id: string
   subject?: string

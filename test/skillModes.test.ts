@@ -9,7 +9,7 @@ import { byHand, skillAction } from '../src/views/dashboard/skills'
 
 const NOW = Date.parse('2026-10-27T12:00:00Z')
 
-/** A `skills ls` from a CLI that reads manifests (#3702): the wiki's units, then the `brain` plugin's own skills. */
+/** A `skills list` from a CLI that reads manifests (#3702): the wiki's units, then the `brain` plugin's own skills. */
 const ROWS: SkillsLsRow[] & Record<string, unknown>[] = [
   { name: 'channel-gmail', state: 'enabled', from: 'llm-wiki-packages/llm-wiki-skills@v0.6.0', stages: ['harvest', 'process'], mode: ['pipeline'], description: 'Gmail capture, one watch per mailbox.', argument_hint: 'ticket=<id> stage=<harvest|process>', next: '/channel-gmail ticket=<id>', warnings: [] },
   { name: 'channel-github', state: 'enabled', from: 'llm-wiki-packages/llm-wiki-skills@v0.6.0', stages: ['harvest', 'process', 'routine'], mode: ['pipeline', 'session'], description: 'GitHub references for this wiki.', argument_hint: '<setup|rank|pending|retag> [words] | ticket=<id> stage=process', warnings: [] },
@@ -36,15 +36,15 @@ function reader(answers: Partial<Record<Verb, unknown>>, seen: [Verb, Args | und
 }
 
 const WIKI = (rows: unknown[]): Partial<Record<Verb, unknown>> => ({
-  'wiki.jobs.ls': { jobs: [{ slug: 'inbox-joe', description: '', every: '1h', state: 'active', kind: 'pipeline', skill: 'channel-gmail', stages: [] }] },
-  'wiki.skills.ls': { skills: rows },
+  'wiki.jobs.list': { jobs: [{ slug: 'inbox-joe', description: '', every: '1h', state: 'active', kind: 'pipeline', skill: 'channel-gmail', stages: [] }] },
+  'wiki.skills.list': { skills: rows },
   'wiki.skills.doctor': { findings: [] },
-  'wiki.packages.ls': { this_wiki: [] },
+  'wiki.packages.list': { this_wiki: [] },
   'wiki.credentials.list': { rows: [] },
   'wiki.credentials.bindings': { skills: [], jobs: [] },
 })
 
-describe('the chat palette from skills ls', () => {
+describe('the chat palette from skills list', () => {
   it('is every row whose mode includes session: plugin skills as /brain:<name>, enabled units as /<name>', () => {
     const palette = paletteOf(ROWS)!
     expect(palette.map((s) => slashCommand(s))).toEqual(['/brain:add', '/brain:curate', '/channel-github'])
@@ -84,7 +84,7 @@ describe('which units this machine loads', () => {
   })
 })
 
-describe('the snapshot from skills ls rows', () => {
+describe('the snapshot from skills list rows', () => {
   it('takes each unit’s description and mode off its row, reads no SKILL.md, and shows no plugin row', async () => {
     const seen: [Verb, Args | undefined][] = []
     const reads: string[] = []
@@ -139,7 +139,7 @@ describe('the snapshot from skills ls rows', () => {
     expect(pipeline).not.toContain('PLUGIN:add')
     expect(pipeline).not.toContain('hand-made')
   })
-  it('holds the / list from its own skills ls, so a unit enabled since shows on the next full read and a light one keeps it', async () => {
+  it('holds the / list from its own skills list, so a unit enabled since shows on the next full read and a light one keeps it', async () => {
     const before = ROWS.map((r) => (r.name === 'daily-report' ? { ...r, state: 'installed' } : r))
     const after = ROWS.map((r) => (r.name === 'daily-report' ? { ...r, state: 'enabled' } : r))
     const first = await takeSnapshot(reader(WIKI(before)), 'kb', NOW)
@@ -166,7 +166,7 @@ describe('the snapshot from skills ls rows', () => {
       throw new Error('no such file')
     }
     const snap = await takeSnapshot(reader({ ...WIKI(ROWS.slice(4)),
-      'wiki.packages.ls': { this_wiki: [{ package: 'llm-wiki-packages/llm-wiki-skills' }], installed: [{ package: 'llm-wiki-packages/llm-wiki-skills', cache: '~/cache/llm-wiki-skills' }] },
+      'wiki.packages.list': { this_wiki: [{ package: 'llm-wiki-packages/llm-wiki-skills' }], installed: [{ package: 'llm-wiki-packages/llm-wiki-skills', cache: '~/cache/llm-wiki-skills' }] },
       'wiki.packages.show': { shown: '0.6.0', shown_ref: 'abc', manifest: { artifacts: [{ type: 'skill', name: 'channel-youtube' }, { type: 'skill', name: 'web-page' }] } },
     }), 'kb', NOW, { root: '/w', home: '/h', read })
     expect(snap.skills.map((s) => [s.name, s.description, s.mode])).toEqual([['channel-youtube', 'YouTube capture.', ['pipeline']], ['web-page', 'Fetch a web page.', null]])
@@ -186,7 +186,7 @@ describe('an older CLI, whose rows carry no mode', () => {
   })
   it('holds no / list, so the plugin cache answers as before', async () => {
     expect((await takeSnapshot(reader(WIKI(OLD_ROWS)), 'kb', NOW)).palette).toBeNull()
-    expect((await takeSnapshot(reader({ ...WIKI([]), 'wiki.skills.ls': undefined }), 'kb', NOW)).palette).toBeNull()
+    expect((await takeSnapshot(reader({ ...WIKI([]), 'wiki.skills.list': undefined }), 'kb', NOW)).palette).toBeNull()
   })
   it('lists the units with a stage as what a job can run, and no plugin routines', async () => {
     const snap = await takeSnapshot(reader(WIKI([...OLD_ROWS, { name: 'notes-only', state: 'enabled', stages: [] }])), 'kb', NOW)
