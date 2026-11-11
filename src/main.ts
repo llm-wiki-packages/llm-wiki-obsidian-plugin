@@ -55,7 +55,7 @@ export default class LlmWikiPlugin extends Plugin {
   private againLight = true
   /** When the last full read happened; light polls lean on it for up to a minute. */
   private fullAt = 0
-  /** What `machine wikis ls` returned, so a not-ready card can offer the registered keys. */
+  /** What `machine wikis list` returned, so a not-ready card can offer the registered keys. */
   registered: WikiRow[] = []
   private unloaded = false
   readonly autosave = new AutoSave(this)
@@ -233,7 +233,7 @@ export default class LlmWikiPlugin extends Plugin {
       this.cli = new Cli({ bin: this.cliBin, env: { ...process.env, PATH: path }, timeoutMs: 60_000 })
       const vault = this.vaultPath()
       if (!vault) throw new Error('this vault is not on a local filesystem')
-      const rows = await this.cli.run<{ wikis: WikiRow[] }>('machine.wikis.ls')
+      const rows = await this.cli.run<{ wikis: WikiRow[] }>('machine.wikis.list')
       this.registered = rows.wikis ?? []
       const row = matchWiki(rows.wikis ?? [], vault, this.settings.wikiKey)
       if (!row) throw new Error(`the vault is not a registered wiki (${(rows.wikis ?? []).length} registered); join it, or set the wiki key in the plugin settings`)
@@ -430,7 +430,7 @@ export default class LlmWikiPlugin extends Plugin {
 
   /** The chat slash skills as a fuzzy list; the chosen one becomes a chat turn. */
   async pickSkill(): Promise<void> {
-    // `skills ls` is read again, and on an older CLI the plugin cache, so a skill enabled or installed since shows; the `/` list follows it.
+    // `skills list` is read again, and on an older CLI the plugin cache, so a skill enabled or installed since shows; the `/` list follows it.
     this.skillList = null
     // A read already running began before the click, and a poll is light and keeps the old palette: wait it out, then read in full.
     while (this.refreshing) await this.refreshing
@@ -538,7 +538,7 @@ export default class LlmWikiPlugin extends Plugin {
   /** The plugin cache's skills, read once per run; New chat does not re-read them. */
   private skillList: Promise<SkillEntry[]> | null = null
   /**
-   * The chat slash skills: the last full read's `skills ls`, so a unit enabled in chat shows once the turn's refresh
+   * The chat slash skills: the last full read's `skills list`, so a unit enabled in chat shows once the turn's refresh
    * lands, as it does on the Skills tab. The plugin cache before the first read, and from an older CLI.
    */
   chatSkills(): Promise<SkillEntry[]> {

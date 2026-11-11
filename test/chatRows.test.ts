@@ -19,7 +19,7 @@ describe('tool rows', () => {
   })
   it('says a skill and a command in words', () => {
     expect(describeTool('Skill', { skill: 'brain:wiki-report', args: "what's new" }, '{"skill":…}', ROOT)).toEqual({ icon: 'sparkles', label: 'Skill', detail: "brain:wiki-report · what's new" })
-    expect(describeTool('Bash', { command: 'llm-wiki-ops jobs ls' }, 'llm-wiki-ops jobs ls', ROOT, 'Reading the job list')).toEqual({ icon: 'terminal', label: 'Reading the job list' })
+    expect(describeTool('Bash', { command: 'llm-wiki-ops jobs list' }, 'llm-wiki-ops jobs list', ROOT, 'Reading the job list')).toEqual({ icon: 'terminal', label: 'Reading the job list' })
     expect(describeTool('Bash', { command: 'ls -la' }, 'ls -la', ROOT)).toEqual({ icon: 'terminal', label: 'Run', detail: 'ls -la' })
   })
   it('relativizes only under the root', () => {

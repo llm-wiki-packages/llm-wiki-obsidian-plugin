@@ -310,16 +310,16 @@ const wiki = (a: Args, ...rest: string[]) => ['wiki', '--read-only', key(a.wiki)
 const write = (a: Args, ...rest: string[]) => ['wiki', key(a.wiki), ...rest, '--json']
 
 export const VERBS = {
-  'machine.wikis.ls': () => ['machine', 'wikis', 'ls', '--json'],
-  'machine.runner.ls': () => ['machine', 'runner', 'ls', '--json'],
+  'machine.wikis.list': () => ['machine', 'wikis', 'list', '--json'],
+  'machine.runner.list': () => ['machine', 'runner', 'list', '--json'],
   'wiki.doctor': (a: Args) => wiki(a, 'doctor'),
   'wiki.search.status': (a: Args) => wiki(a, 'search', 'status'),
-  'wiki.jobs.ls': (a: Args) => wiki(a, 'jobs', 'ls', '--verbose'),
+  'wiki.jobs.list': (a: Args) => wiki(a, 'jobs', 'list', '--verbose'),
   'wiki.jobs.due': (a: Args) => wiki(a, 'jobs', 'due'),
   /** Where each job's pages sit against its dest: ok, fresh, renamed, scattered or moved-out, with the `jobs edit` that re-points one. */
   'wiki.jobs.check': (a: Args) => wiki(a, 'jobs', 'check'),
-  'wiki.tickets.ls': (a: Args) => wiki(a, 'tickets', 'ls'),
-  'wiki.page.ls': (a: Args) => wiki(a, 'page', 'ls'),
+  'wiki.tickets.list': (a: Args) => wiki(a, 'tickets', 'list'),
+  'wiki.page.list': (a: Args) => wiki(a, 'page', 'list'),
   'wiki.git.conflicts': (a: Args) => wiki(a, 'git', 'conflicts'),
   // What moved under the corpus trees since a commit: the index's own marker, for what it has not seen.
   'wiki.git.changed': (a: Args) => wiki(a, 'git', 'changed', ...trees(a.dirs), `filter=since:${commit(a.commit)}`),
@@ -331,30 +331,30 @@ export const VERBS = {
   /** What changed in a page: the edits since the last save, or with `commit` that commit's own change. */
   'wiki.page.diff': (a: Args) => wiki(a, 'page', 'diff', rel(a.path ?? ''), ...(a.commit === undefined ? [] : [`commit=${commit(a.commit)}`])),
   /** Every page carrying one `document_id`, wherever each sits. */
-  'wiki.page.find': (a: Args) => wiki(a, 'page', 'ls', `id=${documentId(a.id)}`),
+  'wiki.page.find': (a: Args) => wiki(a, 'page', 'list', `id=${documentId(a.id)}`),
   /** Where the wiki is and its resolved layout: the trees, raw captures, templates. */
   'wiki.whereami': (a: Args) => wiki(a, 'whereami'),
   /** One inbox's messages, every machine's: a person answers wherever they sit. */
-  'wiki.inboxes.ls': (a: Args) => wiki(a, 'inboxes', 'ls', inbox(a.name), '--all'),
+  'wiki.inboxes.list': (a: Args) => wiki(a, 'inboxes', 'list', inbox(a.name), '--all'),
   /** The open conflicts: the same verb, under a key of its own so a failure here is not the inbox's. */
-  'wiki.inboxes.conflicts': (a: Args) => wiki(a, 'inboxes', 'ls', 'conflicts', '--all'),
+  'wiki.inboxes.conflicts': (a: Args) => wiki(a, 'inboxes', 'list', 'conflicts', '--all'),
   /** The `sources/` pages whose `ingest` lever reads `hold`, their own key, their root's or the wiki's default. */
-  'wiki.page.held': (a: Args) => wiki(a, 'page', 'ls', 'filter=under:sources', 'filter=lever:ingest=hold'),
+  'wiki.page.held': (a: Args) => wiki(a, 'page', 'list', 'filter=under:sources', 'filter=lever:ingest=hold'),
   /** The bundle roots whose subtree reads `ingest: hold`, to group the held pages under. A root says so in its `ops` object (page shape 3). */
-  'wiki.page.heldRoots': (a: Args) => wiki(a, 'page', 'ls', 'filter=under:sources', 'filter=prop:ops.root', 'filter=lever:ingest=hold'),
+  'wiki.page.heldRoots': (a: Args) => wiki(a, 'page', 'list', 'filter=under:sources', 'filter=prop:ops.root', 'filter=lever:ingest=hold'),
   /** The pages a job's update waits on: the incoming copy is in `_versions/`, and `page resolve` clears it. */
-  'wiki.page.updatesWaiting': (a: Args) => wiki(a, 'page', 'ls', 'filter=prop:ops.updates_waiting'),
+  'wiki.page.updatesWaiting': (a: Args) => wiki(a, 'page', 'list', 'filter=prop:ops.updates_waiting'),
   /** Each uncommitted path under the swept trees, with how it changed. */
   'wiki.git.status': (a: Args) => wiki(a, 'git', 'status'),
   /** The frontmatter and body a template would add to a page; writes nothing. */
   'wiki.page.template': (a: Args) => wiki(a, 'page', 'template', rel(a.path ?? '')),
   /** Every config row: what applies, each layer's own value, where it may be written, its type and doc. */
   'wiki.config.get': (a: Args) => wiki(a, 'config', 'get'),
-  'wiki.skills.ls': (a: Args) => wiki(a, 'skills', 'ls'),
+  'wiki.skills.list': (a: Args) => wiki(a, 'skills', 'list'),
   // An exact name carries the manifest: what the unit needs and how it is used.
-  'wiki.skills.show': (a: Args) => wiki(a, 'skills', 'ls', unit(a.name)),
+  'wiki.skills.show': (a: Args) => wiki(a, 'skills', 'list', unit(a.name)),
   'wiki.skills.doctor': (a: Args) => wiki(a, 'skills', 'doctor'),
-  'wiki.packages.ls': (a: Args) => wiki(a, 'packages', 'ls'),
+  'wiki.packages.list': (a: Args) => wiki(a, 'packages', 'list'),
   'wiki.packages.show': (a: Args) => wiki(a, 'packages', 'show', pkg(a.name)),
   // The CLI counts these as writes (they refresh the status store), so they run without the floor; they still show no value.
   'wiki.credentials.list': (a: Args) => write(a, 'credentials', 'list'),
@@ -695,7 +695,7 @@ export class Cli {
   }
 }
 
-/** What `machine wikis ls` answers, one row per registered wiki. */
+/** What `machine wikis list` answers, one row per registered wiki. */
 export interface WikiRow {
   key: string
   name: string

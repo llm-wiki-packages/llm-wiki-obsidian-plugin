@@ -19,7 +19,7 @@ export function documentIdOf(text: string): string | null {
   return fm ? (ID_LINE.exec(fm[1]!)?.[1] ?? null) : null
 }
 
-/** `page ls id=`'s rows: `duplicate_of` names the other pages carrying the id. */
+/** `page list id=`'s rows: `duplicate_of` names the other pages carrying the id. */
 export interface CarrierRow {
   path: string
   duplicate_of?: string[] | null
@@ -60,7 +60,7 @@ export class CopyWatch {
       ])
       if (!isFreshCopy(f.path, found.pages ?? [], status.files ?? [])) return
     } catch {
-      // A CLI without `page ls id=` or `git status`: the doctor names the duplicate instead.
+      // A CLI without `page list id=` or `git status`: the doctor names the duplicate instead.
       return
     }
     const out = await actions.fixCopy(f.path)

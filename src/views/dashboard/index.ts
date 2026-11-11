@@ -57,11 +57,11 @@ export interface TabContext {
 
 /** What a failed read is called on screen. */
 const READ_NAMES: Record<string, string> = {
-  'wiki.doctor': 'the doctor report', 'wiki.jobs.ls': 'the job list', 'wiki.jobs.due': 'what is due', 'wiki.tickets.ls': 'the run list', 'wiki.page.ls': 'the page list',
-  'wiki.op.since': 'recent runs', 'wiki.search.status': 'the search status', 'wiki.git.conflicts': 'conflicts', 'machine.runner.ls': 'the runner', 'wiki.skills.ls': 'the skills',
-  'wiki.skills.doctor': 'the skills doctor', 'wiki.packages.ls': 'the packages', 'wiki.credentials.list': 'the credentials', 'wiki.credentials.bindings': 'the credential bindings',
+  'wiki.doctor': 'the doctor report', 'wiki.jobs.list': 'the job list', 'wiki.jobs.due': 'what is due', 'wiki.tickets.list': 'the run list', 'wiki.page.list': 'the page list',
+  'wiki.op.since': 'recent runs', 'wiki.search.status': 'the search status', 'wiki.git.conflicts': 'conflicts', 'machine.runner.list': 'the runner', 'wiki.skills.list': 'the skills',
+  'wiki.skills.doctor': 'the skills doctor', 'wiki.packages.list': 'the packages', 'wiki.credentials.list': 'the credentials', 'wiki.credentials.bindings': 'the credential bindings',
   'wiki.status': 'the sync state', 'wiki.git.log': 'the history', 'wiki.git.status': 'the unsaved files',
-  'wiki.whereami': 'what needs you', 'wiki.inboxes.ls': 'the inbox', 'wiki.inboxes.conflicts': 'the open conflicts', 'wiki.page.held': 'the held sources', 'wiki.page.heldRoots': 'the bundle roots',
+  'wiki.whereami': 'what needs you', 'wiki.inboxes.list': 'the inbox', 'wiki.inboxes.conflicts': 'the open conflicts', 'wiki.page.held': 'the held sources', 'wiki.page.heldRoots': 'the bundle roots',
   'wiki.jobs.check': 'where each job’s pages sit', 'wiki.page.updatesWaiting': 'the updates waiting',
 }
 

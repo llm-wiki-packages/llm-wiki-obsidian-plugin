@@ -172,7 +172,7 @@ hits seen, and two passes: **Update index** (`search index`, additive) and
 asks first). The one marked recommended is the one the verdict calls for.
 
 **Chat skills**: *Run a skill…* (a command, and the **Skills…** button in chat)
-lists the same slash skills: every `skills ls` row whose mode includes
+lists the same slash skills: every `skills list` row whose mode includes
 `session`, the plugin's as `/brain:<name>` and an enabled unit as `/<name>`,
 with what each does and what it takes, and turns the pick into a chat turn
 such as `/brain:research <goal>`. A pipeline-only skill such as `wiki-report`
@@ -275,7 +275,7 @@ far as Obsidian does. Scripts off narrows that too.
 - Obsidian 1.7.2 or later on macOS or Linux.
 - The llm-wiki distribution installed on the machine: `llm-wiki-cli` on the
   login shell's PATH, or its path set in the plugin settings.
-- The vault is a registered wiki (`llm-wiki-cli machine wikis ls` lists it at
+- The vault is a registered wiki (`llm-wiki-cli machine wikis list` lists it at
   the vault's path). If the path differs (a symlink), set the wiki key in the
   plugin settings.
 - Chat: the `claude` binary on the login shell's PATH, or its path set
@@ -329,7 +329,7 @@ Add `LLM_WIKI_E2E_SANDBOX=<sandbox>` to also hold a real sandboxed chat: a few h
 | `src/chat/claudeSdk.ts` | the chat backend on `@anthropic-ai/claude-agent-sdk`, driving the user's own `claude` |
 | `src/chat/harnessRun.ts` | the sandboxed chat backend on `harness run --stream --conversation` |
 | `src/views/composer.ts` | the row under the chat box: permission panel, model and effort lists, context ring, `/` list |
-| `src/chat/skills.ts` | the slash skills: the `skills ls` rows whose mode includes `session`, or, from an older CLI, the installed Claude Code plugin's `skills/*/SKILL.md` |
+| `src/chat/skills.ts` | the slash skills: the `skills list` rows whose mode includes `session`, or, from an older CLI, the installed Claude Code plugin's `skills/*/SKILL.md` |
 | `src/wiki/model.ts` | what the dashboard shows: `Snapshot`, jobs with a plain-words `next`, attention items with one action |
 | `src/wiki/snapshot.ts` | CLI answers into a `Snapshot`; the one place that knows the answers' field names |
 | `src/wiki/actions.ts` | the writes a click makes, each one verb, each answering one sentence |
@@ -371,7 +371,7 @@ plus one case in `main.ts`'s `backend()`.
   `src/wiki/cli.ts`), which lifts the CLI's settle window: the person editing
   is the one asking.
 - **Nothing on screen says running or due that the ticket store does not.**
-  Run is optimistic for one poll; the row's state comes from `tickets ls`.
+  Run is optimistic for one poll; the row's state comes from `tickets list`.
 - **The agent is attended.** The session carries `LLM_WIKI_SESSION_ATTENDED=1`
   because a person is watching the pane and clicking the permission cards.
 - **No credential in a transcript.** `credentials get` is a denied tool pattern.

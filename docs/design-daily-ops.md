@@ -11,7 +11,7 @@
 | :--- | :--- | :--- |
 | Template fill as a patch | `page template <page>` / `page template dest=<dir> title=` | `add` (keys to add), `dates`, `body`, `unexpanded`; writes nothing |
 | Templates on CLI writes | `page create` resolves `[page.templates]`; `page edit template=` fills gaps | agents and jobs already get templates; only Obsidian's own "New note" does not |
-| Three facts, one status | `Draft` and `Archive` checkboxes, a non-empty `verified` = accepted; `status` derived and mirrored | `page ls` rows carry `draft`, `archive`, `curate_candidate`, derived `status`, `change`, `behind` |
+| Three facts, one status | `Draft` and `Archive` checkboxes, a non-empty `verified` = accepted; `status` derived and mirrored | `page list` rows carry `draft`, `archive`, `curate_candidate`, derived `status`, `change`, `behind` |
 | Sticky acceptance | edits never send an accepted page back to curation | "Waiting for you" stops refilling with pages the user already accepted and then edited |
 | Hold | `Draft: true` | a person can park a page; nothing automatic takes it |
 | The sweep | `git commit` with no paths | adopts new sources, observes edits, mirrors status, commits grouped by author; holds pages inside the settle window |
@@ -25,12 +25,12 @@
      `read`, `history`, `diff` and `template`. You give exactly one of a path
      or `id=`. No match is refused. More than one match is refused, naming
      every path; it never guesses. Every answer returns the resolved `path`.
-   - **`page ls id=<document_id>`**, with no path needed, plus `job=`,
+   - **`page list id=<document_id>`**, with no path needed, plus `job=`,
      `resource=` and `resource_id=`. These are exact single values and are not
      split on commas. Rows gain `title`,
-     `resource`, `resource_id` and `job`. `page ls` is the find verb: skills call it before
+     `resource`, `resource_id` and `job`. `page list` is the find verb: skills call it before
      they create or edit. A `page upsert` can come later.
-   - **An identity cache behind `page ls`**, covering `document_id`,
+   - **An identity cache behind `page list`**, covering `document_id`,
      `resource`/`resource_id`, `job` and the other hot filters. The duplicate
      checks in `page edit` and lint read it too.
    - **Guard duplicates where ids are written, not in git.** No pre-commit
@@ -117,7 +117,7 @@
      identifying the underlying asset". `note-format` (the `resource` rows in
      both tables) says "the URL fetched" and changes to say URI. Display and
      search link it only when it is `http(s)`.
-   - **Lookups are exact single values**: `page ls job=<slug> resource=<uri>
+   - **Lookups are exact single values**: `page list job=<slug> resource=<uri>
      resource_id=<id>` (just `resource=` for a unit that writes no id).
      `known[]`, refresh's page lookup and the landing match the same pair.
      The same match through `filter=prop:` needs the quoting in ask 3.
@@ -136,7 +136,7 @@
        identity;
      - YAML and Obsidian round-trips would need canonical hashing;
      - OKF reads `resource` as a URI.
-   - **Re-pulls:** find with `page ls job= resource= resource_id=`, then
+   - **Re-pulls:** find with `page list job= resource= resource_id=`, then
      `page edit id=`, or `page create` when there is no match. A rename or move
      is safe because the identity travels with the file. #3669 no longer sets
      `Draft` on a re-pull, so no landing logic is left to fix.
@@ -281,7 +281,7 @@ it a moment later. The seeded `app.json` hides the inline title, so the
 - **The sweep is more than a commit.** It adopts new `sources/` files (mints
   identity), observes edits (bumps revision), and mirrors `Draft`/`Archive`
   into `status`. Without it, a checkbox ticked in Obsidian reads one way in
-  Obsidian and the old way in `page ls`.
+  Obsidian and the old way in `page list`.
 - **Obsidian's File Recovery is not a substitute.** Its snapshots are
   per-device, kept 7 days by default, taken every few minutes, never shared,
   and carry no "who". Keep it as the undo-the-last-hour tool, and link to it
@@ -541,7 +541,7 @@ suggestions.
 **Proposal:**
 
 1. **CLI and skills: a re-pull finds its page by identity, not by name.**
-   It looks up with `page ls job= resource= resource_id=`, then edits with
+   It looks up with `page list job= resource= resource_id=`, then edits with
    `page edit id=`, or creates when there is no match. This is ask 1
    (`id=`) and ask 2 (`resource_id`) in the list at the top, plus the
    llm-wiki-skills companion issue. It is the prerequisite for everything
@@ -574,7 +574,7 @@ suggestions.
    blocks nothing else.
 3. **Templates on New note** (§1), plus hiding `_raw/`.
 4. **Changes: New, then Drafts, with Accept/Draft/Archive** (§3), on
-   `page ls` rows from #3669.
+   `page list` rows from #3669.
 5. **Overview: health, jobs, then the fleet** (§3).
 6. **Auto-commit locally** (§2). Activity becomes truthful for hand edits.
 7. **Page icon and popover**, then the diff modal (§4), once `page diff`

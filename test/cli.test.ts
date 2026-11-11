@@ -47,7 +47,7 @@ describe('the verb table', () => {
   })
 
   it('spells the skills, packages and credentials verbs, with the secret nowhere in argv', () => {
-    expect(VERBS['wiki.skills.show']({ wiki: 'kb', name: 'channel-gmail' })).toEqual(['wiki', '--read-only', 'kb', 'skills', 'ls', 'channel-gmail', '--json'])
+    expect(VERBS['wiki.skills.show']({ wiki: 'kb', name: 'channel-gmail' })).toEqual(['wiki', '--read-only', 'kb', 'skills', 'list', 'channel-gmail', '--json'])
     expect(VERBS['wiki.packages.show']({ wiki: 'kb', name: 'llm-wiki-packages/llm-wiki-skills' })).toEqual(['wiki', '--read-only', 'kb', 'packages', 'show', 'llm-wiki-packages/llm-wiki-skills', '--json'])
     expect(VERBS['wiki.credentials.set']({ wiki: 'kb', name: 'gmail-token', kind: 'value' })).toEqual(['wiki', 'kb', 'credentials', 'set', 'gmail-token', 'kind=value', '--json'])
     expect(VERBS['wiki.credentials.set']({ wiki: 'kb', name: 'yt-cookies', kind: 'dir', dir: '/Users/me/cookies' })).toEqual(['wiki', 'kb', 'credentials', 'set', 'yt-cookies', 'kind=dir', 'path=/Users/me/cookies', '--json'])
@@ -82,13 +82,13 @@ describe('the runner against a stand-in binary', () => {
   it('parses a JSON answer', async () => {
     // The stand-in ignores its argv and prints one object.
     const cli = new Cli({ bin: node, prefix: ['-e', 'process.stdout.write(process.env.FAKE_OUT)'], env: { ...process.env, FAKE_OUT: '{"count":1,"wikis":[{"key":"kb","name":"KB","path":"/tmp/kb"}]}' }, timeoutMs: 5000 })
-    const ans = await cli.run<{ count: number }>('machine.wikis.ls')
+    const ans = await cli.run<{ count: number }>('machine.wikis.list')
     expect(ans.count).toBe(1)
   })
 
   it('reports the envelope error key on a refusal', async () => {
     const cli = new Cli({ bin: node, prefix: ['-e', 'process.stdout.write(process.env.FAKE_OUT); process.exit(2)'], env: { ...process.env, FAKE_OUT: '{"error":"refused","message":"no such wiki"}' }, timeoutMs: 5000 })
-    await expect(cli.run('machine.wikis.ls')).rejects.toMatchObject({ kind: 'exit', rc: 2, message: expect.stringContaining('no such wiki') })
+    await expect(cli.run('machine.wikis.list')).rejects.toMatchObject({ kind: 'exit', rc: 2, message: expect.stringContaining('no such wiki') })
   })
 
   it('hands stdin to the child and closes it', async () => {

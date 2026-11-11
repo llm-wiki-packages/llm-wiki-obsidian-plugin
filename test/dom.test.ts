@@ -23,7 +23,8 @@ import type { JobView } from '../src/wiki/model'
 describe('toolSentence: an llm-wiki command in words', () => {
   it('names the job a request runs, and leaves other commands alone', () => {
     expect(toolSentence('Bash', 'llm-wiki-ops jobs request inbox-joe wait=60s --json')).toBe('Running inbox-joe')
-    expect(toolSentence('Bash', 'LLM_WIKI_PERMISSIONS=read llm-wiki-cli wiki --read-only kb jobs ls --verbose --json')).toBe('Reading the job list')
+    expect(toolSentence('Bash', 'LLM_WIKI_PERMISSIONS=read llm-wiki-cli wiki --read-only kb jobs list --verbose --json')).toBe('Reading the job list')
+    expect(toolSentence('Bash', 'llm-wiki-ops jobs ls')).toBe('Reading the job list')
     expect(toolSentence('Bash', 'llm-wiki-ops page list')).toBe('Reading the page list')
     expect(toolSentence('Bash', 'llm-wiki-ops doctor --json')).toBe('Running the doctor')
     expect(toolSentence('Bash', 'ls -la')).toBeNull()
