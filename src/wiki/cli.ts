@@ -357,7 +357,7 @@ export const VERBS = {
   'wiki.packages.ls': (a: Args) => wiki(a, 'packages', 'ls'),
   'wiki.packages.show': (a: Args) => wiki(a, 'packages', 'show', pkg(a.name)),
   // The CLI counts these as writes (they refresh the status store), so they run without the floor; they still show no value.
-  'wiki.credentials.ls': (a: Args) => write(a, 'credentials', 'ls'),
+  'wiki.credentials.list': (a: Args) => write(a, 'credentials', 'list'),
   'wiki.credentials.bindings': (a: Args) => write(a, 'credentials', 'bindings'),
   // Writes a click asks for. None is a protected write under the attendance rule.
   'wiki.jobs.request': (a: Args) => write(a, 'jobs', 'request', slug(a.slug), ...(a.wait ? [`wait=${Math.max(1, Math.min(600, Math.trunc(a.wait)))}s`] : [])),
@@ -366,7 +366,7 @@ export const VERBS = {
   'wiki.tickets.retry': (a: Args) => write(a, 'tickets', 'retry', ticket(a.id)),
   // `read` drops this machine's read marker, which is committed, so it is a write; it answers the message whole.
   'wiki.inboxes.read': (a: Args) => write(a, 'inboxes', 'read', inbox(a.name), message(a.id)),
-  'wiki.inboxes.rm': (a: Args) => write(a, 'inboxes', 'rm', inbox(a.name), message(a.id)),
+  'wiki.inboxes.remove': (a: Args) => write(a, 'inboxes', 'remove', inbox(a.name), message(a.id)),
   // One message closed now, as the sweep closes a ticked one; a job ask is ticked and left for the job (llm-wiki-plugins #3940).
   'wiki.inboxes.done': (a: Args) => write(a, 'inboxes', 'done', inbox(a.name), message(a.id), ...(a.answered ? ['--answered'] : [])),
   // Every message ticked `done`: forwarded to its `reply_to` as `Re:`, then removed.
@@ -430,8 +430,8 @@ const ATTENDED: ReadonlySet<Verb> = new Set<Verb>(['wiki.credentials.set', 'wiki
 const EDITOR: ReadonlySet<Verb> = new Set<Verb>(['wiki.page.curate', 'wiki.page.adopt', 'wiki.page.fix', 'wiki.page.resolve', 'wiki.git.commit'])
 
 const WRITES: ReadonlySet<Verb> = new Set<Verb>([
-  'wiki.harness.run', 'wiki.jobs.request', 'wiki.jobs.pause', 'wiki.jobs.resume', 'wiki.tickets.retry', 'wiki.inboxes.read', 'wiki.inboxes.rm', 'wiki.inboxes.done', 'wiki.inboxes.sweep', 'wiki.git.sync', 'wiki.search.index', 'wiki.search.reindex',
-  'wiki.config.set', 'wiki.config.patch', 'wiki.config.unset', 'wiki.credentials.ls', 'wiki.credentials.bindings', ...ATTENDED, ...EDITOR,
+  'wiki.harness.run', 'wiki.jobs.request', 'wiki.jobs.pause', 'wiki.jobs.resume', 'wiki.tickets.retry', 'wiki.inboxes.read', 'wiki.inboxes.remove', 'wiki.inboxes.done', 'wiki.inboxes.sweep', 'wiki.git.sync', 'wiki.search.index', 'wiki.search.reindex',
+  'wiki.config.set', 'wiki.config.patch', 'wiki.config.unset', 'wiki.credentials.list', 'wiki.credentials.bindings', ...ATTENDED, ...EDITOR,
 ])
 
 /** The gate's one-time code, `<seq>:<chars>` in lowercase Crockford base32 (`OPS/lib/gate.py` `CODE_RE`). */

@@ -1328,13 +1328,13 @@ detached | ...)`, plus push recovery notes. Refusals (rc 2): jailed
   keep=theirs`; `<p> carries no <keep> version in the index`; jailed; read-only.
 
 ---------------------------------------------------------------------------
-### 2.14 `inboxes read|rm|done <inbox> <id>`, `inboxes sweep [<inbox>]`
+### 2.14 `inboxes read|remove|done <inbox> <id>`, `inboxes sweep [<inbox>]`
 
 - `read` drops this machine's read marker (committed, so a write) and answers
   `{inbox, id, frontmatter, body}`; frontmatter values come back as strings,
   `"true"`/`"false"` included, `from` as an object (`actor`, `unit`…), plus
   `claimed_unit` and `evidence` when the writer gave them.
-- `rm` removes one message, or moves it under `_archive/` where
+- `remove` removes one message, or moves it under `_archive/` where
   `[inboxes] archive` is on.
 - `sweep` closes out every message ticked `done` (default inbox `user`):
   `{inbox, count, swept: [{id, action, to, reply_id, reason}]}`, `action`
@@ -1353,7 +1353,7 @@ detached | ...)`, plus push recovery notes. Refusals (rc 2): jailed
   keeps it too. A refused forward is an error; the answer and tick stay in
   the file, and a second `--stdin` answer to it is refused.
 - On a CLI without `done` the plugin ticks `done` itself (Obsidian's
-  frontmatter writer) and sweeps, or runs `rm` when there is no `reply_to`.
+  frontmatter writer) and sweeps, or runs `remove` when there is no `reply_to`.
   It tells the two apart by `whereami`'s `needs_you_parts`, which came in the
   same change.
 

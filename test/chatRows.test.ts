@@ -34,11 +34,12 @@ describe('Ask first asks about writes', () => {
     const rules = readRules()
     expect(rules).toContain('Bash(llm-wiki-ops op since:*)')
     expect(rules).toContain('Bash(llm-wiki-ops --json page ls:*)')
+    expect(rules).toContain('Bash(llm-wiki-ops --json page list:*)')
     expect(rules).toContain('Bash(llm-wiki-ops --help:*)')
     expect(rules).toContain('Bash(llm-wiki-ops jobs --help:*)')
   })
   it('lists no verb that writes', () => {
-    for (const w of ['page edit', 'page curate', 'jobs request', 'git commit', 'credentials get', 'credentials ls', 'hooks session-start'])
+    for (const w of ['page edit', 'page curate', 'jobs request', 'git commit', 'credentials get', 'credentials list', 'hooks session-start'])
       expect(READ_VERBS as readonly string[]).not.toContain(w)
   })
 })

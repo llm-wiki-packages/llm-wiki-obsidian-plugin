@@ -24,11 +24,11 @@ describe('the inbox verbs', () => {
   })
   it('reads, removes and sweeps as writes, and refuses a name that is not one', () => {
     expect(VERBS['wiki.inboxes.read']({ wiki: 'kb', name: 'user', id: 'a-1' })).toEqual(['wiki', 'kb', 'inboxes', 'read', 'user', 'a-1', '--json'])
-    expect(VERBS['wiki.inboxes.rm']({ wiki: 'kb', name: 'user', id: 'a-1' })).toEqual(['wiki', 'kb', 'inboxes', 'rm', 'user', 'a-1', '--json'])
+    expect(VERBS['wiki.inboxes.remove']({ wiki: 'kb', name: 'user', id: 'a-1' })).toEqual(['wiki', 'kb', 'inboxes', 'remove', 'user', 'a-1', '--json'])
     expect(VERBS['wiki.inboxes.sweep']({ wiki: 'kb', name: 'user' })).toEqual(['wiki', 'kb', 'inboxes', 'sweep', 'user', '--json'])
     expect(VERBS['wiki.inboxes.done']({ wiki: 'kb', name: 'user', id: 'a-1' })).toEqual(['wiki', 'kb', 'inboxes', 'done', 'user', 'a-1', '--json'])
     expect(VERBS['wiki.inboxes.done']({ wiki: 'kb', name: 'user', id: 'a-1', answered: true })).toEqual(['wiki', 'kb', 'inboxes', 'done', 'user', 'a-1', '--answered', '--json'])
-    for (const v of ['wiki.inboxes.read', 'wiki.inboxes.rm', 'wiki.inboxes.done', 'wiki.inboxes.sweep'] as const) expect(childEnv({ LLM_WIKI_PERMISSIONS: 'read' }, v).LLM_WIKI_PERMISSIONS).toBeUndefined()
+    for (const v of ['wiki.inboxes.read', 'wiki.inboxes.remove', 'wiki.inboxes.done', 'wiki.inboxes.sweep'] as const) expect(childEnv({ LLM_WIKI_PERMISSIONS: 'read' }, v).LLM_WIKI_PERMISSIONS).toBeUndefined()
     expect(() => VERBS['wiki.inboxes.read']({ wiki: 'kb', name: 'user', id: '../x' })).toThrow(CliError)
     expect(() => VERBS['wiki.inboxes.read']({ wiki: 'kb', name: 'user', id: '-rf' })).toThrow(CliError)
     expect(() => VERBS['wiki.inboxes.sweep']({ wiki: 'kb', name: 'User/..' })).toThrow(CliError)
@@ -140,7 +140,7 @@ const QUIET: Partial<Record<Verb, unknown>> = {
   'wiki.doctor': { rows: [] }, 'wiki.jobs.ls': { jobs: [] }, 'wiki.jobs.due': { parked: [], review: [], handoffs: { problems: [] } }, 'wiki.tickets.ls': { tickets: [] },
   'wiki.page.ls': { pages: [] }, 'wiki.op.since': { runs: [] }, 'wiki.search.status': {}, 'wiki.git.conflicts': { pages: [] }, 'machine.runner.ls': { wikis: [] },
   'wiki.status': { machine: 'mac', git: { dirty: 0, untracked: 0, unpushed: 0, behind: 0 }, peers: [] }, 'wiki.git.log': { commits: [] }, 'wiki.git.status': { files: [] },
-  'wiki.skills.ls': { skills: [] }, 'wiki.skills.doctor': { findings: [] }, 'wiki.packages.ls': { this_wiki: [] }, 'wiki.credentials.ls': { rows: [] }, 'wiki.credentials.bindings': { skills: [], jobs: [] },
+  'wiki.skills.ls': { skills: [] }, 'wiki.skills.doctor': { findings: [] }, 'wiki.packages.ls': { this_wiki: [] }, 'wiki.credentials.list': { rows: [] }, 'wiki.credentials.bindings': { skills: [], jobs: [] },
 }
 
 describe('takeSnapshot: the inbox and what needs you', () => {
@@ -257,7 +257,7 @@ describe('Done', () => {
     await closeMessage(unknown.app, unknown.actions, m, true)
     expect(unknown.did).toEqual(['save', `done user ${m.id} --answered`])
   })
-  it('an older CLI asks before `inboxes rm` deletes a typed answer, and keeps the message on no', async () => {
+  it('an older CLI asks before `inboxes remove` deletes a typed answer, and keeps the message on no', async () => {
     const m = msg({ replyTo: null })
     const asked: string[] = []
     const no = fakeApp(m.path, { body: 'Which one?\nMine.\n' })
@@ -281,7 +281,7 @@ describe('Done', () => {
     await closeMessage(app, actions, m, false)
     expect(did).toEqual(['save', 'sweep user'])
   })
-  it('an older CLI, with nowhere to send an answer and none typed: the note saved, then one `inboxes rm`, no tick, no question', async () => {
+  it('an older CLI, with nowhere to send an answer and none typed: the note saved, then one `inboxes remove`, no tick, no question', async () => {
     const m = msg({ replyTo: null })
     const { app, actions, did } = fakeApp(m.path)
     await closeMessage(app, actions, m, false, { baseline: 'Which one?\n', confirmDelete: () => Promise.reject(new Error('asked')) })

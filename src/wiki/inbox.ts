@@ -161,7 +161,7 @@ export function sweptSentence(a: SweptAnswer, m: Pick<InboxMessage, 'id' | 'subj
 
 /**
  * What Done will do to this message, in the words a row and its button say. `typed`: an answer is in the body. An
- * older CLI has no `inboxes done` and so no archive for it: there `inboxes rm` deletes what was typed.
+ * older CLI has no `inboxes done` and so no archive for it: there `inboxes remove` deletes what was typed.
  */
 export function doneWords(m: Pick<InboxMessage, 'replyTo' | 'job' | 'jobAsk'>, typed = false, inboxDone = true): string {
   if (m.jobAsk) return `Done answers ${m.job ? `job ${m.job}` : 'the job'}: it picks the answer up next run`
