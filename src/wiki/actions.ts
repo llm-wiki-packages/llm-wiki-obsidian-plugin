@@ -166,6 +166,20 @@ export class Actions {
     }
   }
 
+  /**
+   * A conflict ruled for the wiki: the page stays as it is, and the record closes with the ruling under it, archived as
+   * an answer (`--stdin`, then `--answered`), so the decision is on file rather than deleted.
+   */
+  async keepWiki(m: Pick<InboxMessage, 'inbox' | 'id' | 'subject'>, page: string | null): Promise<Outcome> {
+    const ruling = `Ruling: the wiki stands${page ? ` ([[${page}]] is unchanged)` : ''}; the new source's claim is set aside.\n`
+    try {
+      await this.cli.run<ClosedAnswer>('wiki.inboxes.done', { wiki: this.wiki, name: m.inbox, id: m.id, answered: true, withAnswer: true }, { stdin: ruling })
+      return { ok: true, message: 'Kept the wiki; the conflict is closed and archived' }
+    } catch (e) {
+      return failed('the conflict stays open', e)
+    }
+  }
+
   /** Close out every message ticked `done`, this one among them: an answer goes to its `reply_to`, then the message leaves. */
   async sweepInbox(m: Pick<InboxMessage, 'inbox' | 'id' | 'subject'>): Promise<Outcome> {
     try {

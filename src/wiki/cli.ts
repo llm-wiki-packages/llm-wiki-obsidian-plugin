@@ -48,6 +48,8 @@ export interface Args {
   mode?: string
   /** `inboxes done`: the body already holds an answer the person typed, so it is archived, never deleted. */
   answered?: boolean
+  /** `inboxes done --stdin`: an answer, given as the run's stdin, goes under the message before it closes. */
+  withAnswer?: boolean
   /** `page resolve`: keep the person's page, or write the pipeline's render over it. */
   choice?: 'mine' | 'theirs'
   /** `jobs edit dest=`: the folder a job's pages now sit under, vault-relative. */
@@ -388,7 +390,7 @@ export const VERBS = {
   'wiki.inboxes.read': (a: Args) => write(a, 'inboxes', 'read', inbox(a.name), message(a.id)),
   'wiki.inboxes.remove': (a: Args) => write(a, 'inboxes', 'remove', inbox(a.name), message(a.id)),
   // One message closed now, as the sweep closes a ticked one; a job ask is ticked and left for the job (llm-wiki-plugins #3940).
-  'wiki.inboxes.done': (a: Args) => write(a, 'inboxes', 'done', inbox(a.name), message(a.id), ...(a.answered ? ['--answered'] : [])),
+  'wiki.inboxes.done': (a: Args) => write(a, 'inboxes', 'done', inbox(a.name), message(a.id), ...(a.answered ? ['--answered'] : []), ...(a.withAnswer ? ['--stdin'] : [])),
   // Every message ticked `done`: forwarded to its `reply_to` as `Re:`, then removed.
   'wiki.inboxes.sweep': (a: Args) => write(a, 'inboxes', 'sweep', inbox(a.name)),
   // A page conflict a landing could not merge, answered: keep the page as it is, or take the pipeline's render over it.

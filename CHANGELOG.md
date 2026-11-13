@@ -74,6 +74,10 @@ Checked against llm-wiki-ops 0.18.0. Needs 0.16.0 or later.
   what the new source says, side by side, with their quotes. An empty
   Messages box no longer takes the top of the tab; one line at the
   bottom says there are none.
+- An opened conflict asks "Which is right?". **Keep the wiki** closes it
+  and archives the ruling with it. **Use the new source** and **Both are
+  true** put a ready prompt in chat, so the agent rewrites the page with the
+  right citation, then closes the conflict.
 - Every list verb is spelled `list` (`ls` still works on the CLI).
 - The `extract` stage, formerly `transcribe`, shows as *extracting*.
 - The Reports tab names the `morning-brief` skill, formerly `daily-report`.

@@ -327,3 +327,10 @@ describe('a conflicts record, read from its note', () => {
     expect(conflictOf(undefined)).toBeNull()
   })
 })
+
+describe('ruling a conflict for the wiki', () => {
+  it('closes the record with the ruling on stdin, archived as an answer', () => {
+    expect(VERBS['wiki.inboxes.done']({ wiki: 'w', name: 'conflicts', id: '20261113-003211-u2-s-1', answered: true, withAnswer: true }))
+      .toEqual(['wiki', 'w', 'inboxes', 'done', 'conflicts', '20261113-003211-u2-s-1', '--answered', '--stdin', '--json'])
+  })
+})
