@@ -1,5 +1,35 @@
 # llm-wiki CLI answer shapes (for the Obsidian plugin's TypeScript client)
 
+## Changes through ops 0.18.0 (checked 2026-11-12)
+
+The sections below were written against an older CLI. Every argv in
+`src/wiki/cli.ts` `VERBS` was run against a 0.18.0 scratch wiki (its own
+machine home, `init` + `join`). What changed for the plugin:
+
+- **Verb names (0.16).** Every `ls` verb is `list`; `ls` is still accepted as
+  an alias. `credentials ls` and the `rm` verbs (`inboxes rm`) are gone and
+  answer `No such command`: they are `credentials list` and `inboxes remove`.
+  The plugin spells `list` and `remove` everywhere, so it needs 0.16 or later.
+  Read the section titles below with `list` for `ls`.
+- **`jobs list --verbose` (0.16–0.18).** The stage `transcribe` is named
+  `extract`. `verdict.kind` gains `parked` (a parked harvest waits for
+  `tickets retry`, `tickets drop` or `jobs request`), `trigger-only` (triggers,
+  no `every`) and `trigger` (due by its trigger). A row carries `parked` (its
+  parked ticket count) and `ops` (the ops its job performs).
+- **`jobs request` (0.16).** `outcome` gains `backoff`: every ticket left waits
+  out a retry. The answer adds `held` (`{reason, tickets, retry_at}` groups)
+  and `retry_at` (the soonest). `minted` and `ticket` are gone; a ticket in
+  flight is waited on and answers `running`, and `next` names the newest
+  pending ticket.
+- **`page resolve` (0.16).** Takes `mine`, `theirs` or `merged`. In 0.18.0
+  `merged` acts as `mine`; only the recorded choice differs. It is a `warn`
+  row of the gate, so a click needs no confirm.
+- **`credentials list`.** Rows gain `login`, `host`, `login_step`, `copy` and
+  `remote` (a live remote login).
+- **Read verbs.** The registry's read tier at 0.18.0 is the list in
+  `src/chat/readVerbs.ts`.
+
+
 How this was produced: field names are copied from the Python `Answer`
 dataclasses and the row builders they use, then checked by running the verbs
 against a scratch wiki (isolated `HOME`, `init` + `join`). Examples marked

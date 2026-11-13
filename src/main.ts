@@ -1,7 +1,7 @@
-import { FileSystemAdapter, FuzzySuggestModal, Notice, Plugin } from 'obsidian'
+import { FileSystemAdapter, FuzzySuggestModal, MarkdownView, Notice, Plugin } from 'obsidian'
 import { ClaudeSdkBackend } from './chat/claudeSdk'
 import { HarnessRunBackend } from './chat/harnessRun'
-import { listSkills, noSkillsMessage, pluginDirs, slash, slashCommand, type SkillEntry } from './chat/skills'
+import { listSkills, noSkillsMessage, PLUGIN_NAMESPACE, pluginDirs, slash, slashCommand, type SkillEntry } from './chat/skills'
 import type { BackendKind, ChatBackend, ModelChoice, WikiTarget } from './chat/types'
 import { log } from './logger'
 import { DEFAULT_SETTINGS, LlmWikiSettingTab, type LlmWikiSettings } from './settings'
@@ -12,7 +12,7 @@ import { confirm, promptText } from './ui/modals'
 import { openCredentialModal, type CredentialPrompt } from './ui/credentialModal'
 import { Actions } from './wiki/actions'
 import { messageAt } from './wiki/inbox'
-import { Cli, type WikiRow } from './wiki/cli'
+import { Cli, MIN_OPS, tooOld, type WikiRow } from './wiki/cli'
 import type { JobView, Snapshot } from './wiki/model'
 import { takeSnapshot } from './wiki/snapshot'
 import { readFile } from 'node:fs/promises'
@@ -23,11 +23,14 @@ import { NewNoteTemplates } from './vault/templates'
 import { CopyWatch } from './vault/copies'
 import { TitleFollowsName } from './vault/titles'
 import { TidyProperties } from './vault/properties'
+import { LendCues, explainTarget } from './vault/lendCues'
+import { openExplain } from './ui/explainModal'
+import { Listen } from './ui/listen'
 import { SourceLinks } from './vault/sourceLinks'
 import { SourcesPanel } from './ui/sourcesPanel'
 import { DestRename } from './vault/destRename'
 import { registerBlocks } from './ui/blockEditor'
-import { DEFAULT_LAYOUT, layout, layoutFrom, setLayout, type LayoutAnswer } from './wiki/layout'
+import { DEFAULT_LAYOUT, isContent, layout, layoutFrom, setLayout, type LayoutAnswer } from './wiki/layout'
 import { button } from './ui/dom'
 import { applySetup, nothingMissing, vaultMissing } from './vault/editorSetup'
 import { PageHistory } from './ui/pageHistory'
@@ -64,6 +67,8 @@ export default class LlmWikiPlugin extends Plugin {
   private readonly copies = new CopyWatch(this)
   private readonly titles = new TitleFollowsName(this)
   readonly properties = new TidyProperties(this)
+  readonly lendCues = new LendCues(this)
+  readonly listen = new Listen(this)
   readonly sourceLinks = new SourceLinks(this)
   readonly sourcesPanel = new SourcesPanel(this)
   private readonly destRename = new DestRename(this)
@@ -122,6 +127,23 @@ export default class LlmWikiPlugin extends Plugin {
       if (!checking) void this.app.workspace.getLeaf(false).openFile(brief)
       return true
     } })
+    this.addCommand({ id: 'listen-record', name: 'Read this page aloud (record its audio)', checkCallback: (checking) => {
+      const file = this.app.workspace.getActiveViewOfType(MarkdownView)?.file
+      if (!file || !isContent(file.path) || !this.cli || !this.wiki) return false
+      if (!checking) this.listen.record(file, 'read')
+      return true
+    } })
+    this.addCommand({ id: 'listen-toggle', name: 'Play or pause the audio player', checkCallback: (checking) => {
+      if (!this.listen.player.current) return false
+      if (!checking) this.listen.player.toggle()
+      return true
+    } })
+    this.addCommand({ id: 'explain-lent', name: 'Where this page’s lent values come from', checkCallback: (checking) => {
+      const path = explainTarget(this.app)
+      if (!path || !this.cli || !this.wiki) return false
+      if (!checking) openExplain(this, path)
+      return true
+    } })
     this.addCommand({ id: 'open-config', name: 'Open the wiki’s config', callback: () => void this.openDashboard('config') })
     this.addCommand({ id: 'accept-draft', name: 'Accept this page into the wiki', checkCallback: (checking) => this.draftCommand(checking, (a, path) => a.accept([path])) })
     this.addCommand({ id: 'reject-draft', name: 'Archive this page…', checkCallback: (checking) => this.draftCommand(checking, async (a, path) => {
@@ -140,6 +162,8 @@ export default class LlmWikiPlugin extends Plugin {
     this.copies.register()
     this.titles.register()
     this.properties.register()
+    this.lendCues.register()
+    this.listen.register()
     this.sourceLinks.register()
     this.sourcesPanel.register()
     this.destRename.register()
@@ -233,7 +257,10 @@ export default class LlmWikiPlugin extends Plugin {
       this.cli = new Cli({ bin: this.cliBin, env: { ...process.env, PATH: path }, timeoutMs: 60_000 })
       const vault = this.vaultPath()
       if (!vault) throw new Error('this vault is not on a local filesystem')
-      const rows = await this.cli.run<{ wikis: WikiRow[] }>('machine.wikis.ls')
+      const rows = await this.cli.run<{ wikis: WikiRow[] }>('machine.wikis.list').catch((e: unknown) => {
+        if (tooOld(e)) throw new Error(`this llm-wiki-cli is older than the plugin needs (llm-wiki-ops ${MIN_OPS} or newer); update the ${PLUGIN_NAMESPACE} plugins, then re-detect`)
+        throw e
+      })
       this.registered = rows.wikis ?? []
       const row = matchWiki(rows.wikis ?? [], vault, this.settings.wikiKey)
       if (!row) throw new Error(`the vault is not a registered wiki (${(rows.wikis ?? []).length} registered); join it, or set the wiki key in the plugin settings`)

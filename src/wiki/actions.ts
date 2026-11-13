@@ -41,13 +41,27 @@ function held(verb: 'accept' | 'archive', paths: string[], e: unknown): Outcome 
   return { ok: false, message: `${s.path} was edited ${ago}, and the wiki waits a few minutes after an edit before it can ${verb} a page. ${what}; try again shortly.` }
 }
 
-/** `jobs request`'s answer: `minted: false` means a ticket was already in flight; `ok` means the pass landed before it returned. */
+/**
+ * `jobs request`'s answer: `ok` means the pass landed before it returned; `backoff` (ops 0.16) that every ticket left
+ * waits out a retry, `held` grouping them by reason and `retry_at` the soonest. `minted: false` is an older CLI's
+ * ticket already in flight; a newer one waits on it and answers `running`.
+ */
 interface RequestAnswer {
-  outcome?: 'ok' | 'failed' | 'running'
+  outcome?: 'ok' | 'failed' | 'running' | 'backoff'
   minted?: boolean
   ticket?: string | null
   written?: string[]
   error?: string | null
+  held?: { reason: string; tickets: string[]; retry_at: string }[]
+  retry_at?: string | null
+}
+
+/** A request every ticket of which sits out a retry: it did not run, and says when it will. */
+function backoff(slug: string, a: RequestAnswer): Outcome {
+  const why = a.error ?? a.held?.[0]?.reason
+  const at = a.retry_at ? new Date(a.retry_at) : null
+  const when = at && !Number.isNaN(at.getTime()) ? at.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null
+  return { ok: false, message: `${slug} is waiting to retry${when ? ` at ${when}` : ''}${why ? `: ${why}` : ''}` }
 }
 
 export class Actions {
@@ -62,12 +76,14 @@ export class Actions {
       const a = await this.cli.run<RequestAnswer>('wiki.jobs.request', { wiki: this.wiki, slug }, { timeoutMs: 120_000 })
       if (a.minted === false) return { ok: true, message: `${slug} is already in flight${a.ticket ? ` (ticket ${a.ticket})` : ''}` }
       if (a.outcome === 'ok') return { ok: true, message: `${slug} ran${a.written?.length ? `: ${a.written.length} page${a.written.length === 1 ? '' : 's'} written` : ''}`, written: a.written ?? [] }
+      if (a.outcome === 'backoff') return backoff(slug, a)
       return { ok: true, message: `${slug} started` }
     } catch (e) {
       // A non-zero exit with an answer is a run that ran: it stopped, or it is still going. Only a refusal "did not start".
       const body = e instanceof CliError ? (e.body as RequestAnswer | undefined) : undefined
       if (body?.outcome === 'failed') return { ok: false, message: `${slug} ran and stopped${body.error ? `: ${body.error}` : ''}` }
       if (body?.outcome === 'running') return { ok: true, message: `${slug} started; still running` }
+      if (body?.outcome === 'backoff') return backoff(slug, body)
       return failed(`${slug} did not start`, e)
     }
   }
@@ -134,7 +150,7 @@ export class Actions {
   /** A message with nowhere to send an answer: removed (or archived, where the wiki keeps them), as the sweep would. */
   async removeMessage(m: Pick<InboxMessage, 'inbox' | 'id' | 'subject'>): Promise<Outcome> {
     try {
-      await this.cli.run('wiki.inboxes.rm', { wiki: this.wiki, name: m.inbox, id: m.id })
+      await this.cli.run('wiki.inboxes.remove', { wiki: this.wiki, name: m.inbox, id: m.id })
       return { ok: true, message: `“${m.subject}” is done` }
     } catch (e) {
       return failed(`could not close “${m.subject}”`, e)

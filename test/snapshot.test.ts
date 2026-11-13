@@ -29,6 +29,11 @@ describe('jobView: the Next column in plain words', () => {
     expect(r.running).toEqual({ ticket: 't1', stage: 'PLUGIN:curate', since: '2026-10-23T11:58:00Z' })
     expect(jobView(job({ verdict: { due: false, kind: 'requires', blocked_by: ['credential gmail'] } }), [], NOW).next).toEqual({ kind: 'blocked', detail: 'credential gmail' })
     expect(jobView(job({ blocked: 'no search server is configured here' }), [], NOW).next.kind).toBe('blocked')
+    // ops 0.18: a parked harvest waits for a person, and a trigger job with no `every` waits for its trigger.
+    const why = 'ticket h1 is parked — `tickets retry`, `tickets drop` or `jobs request`'
+    expect(jobView(job({ verdict: { due: false, kind: 'parked', reasons: [why] } }), [], NOW).next).toEqual({ kind: 'blocked', detail: why })
+    expect(jobView(job({ verdict: { due: false, kind: 'trigger-only', reasons: ['no every'] } }), [], NOW).next).toEqual({ kind: 'trigger', detail: 'no every' })
+    expect(jobView(job({ running: [{ id: 'x1', stage: 'extract', since: null }] }), [], NOW).running?.stage).toBe('extracting')
     const held = jobView(job({}), [{ id: 't2', stage: 'routine', state: 'pending', slug: 'ops-hourly', not_before: '2026-10-23T13:00:00Z', reason: 'killed' }], NOW)
     expect(held.next).toEqual({ kind: 'held', at: '2026-10-23T13:00:00Z', detail: 'killed' })
     expect(jobView(job({}), [{ id: 't3', stage: 'routine', state: 'pending', slug: 'ops-hourly' }], NOW).next.kind).toBe('queued')
@@ -63,11 +68,11 @@ const EMPTY_UNITS: Partial<Record<Verb, unknown>> = {
   'wiki.whereami': { needs_you: 0 },
   'wiki.page.held': { pages: [] },
   'wiki.page.heldRoots': { pages: [] },
-  'wiki.inboxes.ls': { inbox: 'user', count: 0, messages: [] },
-  'wiki.skills.ls': { skills: [] },
+  'wiki.inboxes.list': { inbox: 'user', count: 0, messages: [] },
+  'wiki.skills.list': { skills: [] },
   'wiki.skills.doctor': { findings: [] },
-  'wiki.packages.ls': { this_wiki: [] },
-  'wiki.credentials.ls': { rows: [] },
+  'wiki.packages.list': { this_wiki: [] },
+  'wiki.credentials.list': { rows: [] },
   'wiki.credentials.bindings': { skills: [], jobs: [] },
 }
 
@@ -77,20 +82,20 @@ const GMAIL: Partial<Record<Verb, unknown>> = {
     { check: 'jobs-skipped', status: 'warn', detail: 'inbox-joe/harvest: harvest requires file and this machine fills none of it', fix: 'llm-wiki-ops credentials bind skill channel-gmail <name>=<credential>' },
     { check: 'bindings', status: 'warn', detail: 'inbox-joe: harvest requires file and this machine fills none of it; channel-gmail: required file unmapped on this machine', fix: 'llm-wiki-ops credentials bind skill <unit> <name>=<credential>' },
   ] },
-  'wiki.jobs.ls': { jobs: [job({ slug: 'inbox-joe', description: '', skill: 'channel-gmail', kind: 'pipeline', verdict: { due: true, kind: null, reasons: ['never run'] } })] },
+  'wiki.jobs.list': { jobs: [job({ slug: 'inbox-joe', description: '', skill: 'channel-gmail', kind: 'pipeline', verdict: { due: true, kind: null, reasons: ['never run'] } })] },
   'wiki.jobs.due': { parked: [], review: [], handoffs: { problems: [] } },
-  'wiki.tickets.ls': { tickets: [] },
-  'wiki.page.ls': { pages: [] },
+  'wiki.tickets.list': { tickets: [] },
+  'wiki.page.list': { pages: [] },
   'wiki.op.since': { runs: [] },
   'wiki.search.status': {},
   'wiki.git.conflicts': { pages: [] },
-  'machine.runner.ls': { wikis: [] },
-  'wiki.skills.ls': { skills: [{ name: 'channel-gmail', state: 'enabled', from: 'llm-wiki-packages/llm-wiki-skills@v0.5.0', venue: 'gmail', version: '0.1.0', stages: ['harvest', 'process'], drifted: false, outdated: false, next: '/channel-gmail ticket=<id>', warnings: [], mapped: '0/1' }] },
+  'machine.runner.list': { wikis: [] },
+  'wiki.skills.list': { skills: [{ name: 'channel-gmail', state: 'enabled', from: 'llm-wiki-packages/llm-wiki-skills@v0.5.0', venue: 'gmail', version: '0.1.0', stages: ['harvest', 'process'], drifted: false, outdated: false, next: '/channel-gmail ticket=<id>', warnings: [], mapped: '0/1' }] },
   'wiki.skills.show': { skills: [{ name: 'channel-gmail', state: 'enabled', venue: 'gmail', version: '0.1.0', next: '/channel-gmail ticket=<id>', mapped: '0/1', manifest: { usage: '/channel-gmail ticket=<id>', requires: { credentials: { file: 'required' } }, watch: { inputs: { mailbox: { prompt: 'Which mailbox does this watch pull?', required: true } } } }, enable_notes: 'references/enable.md', usage_notes: 'references/usage.md' }] },
   'wiki.skills.doctor': { findings: [] },
-  'wiki.packages.ls': { this_wiki: [{ package: 'llm-wiki-packages/llm-wiki-skills', current: '0.5.0' }] },
+  'wiki.packages.list': { this_wiki: [{ package: 'llm-wiki-packages/llm-wiki-skills', current: '0.5.0' }] },
   'wiki.packages.show': { shown: '0.5.0', manifest: { artifacts: [{ type: 'skill', name: 'channel-gmail' }, { type: 'skill', name: 'channel-youtube' }, { type: 'skill', name: 'web-page' }] } },
-  'wiki.credentials.ls': { rows: [{ name: 'claude_login', kind: 'harness', login: 'hand', state: 'unverified', verified: null }, { name: 'gmail_token', kind: 'value', login: 'none', state: 'unverified', verified: null }] },
+  'wiki.credentials.list': { rows: [{ name: 'claude_login', kind: 'harness', login: 'hand', state: 'unverified', verified: null }, { name: 'gmail_token', kind: 'value', login: 'none', state: 'unverified', verified: null }] },
   'wiki.credentials.bindings': { skills: [], jobs: [] },
   'wiki.status': { machine: 'mac', git: { dirty: 0, untracked: 0, unpushed: 0, behind: 0 }, peers: [] },
   'wiki.git.log': { commits: [] },
@@ -98,7 +103,7 @@ const GMAIL: Partial<Record<Verb, unknown>> = {
   'wiki.whereami': { needs_you: 0 },
   'wiki.page.held': { pages: [] },
   'wiki.page.heldRoots': { pages: [] },
-  'wiki.inboxes.ls': { inbox: 'user', count: 0, messages: [] },
+  'wiki.inboxes.list': { inbox: 'user', count: 0, messages: [] },
 }
 
 describe('takeSnapshot: skills and credentials', () => {
@@ -131,7 +136,7 @@ describe('takeSnapshot: skills and credentials', () => {
   it('a stopped job whose credential went stale gets Replace credential with the retry riding along, once', async () => {
     const snap = await takeSnapshot(reader({ ...GMAIL, 'wiki.doctor': { rows: [] },
       'wiki.jobs.due': { parked: [{ id: 'p1', job: 'inbox-joe', stage: 'harvest', reason: 'login expired' }], review: [], handoffs: { problems: [] } },
-      'wiki.tickets.ls': { tickets: [{ id: 'p1', stage: 'harvest', state: 'failed', slug: 'inbox-joe', reason: 'login expired', queued_at: '2026-10-23T09:00:00Z', runtime_s: 12 }] },
+      'wiki.tickets.list': { tickets: [{ id: 'p1', stage: 'harvest', state: 'failed', slug: 'inbox-joe', reason: 'login expired', queued_at: '2026-10-23T09:00:00Z', runtime_s: 12 }] },
       'wiki.credentials.bindings': { skills: [{ skill: 'channel-gmail', name: 'file', credential: 'gmail_token', state: 'stale' }], jobs: [] } }), 'kb', NOW)
     expect(snap.jobs[0]?.next).toEqual({ kind: 'unbound', detail: 'gmail_token is stale' })
     expect(snap.jobs[0]?.tickets).toEqual([{ id: 'p1', stage: 'harvest', state: 'failed', at: '2026-10-23T09:00:00Z', reason: 'login expired', runtimeS: 12 }])
@@ -141,11 +146,11 @@ describe('takeSnapshot: skills and credentials', () => {
   it('a light read carries the skills, credentials and runner over and re-reads only what moves', async () => {
     const full = await takeSnapshot(reader(GMAIL), 'kb', NOW)
     const seen: string[] = []
-    const spy: Reader = { run: (verb, args) => { seen.push(verb); return reader({ ...GMAIL, 'wiki.jobs.ls': { jobs: [job({ slug: 'inbox-joe', skill: 'channel-gmail', state: 'paused', verdict: { due: false, kind: 'paused' } })] } }).run(verb, args) } }
+    const spy: Reader = { run: (verb, args) => { seen.push(verb); return reader({ ...GMAIL, 'wiki.jobs.list': { jobs: [job({ slug: 'inbox-joe', skill: 'channel-gmail', state: 'paused', verdict: { due: false, kind: 'paused' } })] } }).run(verb, args) } }
     const light = await takeSnapshot(spy, 'kb', NOW + 10_000, undefined, full)
-    expect(seen).not.toContain('wiki.skills.ls')
-    expect(seen).not.toContain('wiki.credentials.ls')
-    expect(seen).toContain('wiki.jobs.ls')
+    expect(seen).not.toContain('wiki.skills.list')
+    expect(seen).not.toContain('wiki.credentials.list')
+    expect(seen).toContain('wiki.jobs.list')
     expect(light.skills).toHaveLength(full.skills.length)
     expect(light.credentials).toEqual(full.credentials)
     expect(light.jobs[0]?.next.kind).toBe('paused')
@@ -161,7 +166,7 @@ describe('takeSnapshot: skills and credentials', () => {
   })
   it('a credential whose own check failed breaks the slot it fills', async () => {
     const snap = await takeSnapshot(reader({ ...GMAIL, 'wiki.doctor': { rows: [] },
-      'wiki.credentials.ls': { rows: [{ name: 'gmail_token', kind: 'value', state: 'failed' }] },
+      'wiki.credentials.list': { rows: [{ name: 'gmail_token', kind: 'value', state: 'failed' }] },
       'wiki.credentials.bindings': { skills: [{ skill: 'channel-gmail', name: 'file', credential: 'gmail_token', state: 'bound' }], jobs: [] } }), 'kb', NOW)
     expect(snap.skills[0]?.slots).toEqual([{ name: 'file', required: true, credential: 'gmail_token', problem: 'failed' }])
     expect(snap.jobs[0]?.next.kind).toBe('unbound')
@@ -174,7 +179,7 @@ describe('takeSnapshot: skills and credentials', () => {
       throw new Error('no such file')
     }
     const snap = await takeSnapshot(reader({ ...GMAIL,
-      'wiki.packages.ls': { this_wiki: [{ package: 'llm-wiki-packages/llm-wiki-skills' }], installed: [{ package: 'llm-wiki-packages/llm-wiki-skills', cache: '~/.local/share/llm-wiki/packages/cache/llm-wiki-packages/llm-wiki-skills' }] },
+      'wiki.packages.list': { this_wiki: [{ package: 'llm-wiki-packages/llm-wiki-skills' }], installed: [{ package: 'llm-wiki-packages/llm-wiki-skills', cache: '~/.local/share/llm-wiki/packages/cache/llm-wiki-packages/llm-wiki-skills' }] },
       'wiki.packages.show': { shown: '0.5.0', shown_ref: 'abc', manifest: { artifacts: [{ type: 'skill', name: 'channel-youtube' }, { type: 'skill', name: 'web-page' }] } },
     }), 'kb', NOW, { root: '/w', home: '/h', read })
     expect(snap.skills.map((s) => [s.name, s.description, s.dir])).toEqual([
@@ -190,7 +195,7 @@ describe('takeSnapshot: skills and credentials', () => {
   })
   it('a stale binding counts as empty, and drift and updates become attention', async () => {
     const snap = await takeSnapshot(reader({ ...GMAIL, 'wiki.doctor': { rows: [] },
-      'wiki.skills.ls': { skills: [{ name: 'channel-gmail', state: 'drifted' }] },
+      'wiki.skills.list': { skills: [{ name: 'channel-gmail', state: 'drifted' }] },
       'wiki.skills.show': { skills: [{ name: 'channel-gmail', state: 'drifted', drifted: true, outdated: true, warnings: ['enabled copy differs from the wiki copy'], manifest: { requires: { credentials: { file: 'required' } } } }] },
       'wiki.credentials.bindings': { skills: [{ skill: 'channel-gmail', name: 'file', credential: 'gmail_token', state: 'stale' }], jobs: [] } }), 'kb', NOW)
     expect(snap.jobs[0]?.next.kind).toBe('unbound')
@@ -204,14 +209,14 @@ describe('takeSnapshot', () => {
     const snap = await takeSnapshot(
       reader({
         'wiki.doctor': { overall: 'warn', rows: [{ check: 'manifest', status: 'ok', detail: 'fine', fix: null }, { check: 'jobs-poll', status: 'warn', detail: 'no runner polls this wiki', fix: '`llm-wiki-cli machine runner install kb`' }] },
-        'wiki.jobs.ls': { jobs: [job({}), job({ slug: 'gmail', description: 'Gmail inbox', kind: 'pipeline', verdict: { due: false, kind: 'requires', blocked_by: ['credential gmail'] } })], unreadable: [] },
+        'wiki.jobs.list': { jobs: [job({}), job({ slug: 'gmail', description: 'Gmail inbox', kind: 'pipeline', verdict: { due: false, kind: 'requires', blocked_by: ['credential gmail'] } })], unreadable: [] },
         'wiki.jobs.due': { parked: [{ id: 'p1', job: 'gmail', stage: 'harvest', reason: 'login expired' }], review: [], handoffs: { problems: [] } },
-        'wiki.tickets.ls': { tickets: [] },
-        'wiki.page.ls': { pages: [{ path: 'sources/web/a.md', status: 'draft', change: 'current' }, { path: 'wiki/n.md', status: null, change: 'new' }, { path: 'sources/web/b.md', status: 'stable', change: 'current' }, { path: 'sources/notes/dropped.md', status: null, change: 'new' }] },
+        'wiki.tickets.list': { tickets: [] },
+        'wiki.page.list': { pages: [{ path: 'sources/web/a.md', status: 'draft', change: 'current' }, { path: 'wiki/n.md', status: null, change: 'new' }, { path: 'sources/web/b.md', status: 'stable', change: 'current' }, { path: 'sources/notes/dropped.md', status: null, change: 'new' }] },
         'wiki.op.since': { runs: [{ op: 'pass', outcome: 'ok', when: '2026-10-23T11:40:00Z', summary: 'pass ok' }] },
         'wiki.search.status': { engine_configured: false, realm_ready: false, serving: 'grep' },
         'wiki.git.conflicts': { pages: [] },
-        'machine.runner.ls': { wikis: [] },
+        'machine.runner.list': { wikis: [] },
         ...EMPTY_UNITS,
       }),
       'kb',
@@ -230,8 +235,8 @@ describe('takeSnapshot', () => {
   it('records a failed read and still answers', async () => {
     const snap = await takeSnapshot(reader({ 'wiki.doctor': { rows: [] } }), 'kb', NOW)
     expect(snap.health).toEqual({ tone: 'ok', count: 0 })
-    expect(Object.keys(snap.errors)).toContain('wiki.jobs.ls')
-    expect(snap.errors['wiki.jobs.ls']).toBe('refused')
+    expect(Object.keys(snap.errors)).toContain('wiki.jobs.list')
+    expect(snap.errors['wiki.jobs.list']).toBe('refused')
     expect(snap.pages).toBeNull()
     expect(snap.fleet).toEqual([])
     expect(snap.sync).toBeNull()
@@ -241,14 +246,14 @@ describe('takeSnapshot', () => {
     const snap = await takeSnapshot(
       reader({
         'wiki.doctor': { rows: [] },
-        'wiki.jobs.ls': { jobs: [job({ verdict: { due: true, kind: null } })] },
+        'wiki.jobs.list': { jobs: [job({ verdict: { due: true, kind: null } })] },
         'wiki.jobs.due': { parked: [], review: [{ id: 'r1', job: 'ops-hourly', stage: 'routine', reason: null }], handoffs: { problems: [] } },
-        'wiki.tickets.ls': { tickets: [{ id: 'r1', stage: 'routine', state: 'pending', slug: 'ops-hourly' }] },
-        'wiki.page.ls': { pages: [{ path: 'sources/web/a.md', status: 'stable' }] },
+        'wiki.tickets.list': { tickets: [{ id: 'r1', stage: 'routine', state: 'pending', slug: 'ops-hourly' }] },
+        'wiki.page.list': { pages: [{ path: 'sources/web/a.md', status: 'stable' }] },
         'wiki.op.since': { runs: [] },
         'wiki.search.status': {},
         'wiki.git.conflicts': { pages: [] },
-        'machine.runner.ls': { wikis: [{ wiki_key: 'kb', installed: {} }] },
+        'machine.runner.list': { wikis: [{ wiki_key: 'kb', installed: {} }] },
         ...EMPTY_UNITS,
       }),
       'kb',
@@ -264,7 +269,7 @@ describe('takeSnapshot', () => {
   it('reads #3669 rows, the fleet, the clone and the week of commits', async () => {
     const snap = await takeSnapshot(
       reader({
-        'wiki.page.ls': { pages: [
+        'wiki.page.list': { pages: [
           { path: 'sources/web/a.md', status: null, change: 'current', curate_candidate: true, draft: false, archive: false },
           { path: 'sources/web/b.md', status: 'draft', change: 'edited', curate_candidate: false, draft: true, archive: false },
           { path: 'sources/web/c.md', status: 'stable', change: 'edited', curate_candidate: false, draft: false, archive: false },

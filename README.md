@@ -49,7 +49,7 @@ the gear opens the plugin settings.
   edited); unstamped ones name `llm-wiki-ops doctor --fix`, which **Stamp
   them** hands to the agent.
 - **Reports**: the briefs the agents wrote under `wiki/reports/`, newest
-  first, read from the vault with no CLI call. The daily-report skill writes
+  first, read from the vault with no CLI call. The morning-brief skill writes
   a markdown record, `YYYY-MM-DD.md`, and a standalone HTML brief beside it,
   which the record names in `dashboard:`; this tab pairs them. The latest
   leads with its lede and the items it says need you, with **Open the brief**
@@ -273,9 +273,11 @@ far as Obsidian does. Scripts off narrows that too.
 ## Requirements
 
 - Obsidian 1.7.2 or later on macOS or Linux.
-- The llm-wiki distribution installed on the machine: `llm-wiki-cli` on the
-  login shell's PATH, or its path set in the plugin settings.
-- The vault is a registered wiki (`llm-wiki-cli machine wikis ls` lists it at
+- The llm-wiki distribution installed on the machine, llm-wiki-ops 0.16.0 or
+  later (checked against 0.18.0): `llm-wiki-cli` on the login shell's PATH, or
+  its path set in the plugin settings. An older CLI spells the list verbs `ls`
+  and `inboxes remove` as `rm`; the plugin says so at detect.
+- The vault is a registered wiki (`llm-wiki-cli machine wikis list` lists it at
   the vault's path). If the path differs (a symlink), set the wiki key in the
   plugin settings.
 - Chat: the `claude` binary on the login shell's PATH, or its path set

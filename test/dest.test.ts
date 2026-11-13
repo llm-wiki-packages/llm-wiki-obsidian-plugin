@@ -23,7 +23,7 @@ const jobs = [{ slug: 'acme-blog', name: 'Acme engineering blog' }] as JobView[]
 describe('the dest verbs', () => {
   it('reads jobs check and the updates waiting under the read floor', () => {
     expect(VERBS['wiki.jobs.check']({ wiki: 'kb' })).toEqual(['wiki', '--read-only', 'kb', 'jobs', 'check', '--json'])
-    expect(VERBS['wiki.page.updatesWaiting']({ wiki: 'kb' })).toEqual(['wiki', '--read-only', 'kb', 'page', 'ls', 'filter=prop:ops.updates_waiting', '--json'])
+    expect(VERBS['wiki.page.updatesWaiting']({ wiki: 'kb' })).toEqual(['wiki', '--read-only', 'kb', 'page', 'list', 'filter=prop:ops.updates_waiting', '--json'])
     expect(childEnv({}, 'wiki.jobs.check').LLM_WIKI_PERMISSIONS).toBe('read')
   })
   it('re-points with --confirm after the verb path, marked attended, and refuses a dest that is not a vault folder', () => {
@@ -96,11 +96,11 @@ describe('updates waiting', () => {
 })
 
 const QUIET: Partial<Record<Verb, unknown>> = {
-  'wiki.doctor': { rows: [] }, 'wiki.jobs.ls': { jobs: [] }, 'wiki.jobs.due': { parked: [], review: [], handoffs: { problems: [] } }, 'wiki.tickets.ls': { tickets: [] },
-  'wiki.page.ls': { pages: [] }, 'wiki.op.since': { runs: [] }, 'wiki.search.status': {}, 'wiki.git.conflicts': { pages: [] }, 'machine.runner.ls': { wikis: [] },
+  'wiki.doctor': { rows: [] }, 'wiki.jobs.list': { jobs: [] }, 'wiki.jobs.due': { parked: [], review: [], handoffs: { problems: [] } }, 'wiki.tickets.list': { tickets: [] },
+  'wiki.page.list': { pages: [] }, 'wiki.op.since': { runs: [] }, 'wiki.search.status': {}, 'wiki.git.conflicts': { pages: [] }, 'machine.runner.list': { wikis: [] },
   'wiki.git.log': { commits: [] }, 'wiki.git.status': { files: [] }, 'wiki.whereami': { needs_you: 0, needs_you_parts: { held: [], curate: [], conflicts: [] } },
-  'wiki.inboxes.ls': { messages: [] }, 'wiki.page.held': { pages: [] }, 'wiki.page.heldRoots': { pages: [] },
-  'wiki.skills.ls': { skills: [] }, 'wiki.skills.doctor': { findings: [] }, 'wiki.packages.ls': { this_wiki: [] }, 'wiki.credentials.ls': { rows: [] }, 'wiki.credentials.bindings': { skills: [], jobs: [] },
+  'wiki.inboxes.list': { messages: [] }, 'wiki.page.held': { pages: [] }, 'wiki.page.heldRoots': { pages: [] },
+  'wiki.skills.list': { skills: [] }, 'wiki.skills.doctor': { findings: [] }, 'wiki.packages.list': { this_wiki: [] }, 'wiki.credentials.list': { rows: [] }, 'wiki.credentials.bindings': { skills: [], jobs: [] },
 }
 
 function reader(answers: Partial<Record<Verb, unknown>>, calls: Verb[] = []): Reader {

@@ -53,6 +53,11 @@ export class TidyProperties {
     })
   }
 
+  /** Something a row's marks read changed (a root's frontmatter, the wiki found): redraw every panel. */
+  refresh(): void {
+    this.pass()
+  }
+
   /** The setting changed: turn the sorting and folding on or off. */
   apply(): void {
     document.body.toggleClass(ON, this.plugin.settings.tidyProperties)
@@ -98,27 +103,33 @@ export class TidyProperties {
         if (bookkeeping) hidden++
       }
       if (box.hasClass(OPEN) !== this.open) box.toggleClass(OPEN, this.open)
-      let more = box.querySelector<HTMLElement>(`.${MORE}`)
-      if (!on || !hidden) {
-        more?.remove()
-        continue
-      }
-      if (!more) {
-        more = createDiv({ cls: MORE, attr: { role: 'button', tabindex: '0' } })
-        more.addEventListener('click', () => this.toggle())
-        more.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault()
-            this.toggle()
-          }
-        })
-        list.after(more)
-      }
-      const text = moreText(hidden, this.open)
-      if (more.getText() !== text) more.setText(text)
-      const title = this.open ? 'Hide the wiki’s bookkeeping properties' : `Show the wiki’s bookkeeping properties: ${BOOKKEEPING_KEYS.join(', ')}`
-      if (more.title !== title) more.title = title
+      this.more(box, list, on, hidden)
+      this.plugin.lendCues.draw(box, list)
     }
+  }
+
+  /** The More row: added where it is missing, kept counting, taken off when nothing is folded. */
+  private more(box: HTMLElement, list: HTMLElement, on: boolean, hidden: number): void {
+    let more = box.querySelector<HTMLElement>(`.${MORE}`)
+    if (!on || !hidden) {
+      more?.remove()
+      return
+    }
+    if (!more) {
+      more = createDiv({ cls: MORE, attr: { role: 'button', tabindex: '0' } })
+      more.addEventListener('click', () => this.toggle())
+      more.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          this.toggle()
+        }
+      })
+      list.after(more)
+    }
+    const text = moreText(hidden, this.open)
+    if (more.getText() !== text) more.setText(text)
+    const title = this.open ? 'Hide the wiki’s bookkeeping properties' : `Show the wiki’s bookkeeping properties: ${BOOKKEEPING_KEYS.join(', ')}`
+    if (more.title !== title) more.title = title
   }
 
   private toggle(): void {

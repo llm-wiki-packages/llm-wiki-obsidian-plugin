@@ -36,11 +36,11 @@ function reader(answers: Partial<Record<Verb, unknown>>, seen: [Verb, Args | und
 }
 
 const WIKI = (rows: unknown[]): Partial<Record<Verb, unknown>> => ({
-  'wiki.jobs.ls': { jobs: [{ slug: 'inbox-joe', description: '', every: '1h', state: 'active', kind: 'pipeline', skill: 'channel-gmail', stages: [] }] },
-  'wiki.skills.ls': { skills: rows },
+  'wiki.jobs.list': { jobs: [{ slug: 'inbox-joe', description: '', every: '1h', state: 'active', kind: 'pipeline', skill: 'channel-gmail', stages: [] }] },
+  'wiki.skills.list': { skills: rows },
   'wiki.skills.doctor': { findings: [] },
-  'wiki.packages.ls': { this_wiki: [] },
-  'wiki.credentials.ls': { rows: [] },
+  'wiki.packages.list': { this_wiki: [] },
+  'wiki.credentials.list': { rows: [] },
   'wiki.credentials.bindings': { skills: [], jobs: [] },
 })
 
@@ -166,7 +166,7 @@ describe('the snapshot from skills ls rows', () => {
       throw new Error('no such file')
     }
     const snap = await takeSnapshot(reader({ ...WIKI(ROWS.slice(4)),
-      'wiki.packages.ls': { this_wiki: [{ package: 'llm-wiki-packages/llm-wiki-skills' }], installed: [{ package: 'llm-wiki-packages/llm-wiki-skills', cache: '~/cache/llm-wiki-skills' }] },
+      'wiki.packages.list': { this_wiki: [{ package: 'llm-wiki-packages/llm-wiki-skills' }], installed: [{ package: 'llm-wiki-packages/llm-wiki-skills', cache: '~/cache/llm-wiki-skills' }] },
       'wiki.packages.show': { shown: '0.6.0', shown_ref: 'abc', manifest: { artifacts: [{ type: 'skill', name: 'channel-youtube' }, { type: 'skill', name: 'web-page' }] } },
     }), 'kb', NOW, { root: '/w', home: '/h', read })
     expect(snap.skills.map((s) => [s.name, s.description, s.mode])).toEqual([['channel-youtube', 'YouTube capture.', ['pipeline']], ['web-page', 'Fetch a web page.', null]])
@@ -186,7 +186,7 @@ describe('an older CLI, whose rows carry no mode', () => {
   })
   it('holds no / list, so the plugin cache answers as before', async () => {
     expect((await takeSnapshot(reader(WIKI(OLD_ROWS)), 'kb', NOW)).palette).toBeNull()
-    expect((await takeSnapshot(reader({ ...WIKI([]), 'wiki.skills.ls': undefined }), 'kb', NOW)).palette).toBeNull()
+    expect((await takeSnapshot(reader({ ...WIKI([]), 'wiki.skills.list': undefined }), 'kb', NOW)).palette).toBeNull()
   })
   it('lists the units with a stage as what a job can run, and no plugin routines', async () => {
     const snap = await takeSnapshot(reader(WIKI([...OLD_ROWS, { name: 'notes-only', state: 'enabled', stages: [] }])), 'kb', NOW)

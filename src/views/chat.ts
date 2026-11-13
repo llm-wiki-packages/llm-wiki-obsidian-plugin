@@ -445,14 +445,16 @@ export function toolSentence(tool: string, detail?: string): string | null {
   const m = /^(?:LLM_WIKI_[A-Z_]+=\S+\s+)*(?:llm-wiki-ops|llm-wiki-cli wiki(?: --read-only)? \S+)\s+(.*)$/.exec(detail.trim())
   if (!m) return null
   const words = (m[1] ?? '').replace(/\s--json\b/, '').split(/\s+/)
-  const [a, b, c] = words
+  const [a, said, c] = words
+  // The list verbs are `list` from ops 0.16, and still answer to `ls`.
+  const b = said === 'ls' ? 'list' : said
   const arg = c && !c.includes('=') && !c.startsWith('-') ? c : undefined
   const table: Record<string, string> = {
-    'jobs request': `Running ${arg ?? 'a job'}`, 'jobs ls': 'Reading the job list', 'jobs due': 'Reading what is due', 'jobs show': `Reading job ${arg ?? ''}`, 'jobs add': 'Declaring a job', 'jobs run': 'Running the pass',
-    'tickets ls': 'Reading the run list', 'tickets retry': `Retrying run ${arg ?? ''}`, 'page ls': 'Reading the page list', 'page curate': 'Curating pages', 'page adopt': 'Adopting pages',
-    'search query': 'Searching the wiki', 'search index': 'Refreshing the search index', 'doctor': 'Running the doctor', 'status': 'Reading the status', 'skills ls': 'Reading the skills', 'skills install': `Installing ${arg ?? 'a skill'}`,
-    'skills enable': `Enabling ${arg ?? 'a skill'}`, 'skills bind': 'Binding a skill to its profile', 'sandboxes enable': `Enabling the ${arg ?? ''} profile`, 'credentials ls': 'Reading the credential list', 'credentials bind': 'Binding a credential',
-    'inboxes ls': 'Reading the inbox', 'inboxes read': `Reading message ${arg ?? ''}`, 'inboxes write': 'Writing to an inbox', 'inboxes sweep': 'Sending the answered messages',
+    'jobs request': `Running ${arg ?? 'a job'}`, 'jobs list': 'Reading the job list', 'jobs due': 'Reading what is due', 'jobs show': `Reading job ${arg ?? ''}`, 'jobs add': 'Declaring a job', 'jobs run': 'Running the pass',
+    'tickets list': 'Reading the run list', 'tickets retry': `Retrying run ${arg ?? ''}`, 'page list': 'Reading the page list', 'page curate': 'Curating pages', 'page adopt': 'Adopting pages',
+    'search query': 'Searching the wiki', 'search index': 'Refreshing the search index', 'doctor': 'Running the doctor', 'status': 'Reading the status', 'skills list': 'Reading the skills', 'skills install': `Installing ${arg ?? 'a skill'}`,
+    'skills enable': `Enabling ${arg ?? 'a skill'}`, 'skills bind': 'Binding a skill to its profile', 'sandboxes enable': `Enabling the ${arg ?? ''} profile`, 'credentials list': 'Reading the credential list', 'credentials bind': 'Binding a credential',
+    'inboxes list': 'Reading the inbox', 'inboxes read': `Reading message ${arg ?? ''}`, 'inboxes write': 'Writing to an inbox', 'inboxes sweep': 'Sending the answered messages',
     'op since': 'Reading recent runs', 'op record': 'Recording the run', 'git commit': 'Committing', 'git sync': 'Syncing',
     'whereami': 'Checking how this session runs', 'git log': 'Reading recent history', 'page read': `Reading ${arg ?? 'a page'}`, 'page history': 'Reading a page’s history', 'search status': 'Checking search', 'reference': 'Reading the reference',
   }

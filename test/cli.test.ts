@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { Cli, CliError, VERBS, approvalCode, childEnv, question } from '../src/wiki/cli'
+import { Cli, CliError, VERBS, approvalCode, childEnv, question, tooOld } from '../src/wiki/cli'
 import { Actions } from '../src/wiki/actions'
 
 describe('the verb table', () => {
@@ -47,7 +47,7 @@ describe('the verb table', () => {
   })
 
   it('spells the skills, packages and credentials verbs, with the secret nowhere in argv', () => {
-    expect(VERBS['wiki.skills.show']({ wiki: 'kb', name: 'channel-gmail' })).toEqual(['wiki', '--read-only', 'kb', 'skills', 'ls', 'channel-gmail', '--json'])
+    expect(VERBS['wiki.skills.show']({ wiki: 'kb', name: 'channel-gmail' })).toEqual(['wiki', '--read-only', 'kb', 'skills', 'list', 'channel-gmail', '--json'])
     expect(VERBS['wiki.packages.show']({ wiki: 'kb', name: 'llm-wiki-packages/llm-wiki-skills' })).toEqual(['wiki', '--read-only', 'kb', 'packages', 'show', 'llm-wiki-packages/llm-wiki-skills', '--json'])
     expect(VERBS['wiki.credentials.set']({ wiki: 'kb', name: 'gmail-token', kind: 'value' })).toEqual(['wiki', 'kb', 'credentials', 'set', 'gmail-token', 'kind=value', '--json'])
     expect(VERBS['wiki.credentials.set']({ wiki: 'kb', name: 'yt-cookies', kind: 'dir', dir: '/Users/me/cookies' })).toEqual(['wiki', 'kb', 'credentials', 'set', 'yt-cookies', 'kind=dir', 'path=/Users/me/cookies', '--json'])
@@ -82,13 +82,13 @@ describe('the runner against a stand-in binary', () => {
   it('parses a JSON answer', async () => {
     // The stand-in ignores its argv and prints one object.
     const cli = new Cli({ bin: node, prefix: ['-e', 'process.stdout.write(process.env.FAKE_OUT)'], env: { ...process.env, FAKE_OUT: '{"count":1,"wikis":[{"key":"kb","name":"KB","path":"/tmp/kb"}]}' }, timeoutMs: 5000 })
-    const ans = await cli.run<{ count: number }>('machine.wikis.ls')
+    const ans = await cli.run<{ count: number }>('machine.wikis.list')
     expect(ans.count).toBe(1)
   })
 
   it('reports the envelope error key on a refusal', async () => {
     const cli = new Cli({ bin: node, prefix: ['-e', 'process.stdout.write(process.env.FAKE_OUT); process.exit(2)'], env: { ...process.env, FAKE_OUT: '{"error":"refused","message":"no such wiki"}' }, timeoutMs: 5000 })
-    await expect(cli.run('machine.wikis.ls')).rejects.toMatchObject({ kind: 'exit', rc: 2, message: expect.stringContaining('no such wiki') })
+    await expect(cli.run('machine.wikis.list')).rejects.toMatchObject({ kind: 'exit', rc: 2, message: expect.stringContaining('no such wiki') })
   })
 
   it('hands stdin to the child and closes it', async () => {
@@ -201,6 +201,11 @@ describe('Actions.runJob says what the request answered', () => {
     expect(await new Actions(standIn('{"slug":"yt","minted":true,"outcome":"failed","error":"cookies expired","written":[]}', 1), 'kb').runJob('yt')).toEqual({ ok: false, message: 'yt ran and stopped: cookies expired' })
     expect(await new Actions(standIn('{"slug":"yt","minted":true,"outcome":"running","ticket":"t","written":[]}', 1), 'kb').runJob('yt')).toEqual({ ok: true, message: 'yt started; still running' })
   })
+  it('waiting to retry when every ticket left sits out a backoff (ops 0.16), on either exit', async () => {
+    const body = '{"outcome":"backoff","error":"rate limited","written":[],"next":"t9","held":[{"reason":"rate limited","tickets":["t9"],"retry_at":"not-a-time"}],"retry_at":"not-a-time"}'
+    expect(await new Actions(standIn(body), 'kb').runJob('yt')).toEqual({ ok: false, message: 'yt is waiting to retry: rate limited' })
+    expect(await new Actions(standIn(body, 1), 'kb').runJob('yt')).toEqual({ ok: false, message: 'yt is waiting to retry: rate limited' })
+  })
   it('says when a retried ticket had already landed, and does not run the pass for it', async () => {
     const a = new Actions(standIn('{"item":"t1","queue":"harvest","already_landed":true}'), 'kb')
     expect(await a.retryTicket('t1')).toMatchObject({ ok: true, landed: true })
@@ -247,5 +252,14 @@ describe('search filters, index and reindex', () => {
   it('says what a rebuild removed', async () => {
     const out = await new Actions(standIn('{"owner":"search_server","status":"synced","report":{"indexed":5,"unchanged":95,"deleted":["wiki/gone.md","wiki/old.md"],"failed":[],"refused":[],"conflicts":[]}}'), 'kb').reindex()
     expect(out).toEqual({ ok: true, message: 'search index rebuilt: 100 files, 2 missing pages removed' })
+  })
+})
+
+describe('tooOld: a CLI older than the verb names the plugin spells', () => {
+  it('reads click\'s unknown-command refusal of `list` or `remove`, and nothing else', () => {
+    expect(tooOld(new CliError('machine.wikis.list: rc 2', 'exit', 2, "Usage: llm-wiki-cli machine wikis [OPTIONS] COMMAND [ARGS]...\nError: No such command 'list'."))).toBe(true)
+    expect(tooOld(new CliError('wiki.inboxes.remove: rc 2', 'exit', 2, "Error: No such command 'remove'."))).toBe(true)
+    expect(tooOld(new CliError('wiki.jobs.request: no job', 'exit', 2, ''))).toBe(false)
+    expect(tooOld(new Error("No such command 'list'"))).toBe(false)
   })
 })

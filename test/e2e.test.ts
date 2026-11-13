@@ -24,7 +24,7 @@ describe.skipIf(!bin || !vault)('the seam against a real CLI', () => {
   })
 
   it('matches the vault to its registered wiki', async () => {
-    const rows = await cli().run<{ wikis: WikiRow[] }>('machine.wikis.ls')
+    const rows = await cli().run<{ wikis: WikiRow[] }>('machine.wikis.list')
     const row = matchWiki(rows.wikis, vault!)
     expect(row?.key).toBe('scratch')
   })
@@ -136,13 +136,13 @@ describe.skipIf(!bin || !inboxKey)('the inbox against a real CLI', () => {
     expect((await takeSnapshot(cli(), inboxKey!)).inbox?.find((x) => x.id === id)?.seen).toBe(true)
 
     // A person's answer, typed under the message and saved by the editor, which is what Done saves first.
-    const wikis = await cli().run<{ wikis: WikiRow[] }>('machine.wikis.ls')
+    const wikis = await cli().run<{ wikis: WikiRow[] }>('machine.wikis.list')
     const root = wikis.wikis.find((w) => w.key === inboxKey)!.path
     const file = join(root, m!.path)
     await writeFile(file, (await readFile(file, 'utf8')) + '\nYes, and tag them newsletter.\n')
     const done = await actions.doneMessage(m!)
     expect(done).toEqual({ ok: true, message: `Replied to “e2e question ${stamp}”: your answer went to improve` })
-    const improve = await cli().run<InboxLsAnswer>('wiki.inboxes.ls', { wiki: inboxKey, name: 'improve' })
+    const improve = await cli().run<InboxLsAnswer>('wiki.inboxes.list', { wiki: inboxKey, name: 'improve' })
     const reply = (improve.messages ?? []).find((r) => r.in_reply_to === id)
     expect(reply).toBeDefined()
     const sent = await actions.readMessage({ inbox: 'improve', id: reply!.id, subject: reply!.subject ?? '' })

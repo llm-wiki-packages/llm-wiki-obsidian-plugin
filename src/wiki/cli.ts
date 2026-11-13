@@ -44,6 +44,8 @@ export interface Args {
   dirs?: string[]
   /** One vault-relative page, for the verbs that read a single page. */
   path?: string
+  /** `narrate`'s mode: read or podcast. */
+  mode?: string
   /** `inboxes done`: the body already holds an answer the person typed, so it is archived, never deleted. */
   answered?: boolean
   /** `page resolve`: keep the person's page, or write the pipeline's render over it. */
@@ -97,6 +99,14 @@ export class CliError extends Error {
   get short(): string {
     return this.message.replace(/^[a-z]+(\.[A-Za-z]+)+: /, '')
   }
+}
+
+/** The release whose verb names the plugin spells (`list`, `remove`); an older CLI knows them as `ls` and `rm`. */
+export const MIN_OPS = '0.16.0'
+
+/** A CLI older than MIN_OPS: it refused a verb by name as unknown (click's `No such command`). */
+export function tooOld(e: unknown): boolean {
+  return e instanceof CliError && e.rc === 2 && /No such command '(list|remove)'/.test(e.stderr ?? '')
 }
 
 const KEY = /^[a-z0-9][a-z0-9_-]{0,63}$/
@@ -165,6 +175,12 @@ function since(v: string | undefined, fallback: string): string {
 /** A vault-relative page path: no leading slash, no `..` segment. */
 function rel(v: string): string {
   if (!REL.test(v)) throw new CliError(`bad page path: ${v}`, 'args')
+  return v
+}
+
+/** The modes `narrate` takes; anything else is refused before the CLI sees it. */
+function narrateMode(v: string | undefined): string {
+  if (v !== 'read' && v !== 'podcast') throw new CliError(`bad narrate mode: ${String(v)}`, 'args')
   return v
 }
 
@@ -310,16 +326,16 @@ const wiki = (a: Args, ...rest: string[]) => ['wiki', '--read-only', key(a.wiki)
 const write = (a: Args, ...rest: string[]) => ['wiki', key(a.wiki), ...rest, '--json']
 
 export const VERBS = {
-  'machine.wikis.ls': () => ['machine', 'wikis', 'ls', '--json'],
-  'machine.runner.ls': () => ['machine', 'runner', 'ls', '--json'],
+  'machine.wikis.list': () => ['machine', 'wikis', 'list', '--json'],
+  'machine.runner.list': () => ['machine', 'runner', 'list', '--json'],
   'wiki.doctor': (a: Args) => wiki(a, 'doctor'),
   'wiki.search.status': (a: Args) => wiki(a, 'search', 'status'),
-  'wiki.jobs.ls': (a: Args) => wiki(a, 'jobs', 'ls', '--verbose'),
+  'wiki.jobs.list': (a: Args) => wiki(a, 'jobs', 'list', '--verbose'),
   'wiki.jobs.due': (a: Args) => wiki(a, 'jobs', 'due'),
   /** Where each job's pages sit against its dest: ok, fresh, renamed, scattered or moved-out, with the `jobs edit` that re-points one. */
   'wiki.jobs.check': (a: Args) => wiki(a, 'jobs', 'check'),
-  'wiki.tickets.ls': (a: Args) => wiki(a, 'tickets', 'ls'),
-  'wiki.page.ls': (a: Args) => wiki(a, 'page', 'ls'),
+  'wiki.tickets.list': (a: Args) => wiki(a, 'tickets', 'list'),
+  'wiki.page.list': (a: Args) => wiki(a, 'page', 'list'),
   'wiki.git.conflicts': (a: Args) => wiki(a, 'git', 'conflicts'),
   // What moved under the corpus trees since a commit: the index's own marker, for what it has not seen.
   'wiki.git.changed': (a: Args) => wiki(a, 'git', 'changed', ...trees(a.dirs), `filter=since:${commit(a.commit)}`),
@@ -330,34 +346,38 @@ export const VERBS = {
   'wiki.page.history': (a: Args) => wiki(a, 'page', 'history', rel(a.path ?? '')),
   /** What changed in a page: the edits since the last save, or with `commit` that commit's own change. */
   'wiki.page.diff': (a: Args) => wiki(a, 'page', 'diff', rel(a.path ?? ''), ...(a.commit === undefined ? [] : [`commit=${commit(a.commit)}`])),
+  /** The bundle roots above a page, each lent value with the root it came from, and what the next write would change. */
+  'wiki.page.explain': (a: Args) => wiki(a, 'page', 'explain', rel(a.path ?? '')),
+  /** Each page with audio, and each mode's state: done, stale (the text changed since), failed, queued. */
+  'wiki.page.audio': (a: Args) => wiki(a, 'page', 'list', 'filter=audio:any'),
   /** Every page carrying one `document_id`, wherever each sits. */
-  'wiki.page.find': (a: Args) => wiki(a, 'page', 'ls', `id=${documentId(a.id)}`),
+  'wiki.page.find': (a: Args) => wiki(a, 'page', 'list', `id=${documentId(a.id)}`),
   /** Where the wiki is and its resolved layout: the trees, raw captures, templates. */
   'wiki.whereami': (a: Args) => wiki(a, 'whereami'),
   /** One inbox's messages, every machine's: a person answers wherever they sit. */
-  'wiki.inboxes.ls': (a: Args) => wiki(a, 'inboxes', 'ls', inbox(a.name), '--all'),
+  'wiki.inboxes.list': (a: Args) => wiki(a, 'inboxes', 'list', inbox(a.name), '--all'),
   /** The open conflicts: the same verb, under a key of its own so a failure here is not the inbox's. */
-  'wiki.inboxes.conflicts': (a: Args) => wiki(a, 'inboxes', 'ls', 'conflicts', '--all'),
+  'wiki.inboxes.conflicts': (a: Args) => wiki(a, 'inboxes', 'list', 'conflicts', '--all'),
   /** The `sources/` pages whose `ingest` lever reads `hold`, their own key, their root's or the wiki's default. */
-  'wiki.page.held': (a: Args) => wiki(a, 'page', 'ls', 'filter=under:sources', 'filter=lever:ingest=hold'),
+  'wiki.page.held': (a: Args) => wiki(a, 'page', 'list', 'filter=under:sources', 'filter=lever:ingest=hold'),
   /** The bundle roots whose subtree reads `ingest: hold`, to group the held pages under. A root says so in its `ops` object (page shape 3). */
-  'wiki.page.heldRoots': (a: Args) => wiki(a, 'page', 'ls', 'filter=under:sources', 'filter=prop:ops.root', 'filter=lever:ingest=hold'),
+  'wiki.page.heldRoots': (a: Args) => wiki(a, 'page', 'list', 'filter=under:sources', 'filter=prop:ops.root', 'filter=lever:ingest=hold'),
   /** The pages a job's update waits on: the incoming copy is in `_versions/`, and `page resolve` clears it. */
-  'wiki.page.updatesWaiting': (a: Args) => wiki(a, 'page', 'ls', 'filter=prop:ops.updates_waiting'),
+  'wiki.page.updatesWaiting': (a: Args) => wiki(a, 'page', 'list', 'filter=prop:ops.updates_waiting'),
   /** Each uncommitted path under the swept trees, with how it changed. */
   'wiki.git.status': (a: Args) => wiki(a, 'git', 'status'),
   /** The frontmatter and body a template would add to a page; writes nothing. */
   'wiki.page.template': (a: Args) => wiki(a, 'page', 'template', rel(a.path ?? '')),
   /** Every config row: what applies, each layer's own value, where it may be written, its type and doc. */
   'wiki.config.get': (a: Args) => wiki(a, 'config', 'get'),
-  'wiki.skills.ls': (a: Args) => wiki(a, 'skills', 'ls'),
+  'wiki.skills.list': (a: Args) => wiki(a, 'skills', 'list'),
   // An exact name carries the manifest: what the unit needs and how it is used.
-  'wiki.skills.show': (a: Args) => wiki(a, 'skills', 'ls', unit(a.name)),
+  'wiki.skills.show': (a: Args) => wiki(a, 'skills', 'list', unit(a.name)),
   'wiki.skills.doctor': (a: Args) => wiki(a, 'skills', 'doctor'),
-  'wiki.packages.ls': (a: Args) => wiki(a, 'packages', 'ls'),
+  'wiki.packages.list': (a: Args) => wiki(a, 'packages', 'list'),
   'wiki.packages.show': (a: Args) => wiki(a, 'packages', 'show', pkg(a.name)),
   // The CLI counts these as writes (they refresh the status store), so they run without the floor; they still show no value.
-  'wiki.credentials.ls': (a: Args) => write(a, 'credentials', 'ls'),
+  'wiki.credentials.list': (a: Args) => write(a, 'credentials', 'list'),
   'wiki.credentials.bindings': (a: Args) => write(a, 'credentials', 'bindings'),
   // Writes a click asks for. None is a protected write under the attendance rule.
   'wiki.jobs.request': (a: Args) => write(a, 'jobs', 'request', slug(a.slug), ...(a.wait ? [`wait=${Math.max(1, Math.min(600, Math.trunc(a.wait)))}s`] : [])),
@@ -366,7 +386,7 @@ export const VERBS = {
   'wiki.tickets.retry': (a: Args) => write(a, 'tickets', 'retry', ticket(a.id)),
   // `read` drops this machine's read marker, which is committed, so it is a write; it answers the message whole.
   'wiki.inboxes.read': (a: Args) => write(a, 'inboxes', 'read', inbox(a.name), message(a.id)),
-  'wiki.inboxes.rm': (a: Args) => write(a, 'inboxes', 'rm', inbox(a.name), message(a.id)),
+  'wiki.inboxes.remove': (a: Args) => write(a, 'inboxes', 'remove', inbox(a.name), message(a.id)),
   // One message closed now, as the sweep closes a ticked one; a job ask is ticked and left for the job (llm-wiki-plugins #3940).
   'wiki.inboxes.done': (a: Args) => write(a, 'inboxes', 'done', inbox(a.name), message(a.id), ...(a.answered ? ['--answered'] : [])),
   // Every message ticked `done`: forwarded to its `reply_to` as `Re:`, then removed.
@@ -392,6 +412,9 @@ export const VERBS = {
   'wiki.page.adopt': (a: Args) => write(a, 'page', 'adopt', ...paths(a.paths)),
   // Frontmatter repairs; with `force`, a copy Obsidian just made gets its own id (the CLI refuses the older copy by name).
   'wiki.page.fix': (a: Args) => write(a, 'page', 'fix', ...paths(a.paths), ...(a.force ? ['--force'] : [])),
+  // One page read aloud now, on this machine's narrate engine: local CPU, no model. It replaces the page's audio for
+  // that mode and embeds it at the top of the page.
+  'wiki.narrate': (a: Args) => write(a, 'narrate', rel(a.path ?? ''), `mode=${narrateMode(a.mode)}`),
   /** The sweep: every uncommitted change under the wiki's trees, adopted, observed and committed by author. */
   'wiki.git.commit': (a: Args) => write(a, 'git', 'commit'),
   'wiki.git.sync': (a: Args) => write(a, 'git', 'sync'),
@@ -430,8 +453,8 @@ const ATTENDED: ReadonlySet<Verb> = new Set<Verb>(['wiki.credentials.set', 'wiki
 const EDITOR: ReadonlySet<Verb> = new Set<Verb>(['wiki.page.curate', 'wiki.page.adopt', 'wiki.page.fix', 'wiki.page.resolve', 'wiki.git.commit'])
 
 const WRITES: ReadonlySet<Verb> = new Set<Verb>([
-  'wiki.harness.run', 'wiki.jobs.request', 'wiki.jobs.pause', 'wiki.jobs.resume', 'wiki.tickets.retry', 'wiki.inboxes.read', 'wiki.inboxes.rm', 'wiki.inboxes.done', 'wiki.inboxes.sweep', 'wiki.git.sync', 'wiki.search.index', 'wiki.search.reindex',
-  'wiki.config.set', 'wiki.config.patch', 'wiki.config.unset', 'wiki.credentials.ls', 'wiki.credentials.bindings', ...ATTENDED, ...EDITOR,
+  'wiki.harness.run', 'wiki.narrate', 'wiki.jobs.request', 'wiki.jobs.pause', 'wiki.jobs.resume', 'wiki.tickets.retry', 'wiki.inboxes.read', 'wiki.inboxes.remove', 'wiki.inboxes.done', 'wiki.inboxes.sweep', 'wiki.git.sync', 'wiki.search.index', 'wiki.search.reindex',
+  'wiki.config.set', 'wiki.config.patch', 'wiki.config.unset', 'wiki.credentials.list', 'wiki.credentials.bindings', ...ATTENDED, ...EDITOR,
 ])
 
 /** The gate's one-time code, `<seq>:<chars>` in lowercase Crockford base32 (`OPS/lib/gate.py` `CODE_RE`). */

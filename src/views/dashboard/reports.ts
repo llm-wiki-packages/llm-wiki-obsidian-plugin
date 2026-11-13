@@ -102,11 +102,11 @@ function noReports(parent: HTMLElement, ctx: TabContext): void {
   const job = snapshot.jobs.find((j) => j.slug === 'ops-morning') ?? snapshot.jobs.find((j) => /morning|brief|daily.report/i.test(`${j.slug} ${j.name}`))
   if (job) {
     const card = empty(parent, 'No reports yet.', job.paused
-      ? `The ${job.slug} job writes one each morning once it is resumed. It runs the wiki’s daily-report skill, which writes a record under wiki/reports/ and a brief beside it.`
+      ? `The ${job.slug} job writes one each morning once it is resumed. It runs the wiki’s morning-brief skill, which writes a record under wiki/reports/ and a brief beside it.`
       : `The ${job.slug} job writes one each morning, into wiki/reports/.`)
     button(card, 'Open the job', () => openJobModal(ctx.plugin.app, job, ctx), { icon: 'calendar-clock' })
     return
   }
-  const card = empty(parent, 'No reports yet.', 'Nothing on the schedule writes one. The daily-report skill writes a morning brief: a record under wiki/reports/ and an HTML page beside it.')
-  button(card, 'Ask the agent to set it up', () => ctx.act({ kind: 'ask', prompt: 'Set up the daily-report skill so this wiki gets a morning brief in wiki/reports/.' }), { icon: 'message-square' })
+  const card = empty(parent, 'No reports yet.', 'Nothing on the schedule writes one. The morning-brief skill writes one: a record under wiki/reports/ and an HTML page beside it.')
+  button(card, 'Ask the agent to set it up', () => ctx.act({ kind: 'ask', prompt: 'Set up the morning-brief skill so this wiki gets a morning brief in wiki/reports/.' }), { icon: 'message-square' })
 }
