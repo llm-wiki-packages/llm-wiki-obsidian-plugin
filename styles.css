@@ -607,4 +607,6 @@ body.llm-wiki-tidy-props .metadata-container:not(.is-llm-wiki-open) .metadata-pr
 .llm-wiki-conflict-cite { margin-top: var(--size-2-3); font-size: var(--font-ui-small); color: var(--text-muted); }
 .llm-wiki-conflict-cite q { font-style: italic; }
 .llm-wiki-conflict-source { margin-left: var(--size-2-2); }
-.llm-wiki-conflict-links { margin-top: var(--size-4-2); justify-content: flex-start; }
+.llm-wiki-conflict-decide { display: flex; flex-wrap: wrap; align-items: center; gap: var(--size-4-2); margin-top: var(--size-4-3); }
+.llm-wiki-conflict-ask { font-weight: var(--font-semibold); margin-right: var(--size-2-2); }
+.llm-wiki-conflict-record { margin-left: auto; }

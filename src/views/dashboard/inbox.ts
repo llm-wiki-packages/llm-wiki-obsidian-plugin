@@ -248,7 +248,7 @@ function judgment(root: HTMLElement, ctx: TabContext): boolean {
     count: Math.max(needsYou ?? 0, blocked.length, pageConflicts.length) + updates.length,
     actions: (bar) => button(bar, 'Answer in chat', () => ctx.act({ kind: 'ask', prompt: ingest }), { icon: 'message-square', cta: true, title: `Starts ${ingest} in chat` }),
   })
-  body.createDiv({ cls: 'llm-wiki-muted', text: 'The wiki will not decide these without you.' })
+  body.createDiv({ cls: 'llm-wiki-muted', text: 'The wiki will not decide these without you. Open each one, read both sides, and pick which is right.' })
   for (const b of blocked) blockedRow(body, b, ctx)
   for (const g of waitingGroups(held, parts)) heldRow(body, g, ctx, true)
   for (const c of conflicts ?? []) conflictRow(body, c, ctx)
@@ -291,10 +291,11 @@ function conflictRow(parent: HTMLElement, c: InboxMessage, ctx: TabContext): voi
   const name = claim?.title ?? (claim?.page ? stem(claim.page) : idsOnly(c.subject) ? 'A new source disagrees with the wiki' : c.subject)
   main.createDiv({ cls: 'llm-wiki-row-title', text: name })
   const from = claim?.source ? `${stem(claim.source)} disagrees with the wiki` : 'A new source disagrees with the wiki'
-  main.createDiv({ cls: 'llm-wiki-row-detail', text: [from, relativeTime(c.at)].filter(Boolean).join(' · ') })
+  const hint = expanded ? '' : 'click to decide'
+  main.createDiv({ cls: 'llm-wiki-row-detail', text: [from, relativeTime(c.at), hint].filter(Boolean).join(' · ') })
   const bar = row.createDiv({ cls: 'llm-wiki-row-actions' })
   if (claim?.page) button(bar, 'Open page', () => ctx.act({ kind: 'open', path: claim.page! }), { icon: 'file-text', title: claim.page })
-  button(bar, '', () => ctx.act({ kind: 'ask', prompt: conflictPrompt(c, claim) }), { icon: 'message-square', title: 'Settle it in chat' })
+  button(bar, '', () => ctx.act({ kind: 'ask', prompt: conflictPrompt(c, claim) }), { icon: 'message-square', title: 'Talk it through in chat' })
   if (!expanded) return
   const body = wrap.createDiv({ cls: 'llm-wiki-message-body' })
   if (!claim) {
@@ -304,8 +305,27 @@ function conflictRow(parent: HTMLElement, c: InboxMessage, ctx: TabContext): voi
     side(sides, 'The wiki says', claim.held, claim.heldSources.map((h) => ({ path: h.resource, quote: h.quote })), ctx)
     side(sides, claim.source ? `${stem(claim.source)} says` : 'The new source says', claim.says, [{ path: claim.source, quote: claim.quote }], ctx)
   }
-  const links = body.createDiv({ cls: 'llm-wiki-row-actions llm-wiki-conflict-links' })
-  button(links, 'Open the record', () => ctx.act({ kind: 'open', path: c.path }), { icon: 'inbox', title: c.path }).addClass('llm-wiki-small')
+  // The ruling: the wiki stands (closed here, the record archived with the ruling), or the page changes, which is the
+  // agent's to write with the right citation, so those two open chat with everything it needs.
+  const decide = body.createDiv({ cls: 'llm-wiki-conflict-decide' })
+  decide.createSpan({ cls: 'llm-wiki-conflict-ask', text: 'Which is right?' })
+  const actions = ctx.plugin.actions
+  if (actions) button(decide, 'Keep the wiki', () => ctx.write(() => actions.keepWiki(c, claim?.page ?? null)), { icon: 'check', title: 'The page stays as it is. The conflict closes, and the ruling is archived with it.' })
+  if (claim) {
+    button(decide, 'Use the new source', () => ctx.act({ kind: 'ask', prompt: rulingPrompt(c, claim, 'source') }), { icon: 'file-input', title: 'The agent rewrites the page from the new source, then closes the conflict' })
+    button(decide, 'Both are true', () => ctx.act({ kind: 'ask', prompt: rulingPrompt(c, claim, 'both') }), { icon: 'git-merge', title: 'They apply at different times or in different cases: the agent writes both into the page, then closes the conflict' })
+  }
+  button(decide, 'Open the record', () => ctx.act({ kind: 'open', path: c.path }), { icon: 'inbox', title: c.path }).addClass('llm-wiki-conflict-record')
+}
+
+function rulingPrompt(c: InboxMessage, claim: ConflictClaim, how: 'source' | 'both'): string {
+  const page = claim.page ? `[[${claim.page}]]` : 'the wiki page'
+  const source = claim.source ? `[[${claim.source}]]` : 'the new source'
+  const facts = `\n- ${page} says: “${claim.held ?? '?'}”\n- ${source} says: “${claim.says ?? '?'}”${claim.quote ? ` (quote: “${claim.quote}”)` : ''}\n\n`
+  const close = `Then close the conflict record [[${c.path}]] with \`llm-wiki-ops inboxes done conflicts ${c.id} --answered --stdin\`, giving a one-line ruling on stdin.`
+  return how === 'source'
+    ? `I rule this conflict for the new source.${facts}Update ${page} so it says what ${source} says and cites it. If the old claim was true once, keep it as a dated history line. ${close}`
+    : `Both claims in this conflict are true, at different times or in different cases.${facts}Update ${page} so it states both, says when or where each applies, and cites both sources. Ask me if you cannot tell which applies when. ${close}`
 }
 
 function side(parent: HTMLElement, label: string, text: string | null, cites: { path: string | null; quote: string | null }[], ctx: TabContext): void {
