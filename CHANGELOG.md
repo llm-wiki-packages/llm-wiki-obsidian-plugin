@@ -34,6 +34,9 @@ Checked against llm-wiki-ops 0.18.0. Needs 0.16.0 or later.
 
 ### Fixed
 
+- The "This vault predates the wiki's Obsidian settings" offer no longer
+  comes back on every launch after Apply. Newer Obsidian renamed the call
+  that reads a property's type, so the plugin missed the types Apply saved.
 - Reloading the plugin no longer adds a second Listen or Page history
   icon to each open note.
 - The credentials list loads again: `credentials ls` is `credentials list`
