@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { closeMessage } from '../src/views/dashboard/inbox'
 import type { Actions } from '../src/wiki/actions'
 import { childEnv, CliError, VERBS, type Args, type Verb } from '../src/wiki/cli'
-import { closedSentence, doneWords, heldGroups, inboxAttention, inboxCount, incomingPath, messageAt, messageOf, messagePath, sweptSentence, type SweptRow } from '../src/wiki/inbox'
+import { closedSentence, conflictOf, idsOnly, doneWords, heldGroups, inboxAttention, inboxCount, incomingPath, messageAt, messageOf, messagePath, sweptSentence, type SweptRow } from '../src/wiki/inbox'
 import type { InboxMessage } from '../src/wiki/model'
 import { takeSnapshot, type Reader } from '../src/wiki/snapshot'
 
@@ -293,5 +293,37 @@ describe('Done', () => {
     const out = await closeMessage(app, actions, m, false)
     expect(out.ok).toBe(false)
     expect(did).toEqual(['save'])
+  })
+})
+
+describe('a conflicts record, read from its note', () => {
+  // As `inboxes write conflicts … record_from=` filed it on a scratch wiki (ops 0.18).
+  const fm = {
+    subject: '03bab4a4-a4fd-4212-b239-454600412963:8e9abb5a-060a-47f9-84e4-ef2a3a06f798:1',
+    record: {
+      unit_id: '03bab4a4-a4fd-4212-b239-454600412963',
+      unit: 'wiki/entities/cells.md',
+      producer: 'mine',
+      incoming: { type: 'entity', title: 'Cells', description: 'Cells divide about every 24 hours in culture.', source: 'sources/course-bio/week1/membranes.md', quote: 'A typical cell divides every 24 hours.' },
+      held: { description: 'Cells divide about every 12 hours.', sources: [{ resource: 'sources/course-bio/syllabus.md', quote: 'Cells divide twice a day.' }] },
+    },
+  }
+  it('names the page and both claims, not the ids', () => {
+    expect(conflictOf(fm)).toEqual({
+      page: 'wiki/entities/cells.md',
+      title: 'Cells',
+      says: 'Cells divide about every 24 hours in culture.',
+      quote: 'A typical cell divides every 24 hours.',
+      source: 'sources/course-bio/week1/membranes.md',
+      held: 'Cells divide about every 12 hours.',
+      heldSources: [{ resource: 'sources/course-bio/syllabus.md', quote: 'Cells divide twice a day.' }],
+    })
+    expect(idsOnly(fm.subject)).toBe(true)
+    expect(idsOnly('Which date is right?')).toBe(false)
+  })
+  it('falls back to the page name, and to nothing with no record', () => {
+    expect(conflictOf({ record: { unit: 'wiki/topics/tides.md', incoming: {}, held: {} } })?.title).toBe('tides')
+    expect(conflictOf({ subject: 'x' })).toBeNull()
+    expect(conflictOf(undefined)).toBeNull()
   })
 })

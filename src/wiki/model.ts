@@ -30,7 +30,7 @@ export interface AttentionItem {
 }
 
 /** What a job is waiting on, as the ticket store and the due verdict say it. */
-export type NextKind = 'due' | 'queued' | 'at' | 'running' | 'paused' | 'held' | 'blocked' | 'unbound' | 'manual' | 'unknown'
+export type NextKind = 'due' | 'queued' | 'at' | 'running' | 'paused' | 'held' | 'blocked' | 'unbound' | 'manual' | 'trigger' | 'unknown'
 
 export interface JobView {
   slug: string

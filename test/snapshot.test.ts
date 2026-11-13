@@ -29,6 +29,11 @@ describe('jobView: the Next column in plain words', () => {
     expect(r.running).toEqual({ ticket: 't1', stage: 'PLUGIN:curate', since: '2026-10-23T11:58:00Z' })
     expect(jobView(job({ verdict: { due: false, kind: 'requires', blocked_by: ['credential gmail'] } }), [], NOW).next).toEqual({ kind: 'blocked', detail: 'credential gmail' })
     expect(jobView(job({ blocked: 'no search server is configured here' }), [], NOW).next.kind).toBe('blocked')
+    // ops 0.18: a parked harvest waits for a person, and a trigger job with no `every` waits for its trigger.
+    const why = 'ticket h1 is parked — `tickets retry`, `tickets drop` or `jobs request`'
+    expect(jobView(job({ verdict: { due: false, kind: 'parked', reasons: [why] } }), [], NOW).next).toEqual({ kind: 'blocked', detail: why })
+    expect(jobView(job({ verdict: { due: false, kind: 'trigger-only', reasons: ['no every'] } }), [], NOW).next).toEqual({ kind: 'trigger', detail: 'no every' })
+    expect(jobView(job({ running: [{ id: 'x1', stage: 'extract', since: null }] }), [], NOW).running?.stage).toBe('extracting')
     const held = jobView(job({}), [{ id: 't2', stage: 'routine', state: 'pending', slug: 'ops-hourly', not_before: '2026-10-23T13:00:00Z', reason: 'killed' }], NOW)
     expect(held.next).toEqual({ kind: 'held', at: '2026-10-23T13:00:00Z', detail: 'killed' })
     expect(jobView(job({}), [{ id: 't3', stage: 'routine', state: 'pending', slug: 'ops-hourly' }], NOW).next.kind).toBe('queued')

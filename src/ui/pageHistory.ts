@@ -30,7 +30,11 @@ export class PageHistory {
     p.registerEvent(p.app.workspace.on('file-open', each))
     p.registerEvent(p.app.workspace.on('llm-wiki:saved' as 'layout-change', each))
     p.registerEvent(p.app.workspace.on('llm-wiki:snapshot' as 'layout-change', each))
-    p.register(() => this.close())
+    p.register(() => {
+      this.close()
+      // The views outlive the plugin: take the icon back, or a reload adds a second one.
+      p.app.workspace.iterateAllLeaves((leaf) => leaf.view.containerEl.querySelectorAll('.llm-wiki-history-action').forEach((el) => el.remove()))
+    })
   }
 
   /** Add the icon once per view, then keep its state current. */

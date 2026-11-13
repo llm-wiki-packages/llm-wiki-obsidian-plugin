@@ -51,6 +51,8 @@ export interface LlmWikiSettings {
   applyTemplates: boolean
   /** A page's Properties panel leads with the keys a person writes and folds the wiki's bookkeeping behind More. */
   tidyProperties: boolean
+  /** Properties mark the values a bundle root lends, and the values a page holds from one. */
+  lendCues: boolean
   /** The graph draws a line from a page to each source its frontmatter `sources` cites. */
   sourceLinksInGraph: boolean
   /** Where an open note lists its sources, or the pages citing it. */
@@ -83,6 +85,7 @@ export const DEFAULT_SETTINGS: LlmWikiSettings = {
   saveHistory: 'commit',
   applyTemplates: true,
   tidyProperties: true,
+  lendCues: true,
   sourceLinksInGraph: false,
   sourcesPanel: 'side',
   changesGroup: 'source',
@@ -184,6 +187,7 @@ export class LlmWikiSettingTab extends PluginSettingTab {
           : 'Commits what you edit here a couple of minutes after you stop, so it shows in Changes and page history. Sync also pulls and pushes, so your other machines see it; it is refused while Obsidian Sync or iCloud syncs this vault.', control: { type: 'dropdown', key: 'saveHistory', options: SAVE_HISTORY_NAMES } },
         { name: 'Apply the wiki’s template to new notes', desc: 'A note made in Obsidian starts with the properties the wiki’s template for that folder gives, as a page the agent makes does. Turn it off if Templater fills new notes.', control: { type: 'toggle', key: 'applyTemplates' } },
         { name: 'Fold the wiki’s bookkeeping properties', desc: 'A page’s Properties lead with title, type, description and tags; the keys the wiki keeps for itself (document_id, its revision, when it was made and checked, the sources it cites) go last, behind a More row. Nothing in the file changes.', control: { type: 'toggle', key: 'tidyProperties' } },
+        { name: 'Mark lent values', desc: 'On a bundle root, the properties it lends show how many pages they reach. On a page under one, a lent value is muted and names the root it comes from; change it there. A line under Properties says it in words, with Why? for the details. Nothing in the file changes.', control: { type: 'toggle', key: 'lendCues' } },
       ] },
       { type: 'group', heading: 'Sources', items: [
         { name: 'Sources panel', desc: 'On a wiki page, the sources its frontmatter cites, with the section and quoted words; click a quote to open the source at it. On a source, the pages that cite it. Beside the page needs a pane wide enough for the margin; otherwise it goes below, above Linked mentions.', control: { type: 'dropdown', key: 'sourcesPanel', options: PLACEMENT_NAMES } },
@@ -205,7 +209,7 @@ export class LlmWikiSettingTab extends PluginSettingTab {
   setControlValue(key: string, value: unknown): Promise<void> {
     const clean = CLEAN[key as Key]
     ;(this.plugin.settings as unknown as Record<string, unknown>)[key] = clean ? clean(value) : value
-    if (key === 'tidyProperties') this.plugin.properties.apply()
+    if (key === 'tidyProperties' || key === 'lendCues') this.plugin.properties.apply()
     if (key === 'sourcesPanel') this.plugin.sourcesPanel.refresh()
     if (key === 'sourceLinksInGraph') this.plugin.sourceLinks.apply()
     return this.plugin.saveSettings()

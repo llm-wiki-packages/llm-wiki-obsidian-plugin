@@ -1,21 +1,26 @@
 // The `llm-wiki-ops` verbs that only read, as permission rules Ask first runs
 // without asking: a lookup the brain skills make a dozen times a turn is no
 // more a decision than a Read. Mirrors the CLI's registry (`Registration.writes`
-// false, ops 0.9.0) until the wiki's seeded `.claude/settings.json` carries
+// false, ops 0.18.0) until the wiki's seeded `.claude/settings.json` carries
 // the list itself (llm-wiki-plugins #3695).
 
-/** Read verbs, by their full path. `hooks *` is left out: a hook's verbs run on the harness's behalf. */
+/**
+ * Read verbs, by their full path. `hooks *` is left out: a hook's verbs run on the harness's behalf. `page decisions` is
+ * left out too: the registry calls it a read, but its `--write` rebuilds a page, and a prefix rule would allow that.
+ */
 export const READ_VERBS = [
-  'agents list', 'config get', 'denylist check', 'denylist list', 'doctor',
-  'git changed', 'git conflicts', 'git log',
+  'agents list', 'config get', 'config lint', 'config list', 'denylist check', 'denylist list', 'doctor',
+  'engines list', 'engines show', 'extract',
+  'git changed', 'git conflicts', 'git log', 'git status',
   'guard', 'inboxes fixes list', 'inboxes info', 'inboxes list',
-  'jobs due', 'jobs list', 'jobs show', 'local list',
+  'jobs check', 'jobs due', 'jobs list', 'jobs show', 'local list',
   'op latest', 'op log', 'op logs', 'op show', 'op since',
   'packages list', 'packages show',
-  'page history', 'page lint', 'page list', 'page read', 'page template', 'page diff',
+  'page backlinks', 'page block list', 'page block read', 'page diff', 'page explain', 'page graph', 'page health',
+  'page history', 'page links', 'page lint', 'page list', 'page read', 'page template', 'page types', 'page written',
   'policy get', 'policy list', 'reference',
   'sandboxes check', 'sandboxes login-check', 'sandboxes list', 'sandboxes show', 'sandboxes why',
-  'search query', 'search status', 'skills doctor', 'skills list', 'skills search',
+  'search query', 'search status', 'skills diff', 'skills doctor', 'skills list', 'skills search',
   'status', 'tickets list', 'tickets open', 'tickets show', 'tickets wait', 'version', 'whereami',
 ] as const
 

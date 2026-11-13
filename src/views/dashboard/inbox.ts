@@ -3,7 +3,7 @@ import { slash } from '../../chat/skills'
 import { button, empty, relativeTime, section } from '../../ui/dom'
 import { setBox, stem } from '../../vault/pages'
 import type { Actions, Outcome } from '../../wiki/actions'
-import { answerTyped, doneWords, incomingPath, updatesOnly, type InboxReadAnswer } from '../../wiki/inbox'
+import { answerTyped, conflictOf, doneWords, idsOnly, incomingPath, updatesOnly, type ConflictClaim, type InboxReadAnswer } from '../../wiki/inbox'
 import { confirm } from '../../ui/modals'
 import type { BlockedJob, HeldGroup, InboxMessage, NeedsYouParts } from '../../wiki/model'
 import type { TabContext } from './index'
@@ -144,16 +144,22 @@ export function renderInbox(root: HTMLElement, ctx: TabContext): void {
   const all = snapshot.inbox ?? []
   const open = all.filter((m) => !m.done)
   const answered = all.filter((m) => m.done)
-  const messages = section(root, 'Messages', { count: open.length })
-  if (snapshot.inbox === null) empty(messages, 'The inbox could not be read.', 'The notice above says why.')
-  else if (!all.length) empty(messages, 'No messages.', 'When a skill or an agent asks you something, it lands here.')
-  for (const m of open) {
-    void seeBaseline(ctx, m)
-    messageRow(messages, m, ctx)
+  // Messages lead only when there are some; an empty inbox is one quiet line below what does wait.
+  if (snapshot.inbox === null || all.length) {
+    const messages = section(root, 'Messages', { count: open.length })
+    if (snapshot.inbox === null) empty(messages, 'The inbox could not be read.', 'The notice above says why.')
+    for (const m of open) {
+      void seeBaseline(ctx, m)
+      messageRow(messages, m, ctx)
+    }
+    answeredRows(messages, answered, ctx)
   }
-  answeredRows(messages, answered, ctx)
-  judgment(root, ctx)
-  heldElsewhere(root, ctx)
+  const judged = judgment(root, ctx)
+  const held = heldElsewhere(root, ctx)
+  if (snapshot.inbox !== null && !all.length) {
+    if (!judged && !held) empty(root, 'Nothing waits on you.', 'When a skill or an agent asks you something, or a new source disagrees with the wiki, it lands here.')
+    else root.createDiv({ cls: 'llm-wiki-muted llm-wiki-inbox-quiet', text: 'No messages. When a skill or an agent asks you something, it lands here.' })
+  }
 }
 
 /** Ticked done but still here: a job's answer waits for its next run; any other waits to be sent. */
@@ -231,29 +237,21 @@ async function body(el: HTMLElement, m: InboxMessage, ctx: TabContext): Promise<
  * `whereami`'s count, and each thing it counts. With the breakdown, every row here is counted; without it (an older
  * CLI) the count stands alone over the conflicts, and the held sources go below as held, not as waiting.
  */
-function judgment(root: HTMLElement, ctx: TabContext): void {
+function judgment(root: HTMLElement, ctx: TabContext): boolean {
   const { needsYou, parts, blocked, held, conflicts, updatesWaiting } = ctx.snapshot
   const pageConflicts = parts?.page_conflicts ?? []
   // A wiki without the conflicts inbox marks the page and files no record, so `whereami` counts none of these.
   const updates = updatesOnly(updatesWaiting, parts)
-  if (!needsYou && !blocked.length && !pageConflicts.length && !updates.length) return
+  if (!needsYou && !blocked.length && !pageConflicts.length && !updates.length) return false
   const ingest = slash('ingest')
   const body = section(root, 'Waiting on your judgment', {
     count: Math.max(needsYou ?? 0, blocked.length, pageConflicts.length) + updates.length,
     actions: (bar) => button(bar, 'Answer in chat', () => ctx.act({ kind: 'ask', prompt: ingest }), { icon: 'message-square', cta: true, title: `Starts ${ingest} in chat` }),
   })
-  body.createDiv({ cls: 'llm-wiki-muted', text: 'What the wiki will not decide without you. The agent walks through the held sources and conflicts with you; a blocked job names the command that clears it.' })
+  body.createDiv({ cls: 'llm-wiki-muted', text: 'The wiki will not decide these without you.' })
   for (const b of blocked) blockedRow(body, b, ctx)
   for (const g of waitingGroups(held, parts)) heldRow(body, g, ctx, true)
-  for (const c of conflicts ?? []) {
-    const row = body.createDiv({ cls: 'llm-wiki-row is-link' })
-    row.addEventListener('click', () => void ctx.act({ kind: 'open', path: c.path }))
-    row.createSpan({ cls: 'llm-wiki-dot is-warn' })
-    const main = row.createDiv({ cls: 'llm-wiki-row-main' })
-    main.createDiv({ cls: 'llm-wiki-row-title', text: c.subject })
-    main.createDiv({ cls: 'llm-wiki-row-detail', text: ['Conflict between a new source and the wiki', relativeTime(c.at)].filter(Boolean).join(' · ') })
-    button(row.createDiv({ cls: 'llm-wiki-row-actions' }), '', () => chatAbout(ctx, c), { icon: 'message-square', title: 'Chat about this' })
-  }
+  for (const c of conflicts ?? []) conflictRow(body, c, ctx)
   for (const p of pageConflicts) pageConflictRow(body, p.page, ctx)
   for (const page of updates) pageConflictRow(body, page, ctx)
   if (parts?.curate.length) {
@@ -270,6 +268,69 @@ function judgment(root: HTMLElement, ctx: TabContext): void {
     changes.createSpan({ cls: 'llm-wiki-muted', text: 'Groups of new pages are judged on Changes →' })
     changes.addEventListener('click', () => ctx.goTo('changes'))
   }
+  return true
+}
+
+/**
+ * A new source that disagrees with a wiki page. The listing names it by ids; the record's own frontmatter says which
+ * page and what each side claims, so the row reads as the disagreement and opens to both claims side by side.
+ */
+function conflictRow(parent: HTMLElement, c: InboxMessage, ctx: TabContext): void {
+  const app = ctx.plugin.app
+  const claim = conflictOf(app.metadataCache.getCache(c.path)?.frontmatter)
+  const key = `conflict:${c.id}`
+  const expanded = ctx.memo['inbox.open'] === key
+  const wrap = parent.createDiv({ cls: `llm-wiki-message${expanded ? ' is-open' : ''}` })
+  const row = wrap.createDiv({ cls: 'llm-wiki-row is-link' })
+  row.addEventListener('click', () => {
+    ctx.memo['inbox.open'] = expanded ? undefined : key
+    ctx.redraw()
+  })
+  row.createSpan({ cls: 'llm-wiki-dot is-warn' })
+  const main = row.createDiv({ cls: 'llm-wiki-row-main' })
+  const name = claim?.title ?? (claim?.page ? stem(claim.page) : idsOnly(c.subject) ? 'A new source disagrees with the wiki' : c.subject)
+  main.createDiv({ cls: 'llm-wiki-row-title', text: name })
+  const from = claim?.source ? `${stem(claim.source)} disagrees with the wiki` : 'A new source disagrees with the wiki'
+  main.createDiv({ cls: 'llm-wiki-row-detail', text: [from, relativeTime(c.at)].filter(Boolean).join(' · ') })
+  const bar = row.createDiv({ cls: 'llm-wiki-row-actions' })
+  if (claim?.page) button(bar, 'Open page', () => ctx.act({ kind: 'open', path: claim.page! }), { icon: 'file-text', title: claim.page })
+  button(bar, '', () => ctx.act({ kind: 'ask', prompt: conflictPrompt(c, claim) }), { icon: 'message-square', title: 'Settle it in chat' })
+  if (!expanded) return
+  const body = wrap.createDiv({ cls: 'llm-wiki-message-body' })
+  if (!claim) {
+    body.createDiv({ cls: 'llm-wiki-muted', text: 'The record does not say what disagrees.' })
+  } else {
+    const sides = body.createDiv({ cls: 'llm-wiki-conflict' })
+    side(sides, 'The wiki says', claim.held, claim.heldSources.map((h) => ({ path: h.resource, quote: h.quote })), ctx)
+    side(sides, claim.source ? `${stem(claim.source)} says` : 'The new source says', claim.says, [{ path: claim.source, quote: claim.quote }], ctx)
+  }
+  const links = body.createDiv({ cls: 'llm-wiki-row-actions llm-wiki-conflict-links' })
+  button(links, 'Open the record', () => ctx.act({ kind: 'open', path: c.path }), { icon: 'inbox', title: c.path }).addClass('llm-wiki-small')
+}
+
+function side(parent: HTMLElement, label: string, text: string | null, cites: { path: string | null; quote: string | null }[], ctx: TabContext): void {
+  const el = parent.createDiv({ cls: 'llm-wiki-conflict-side' })
+  el.createDiv({ cls: 'llm-wiki-conflict-label', text: label })
+  el.createDiv({ cls: 'llm-wiki-conflict-claim', text: text ?? '(no claim given)' })
+  for (const cite of cites) {
+    if (!cite.path && !cite.quote) continue
+    const q = el.createDiv({ cls: 'llm-wiki-conflict-cite' })
+    if (cite.quote) q.createEl('q', { text: cite.quote })
+    if (cite.path) {
+      const a = q.createEl('a', { cls: 'llm-wiki-conflict-source', text: stem(cite.path), attr: { href: '#', title: cite.path } })
+      a.addEventListener('click', (e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        void ctx.act({ kind: 'open', path: cite.path! })
+      })
+    }
+  }
+}
+
+function conflictPrompt(c: InboxMessage, claim: ConflictClaim | null): string {
+  if (!claim) return `Help me settle the conflict in [[${c.path}]]: `
+  const page = claim.page ? `[[${claim.page}]]` : 'a wiki page'
+  return `A new source disagrees with ${page}. The wiki says: “${claim.held ?? '?'}”. ${claim.source ? `[[${claim.source}]]` : 'The source'} says: “${claim.says ?? '?'}”. The record is [[${c.path}]]. Help me decide which holds, then settle it.`
 }
 
 /**
@@ -311,16 +372,17 @@ function waitingGroups(held: HeldGroup[] | null, parts: NeedsYouParts | null): H
 }
 
 /** Held sources nothing waits on yet (no record is open for them), or every held source from a CLI without the breakdown. */
-function heldElsewhere(root: HTMLElement, ctx: TabContext): void {
+function heldElsewhere(root: HTMLElement, ctx: TabContext): boolean {
   const { held, parts } = ctx.snapshot
   const groups = (held ?? []).map((g) => ({ ...g, pages: g.pages.filter((p) => !parts || !p.waiting) })).filter((g) => g.pages.length)
-  if (!groups.length) return
+  if (!groups.length) return false
   const n = groups.reduce((sum, g) => sum + g.pages.length, 0)
   const body = section(root, 'Held sources', { count: n })
   body.createDiv({ cls: 'llm-wiki-muted', text: parts
     ? 'Held from ingest. Nothing waits on them until mine files a record; then they move up.'
     : 'Held from ingest: the agent asks before folding them in.' })
   for (const g of groups) heldRow(body, g, ctx, false)
+  return true
 }
 
 /** A bundle is named by its folder: its root is `README.md` by convention. */

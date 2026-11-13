@@ -39,13 +39,15 @@ export interface JobRow {
   stages?: { stage: string; skipped?: boolean; failing?: string[]; attempts?: number; ok_started?: string | null }[]
   verdict?: {
     due: boolean
-    kind: null | 'off' | 'paused' | 'once' | 'failed-cap' | 'period' | 'window' | 'requires' | 'no-work'
+    kind: null | 'off' | 'paused' | 'parked' | 'once' | 'trigger' | 'trigger-only' | 'failed-cap' | 'period' | 'window' | 'requires' | 'no-work'
     reasons?: string[]
     blocked_by?: string[]
     next_at?: string | null
     last_ok?: string | null
   }
   running?: { id: string; stage: string; since: string | null; step?: { index: number; name: string } | null }[]
+  /** Its parked tickets, which wait for a person (ops 0.18); absent from an older CLI. */
+  parked?: number
 }
 export interface JobsLsAnswer {
   jobs?: JobRow[]
@@ -356,7 +358,7 @@ function semaphore(n: number): () => Promise<() => void> {
     })
 }
 
-const STAGE_DONE: Record<string, string> = { harvest: 'harvesting', transcribe: 'transcribing', enrich: 'enriching', process: 'processing', routine: 'running' }
+const STAGE_DONE: Record<string, string> = { harvest: 'harvesting', extract: 'extracting', transcribe: 'transcribing', enrich: 'enriching', process: 'processing', routine: 'running' }
 
 /** The slot that keeps a unit from running here: a bound credential gone stale, missing or failed, else a required slot left empty. */
 export function unboundSlot(skill: SkillView | undefined): SlotView | undefined {
@@ -399,6 +401,14 @@ export function jobView(j: JobRow, tickets: TicketRow[], now: number, skills: Sk
         break
       case 'failed-cap':
         next = { kind: 'blocked', detail: 'failed too often' }
+        break
+      // A parked ticket waits for a person (ops 0.18): the reason names `tickets retry`, and Run is `jobs request`, which starts it.
+      case 'parked':
+        next = { kind: 'blocked', detail: detail ?? 'a run is parked' }
+        break
+      // A job with triggers and no `every`: it runs when its pages change or a message arrives.
+      case 'trigger-only':
+        next = { kind: 'trigger', detail }
         break
       case 'once':
       case 'no-work':

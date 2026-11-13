@@ -247,3 +247,49 @@ function judgmentDetail(parts: NeedsYouParts | null, blocked: BlockedJob[]): str
   const viaIngest = parts.held.length + parts.conflicts.length > 0
   return `${kinds.join(', ')}${viaIngest ? `; held sources and conflicts are answered with ${ingest}` : ''}.`
 }
+
+/**
+ * A `conflicts` record, read from its note's frontmatter (`record:`, as `inboxes write` files it; the schema is
+ * `presets/base/_seed/inboxes/conflicts/_schema.json`, filed by `page fold`'s `conflict`). The listing carries only
+ * the subject, `<unit id>:<record subject>`, which is ids; the record says which page, and what each side claims.
+ */
+export interface ConflictClaim {
+  /** The wiki page the new source disagrees with; null when the record does not name one. */
+  page: string | null
+  /** What to call it: the incoming claim's title, else the page's file name. */
+  title: string | null
+  /** The new source's claim, its quote, and the source page. */
+  says: string | null
+  quote: string | null
+  source: string | null
+  /** What the wiki holds now, and the sources it cites. */
+  held: string | null
+  heldSources: { resource: string | null; quote: string | null }[]
+}
+
+type Rec = Record<string, unknown>
+const recOf = (v: unknown): Rec | null => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Rec) : null)
+const textOf = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? v.trim() : null)
+
+export function conflictOf(fm: Rec | null | undefined): ConflictClaim | null {
+  const record = recOf(fm?.record)
+  if (!record) return null
+  const incoming = recOf(record.incoming) ?? {}
+  const held = recOf(record.held) ?? {}
+  const page = textOf(record.unit)
+  const sources = Array.isArray(held.sources) ? held.sources : held.sources ? [held.sources] : []
+  return {
+    page,
+    title: textOf(incoming.title) ?? (page ? page.replace(/^.*\//, '').replace(/\.md$/, '') : null),
+    says: textOf(incoming.description),
+    quote: textOf(incoming.quote),
+    source: textOf(incoming.source),
+    held: textOf(held.description),
+    heldSources: sources.map(recOf).filter((s): s is Rec => !!s).map((s) => ({ resource: textOf(s.resource), quote: textOf(s.quote) })),
+  }
+}
+
+/** A subject that is only ids (`<uuid>:<uuid>:1`): not worth showing a person. */
+export function idsOnly(subject: string): boolean {
+  return /^[0-9a-f-]{8,}(:[0-9a-f-]+)*(:\d+)?$/i.test(subject.trim())
+}

@@ -44,6 +44,8 @@ export interface Args {
   dirs?: string[]
   /** One vault-relative page, for the verbs that read a single page. */
   path?: string
+  /** `narrate`'s mode: read or podcast. */
+  mode?: string
   /** `inboxes done`: the body already holds an answer the person typed, so it is archived, never deleted. */
   answered?: boolean
   /** `page resolve`: keep the person's page, or write the pipeline's render over it. */
@@ -97,6 +99,14 @@ export class CliError extends Error {
   get short(): string {
     return this.message.replace(/^[a-z]+(\.[A-Za-z]+)+: /, '')
   }
+}
+
+/** The release whose verb names the plugin spells (`list`, `remove`); an older CLI knows them as `ls` and `rm`. */
+export const MIN_OPS = '0.16.0'
+
+/** A CLI older than MIN_OPS: it refused a verb by name as unknown (click's `No such command`). */
+export function tooOld(e: unknown): boolean {
+  return e instanceof CliError && e.rc === 2 && /No such command '(list|remove)'/.test(e.stderr ?? '')
 }
 
 const KEY = /^[a-z0-9][a-z0-9_-]{0,63}$/
@@ -165,6 +175,12 @@ function since(v: string | undefined, fallback: string): string {
 /** A vault-relative page path: no leading slash, no `..` segment. */
 function rel(v: string): string {
   if (!REL.test(v)) throw new CliError(`bad page path: ${v}`, 'args')
+  return v
+}
+
+/** The modes `narrate` takes; anything else is refused before the CLI sees it. */
+function narrateMode(v: string | undefined): string {
+  if (v !== 'read' && v !== 'podcast') throw new CliError(`bad narrate mode: ${String(v)}`, 'args')
   return v
 }
 
@@ -330,6 +346,10 @@ export const VERBS = {
   'wiki.page.history': (a: Args) => wiki(a, 'page', 'history', rel(a.path ?? '')),
   /** What changed in a page: the edits since the last save, or with `commit` that commit's own change. */
   'wiki.page.diff': (a: Args) => wiki(a, 'page', 'diff', rel(a.path ?? ''), ...(a.commit === undefined ? [] : [`commit=${commit(a.commit)}`])),
+  /** The bundle roots above a page, each lent value with the root it came from, and what the next write would change. */
+  'wiki.page.explain': (a: Args) => wiki(a, 'page', 'explain', rel(a.path ?? '')),
+  /** Each page with audio, and each mode's state: done, stale (the text changed since), failed, queued. */
+  'wiki.page.audio': (a: Args) => wiki(a, 'page', 'list', 'filter=audio:any'),
   /** Every page carrying one `document_id`, wherever each sits. */
   'wiki.page.find': (a: Args) => wiki(a, 'page', 'list', `id=${documentId(a.id)}`),
   /** Where the wiki is and its resolved layout: the trees, raw captures, templates. */
@@ -392,6 +412,9 @@ export const VERBS = {
   'wiki.page.adopt': (a: Args) => write(a, 'page', 'adopt', ...paths(a.paths)),
   // Frontmatter repairs; with `force`, a copy Obsidian just made gets its own id (the CLI refuses the older copy by name).
   'wiki.page.fix': (a: Args) => write(a, 'page', 'fix', ...paths(a.paths), ...(a.force ? ['--force'] : [])),
+  // One page read aloud now, on this machine's narrate engine: local CPU, no model. It replaces the page's audio for
+  // that mode and embeds it at the top of the page.
+  'wiki.narrate': (a: Args) => write(a, 'narrate', rel(a.path ?? ''), `mode=${narrateMode(a.mode)}`),
   /** The sweep: every uncommitted change under the wiki's trees, adopted, observed and committed by author. */
   'wiki.git.commit': (a: Args) => write(a, 'git', 'commit'),
   'wiki.git.sync': (a: Args) => write(a, 'git', 'sync'),
@@ -430,7 +453,7 @@ const ATTENDED: ReadonlySet<Verb> = new Set<Verb>(['wiki.credentials.set', 'wiki
 const EDITOR: ReadonlySet<Verb> = new Set<Verb>(['wiki.page.curate', 'wiki.page.adopt', 'wiki.page.fix', 'wiki.page.resolve', 'wiki.git.commit'])
 
 const WRITES: ReadonlySet<Verb> = new Set<Verb>([
-  'wiki.harness.run', 'wiki.jobs.request', 'wiki.jobs.pause', 'wiki.jobs.resume', 'wiki.tickets.retry', 'wiki.inboxes.read', 'wiki.inboxes.remove', 'wiki.inboxes.done', 'wiki.inboxes.sweep', 'wiki.git.sync', 'wiki.search.index', 'wiki.search.reindex',
+  'wiki.harness.run', 'wiki.narrate', 'wiki.jobs.request', 'wiki.jobs.pause', 'wiki.jobs.resume', 'wiki.tickets.retry', 'wiki.inboxes.read', 'wiki.inboxes.remove', 'wiki.inboxes.done', 'wiki.inboxes.sweep', 'wiki.git.sync', 'wiki.search.index', 'wiki.search.reindex',
   'wiki.config.set', 'wiki.config.patch', 'wiki.config.unset', 'wiki.credentials.list', 'wiki.credentials.bindings', ...ATTENDED, ...EDITOR,
 ])
 
@@ -695,7 +718,7 @@ export class Cli {
   }
 }
 
-/** What `machine wikis list` answers, one row per registered wiki. */
+/** What `machine wikis ls` answers, one row per registered wiki. */
 export interface WikiRow {
   key: string
   name: string

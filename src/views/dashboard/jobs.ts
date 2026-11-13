@@ -129,8 +129,8 @@ export function pipelineName(p: Pick<PipelineView, 'name' | 'plugin'>): string {
 }
 
 /** Needs you, running, due, scheduled soonest first, manual, paused last. */
-const ORDER: Record<NextKind, number> = { unbound: 0, blocked: 0, running: 1, due: 2, queued: 2, held: 3, at: 3, unknown: 4, manual: 5, paused: 6 }
-const GROUP: Record<NextKind, string> = { unbound: 'Needs you', blocked: 'Needs you', running: 'Running', due: 'Due', queued: 'Due', held: 'Scheduled', at: 'Scheduled', unknown: 'Scheduled', manual: 'Manual', paused: 'Paused' }
+const ORDER: Record<NextKind, number> = { unbound: 0, blocked: 0, running: 1, due: 2, queued: 2, held: 3, at: 3, trigger: 3, unknown: 4, manual: 5, paused: 6 }
+const GROUP: Record<NextKind, string> = { unbound: 'Needs you', blocked: 'Needs you', running: 'Running', due: 'Due', queued: 'Due', held: 'Scheduled', at: 'Scheduled', trigger: 'Scheduled', unknown: 'Scheduled', manual: 'Manual', paused: 'Paused' }
 
 export function sorted(jobs: JobView[]): JobView[] {
   return [...jobs].sort((a, b) => ORDER[a.next.kind] - ORDER[b.next.kind] || (a.next.at ?? '').localeCompare(b.next.at ?? '') || a.name.localeCompare(b.name))
@@ -205,6 +205,7 @@ export function nextText(j: JobView): string {
     case 'blocked': return `Blocked: ${n.detail ?? ''}`
     case 'unbound': return j.credential?.name ? `Credential ${j.credential.problem}` : `Needs ${slotWords(j.credential?.slot ?? '').what}`
     case 'manual': return 'Manual'
+    case 'trigger': return 'On a trigger'
     case 'unknown': return ''
   }
 }
@@ -224,7 +225,7 @@ function nextCell(td: HTMLElement, j: JobView, ctx: TabContext): void {
 }
 
 /** Run can start anything that is not running; without a runner even a queued or held ticket waits for a press. */
-const RUNNABLE: NextKind[] = ['due', 'at', 'manual', 'blocked', 'unknown', 'unbound']
+const RUNNABLE: NextKind[] = ['due', 'at', 'manual', 'trigger', 'blocked', 'unknown', 'unbound']
 const RUNNABLE_BY_HAND: NextKind[] = [...RUNNABLE, 'queued', 'held']
 
 /** The one button the row needs now, plus a menu with everything else. */

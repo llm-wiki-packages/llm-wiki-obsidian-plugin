@@ -445,9 +445,9 @@ export function toolSentence(tool: string, detail?: string): string | null {
   const m = /^(?:LLM_WIKI_[A-Z_]+=\S+\s+)*(?:llm-wiki-ops|llm-wiki-cli wiki(?: --read-only)? \S+)\s+(.*)$/.exec(detail.trim())
   if (!m) return null
   const words = (m[1] ?? '').replace(/\s--json\b/, '').split(/\s+/)
-  const [a, typed, c] = words
-  // `ls` is the CLI's alias for `list`.
-  const b = typed === 'ls' ? 'list' : typed
+  const [a, said, c] = words
+  // The list verbs are `list` from ops 0.16, and still answer to `ls`.
+  const b = said === 'ls' ? 'list' : said
   const arg = c && !c.includes('=') && !c.startsWith('-') ? c : undefined
   const table: Record<string, string> = {
     'jobs request': `Running ${arg ?? 'a job'}`, 'jobs list': 'Reading the job list', 'jobs due': 'Reading what is due', 'jobs show': `Reading job ${arg ?? ''}`, 'jobs add': 'Declaring a job', 'jobs run': 'Running the pass',
