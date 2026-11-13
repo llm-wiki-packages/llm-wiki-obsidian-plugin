@@ -39,7 +39,7 @@ export interface DoneOptions {
  * the answer the body now holds; `--answered` when the body differs from the baseline, or when there is none to tell,
  * so a typed answer is archived, never deleted (a job ask is ticked and left for its job). An older CLI has no such
  * verb: there the message is ticked `done` as the property editor would and `inboxes sweep` sends it, or, with no
- * `reply_to`, `inboxes rm` deletes it, after asking when an answer may be in it.
+ * `reply_to`, `inboxes remove` deletes it, after asking when an answer may be in it.
  */
 export async function closeMessage(app: App, actions: Actions, m: InboxMessage, inboxDone: boolean, opts: DoneOptions = {}): Promise<Outcome> {
   await saveOpen(app, m.path)

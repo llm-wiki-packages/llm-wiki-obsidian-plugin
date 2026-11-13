@@ -1,5 +1,5 @@
 // Where each job's pages sit against its dest, the pages a job's update waits on, and the job pages dispatch leaves
-// alone: the one place that knows `jobs check`, `page ls filter=prop:ops.updates_waiting` and `status`'s `held`
+// alone: the one place that knows `jobs check`, `page list filter=prop:ops.updates_waiting` and `status`'s `held`
 // (docs/cli-shapes.md 1.27–1.29).
 import type { AttentionItem, DestCheck, DestState, HeldCounts, JobView } from './model'
 
@@ -113,7 +113,7 @@ export function destOf(checks: DestCheck[] | null, slug: string): DestCheck | un
   return checks?.find((d) => d.slug === slug)
 }
 
-/** The pages of one `page ls` answer. */
+/** The pages of one `page list` answer. */
 export function pathsOf(a: { pages?: { path: string; unreadable?: boolean }[] } | null): string[] | null {
   return a === null ? null : (a.pages ?? []).filter((p) => !p.unreadable).map((p) => p.path)
 }

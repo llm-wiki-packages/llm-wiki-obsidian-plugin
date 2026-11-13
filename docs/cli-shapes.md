@@ -44,7 +44,7 @@ Source tree (repo `llm-wiki-plugins`, main at `f8b419b52`):
 IMPORTANT, installed vs. main: the CLI installed on this box
 (`~/.local/bin/llm-wiki-ops`, uv tool `llm-wiki-ops-v1`, editable into the
 package-store cache `@6560c662e3ad`) is 123 commits behind main. Where it
-matters, `page ls` differs a lot (see that section). Every shape below is
+matters, `page list` differs a lot (see that section). Every shape below is
 main's; I ran main's code with the installed interpreter and
 `PYTHONPATH=<checkout>/src`. A client must tolerate both until
 `just install-local` is re-run.
@@ -87,7 +87,7 @@ main's; I ran main's code with the installed interpreter and
 (`common/envelope.py:67` `Cmd`, built in `common/params.py:468` `_emit`.)
 `head` is the wiki's HEAD, `null` on an unborn branch or no wiki. `_cmd_` is
 never payload; a client should strip it. Fields are emitted as-is, `null`
-included (no key is dropped), EXCEPT where noted (e.g. `page ls` `behind` is
+included (no key is dropped), EXCEPT where noted (e.g. `page list` `behind` is
 only on `wiki/` rows).
 
 ### 0.3 Error envelope (differs from the brief!)
@@ -239,9 +239,9 @@ Dashboard type `Status.peers[].capabilities?: string[]` is wrong (object) and
 its `state` union is loose; do not copy it. (Older installed CLI also emitted
 a `counts` key; main does not.)
 
-### 1.3 `jobs ls --verbose`
+### 1.3 `jobs list --verbose`
 
-- argv: `wiki --read-only <key> jobs ls --verbose --json`. Optional
+- argv: `wiki --read-only <key> jobs list --verbose --json`. Optional
   `state=active|paused|archived`.
 - Answer: `Jobs`, `OPS/jobs/answers.py:39`; row built in `OPS/jobs/ls.py:14` +
   `jobs/jobs.py:824` `row()`.
@@ -262,7 +262,7 @@ interface JobRow {
   kind: "pipeline" | "routines";
   claim: "any" | "sticky" | "none";   // who may run it; "none" = every machine runs it on its own state
   machine: string | null;   // pin
-  // --- added by `jobs ls` proper (absent on archived rows) ---
+  // --- added by `jobs list` proper (absent on archived rows) ---
   due: boolean;             // owed a run on THIS machine now
   blocked: string | null;   // machine-local reason this box may not pull it (a sentence)
   // --- added by --verbose (absent on archived rows) ---
@@ -395,7 +395,7 @@ Example (real, with one held pending ticket):
 - argv: `wiki --read-only <key> jobs show <slug> --json` (or `url=<url>`
   instead of a slug). Answer `Shown`, `OPS/jobs/answers.py:52`; built in
   `OPS/jobs/show.py:42`. Needs a joined checkout.
-- Unknown slug: rc 2, `error: "no job 'x' - `jobs ls` names every job this wiki declares"`.
+- Unknown slug: rc 2, `error: "no job 'x' - `jobs list` names every job this wiki declares"`.
   `url=` that matches nothing is NOT an error: all fields empty, `job:null`.
 
 ```ts
@@ -440,9 +440,9 @@ shows as the job description. Example (real, `claim:none` job):
   "running": [] }
 ```
 
-### 1.6 `tickets ls`
+### 1.6 `tickets list`
 
-- argv: `wiki --read-only <key> tickets ls --json`. Optional key=value
+- argv: `wiki --read-only <key> tickets list --json`. Optional key=value
   narrowing (NOT `filter=`): `stage=<queue>`, `state=<state>`, `job=<slug,slug>`.
 - Answer: `Tickets`, `OPS/jobs/answers.py:173`; rows `OPS/jobs/tickets_ls.py:13
   ROW_KEYS`. Does not need a joined checkout (works unjoined, empty).
@@ -508,9 +508,9 @@ Treat unknown keys as open data; layout is the "The ticket" section of the
 job-record contract. Example: see the real output in section 2.4 (it is the
 ticket that `jobs request` minted).
 
-### 1.8 `page ls` (every selector)
+### 1.8 `page list` (every selector)
 
-- argv: `wiki --read-only <key> page ls [filter=...]... --json`
+- argv: `wiki --read-only <key> page list [filter=...]... --json`
 - Answer: `Listing`, `OPS/page/answers.py:49`; rows built in
   `OPS/page/ls.py:29`. Pages come from a filesystem walk (git not required;
   untracked pages appear), sorted by path, over `sources/`, `wiki/`,
@@ -530,7 +530,7 @@ except `lint`):
 | `shelf_life` | `past` | frontmatter `stale_after` day is on or before today |
 | `lint` | `error` `warning`; groups may OR (`lint:warning,error`) and negate (`-lint:warning,error` = the clean pages) | page has a `page lint` finding of that severity; covers `research/` too |
 
-Row (main's `page ls`):
+Row (main's `page list`):
 
 ```ts
 interface PageLs { pages: PageRow[]; count: number }
@@ -583,7 +583,7 @@ Example (real, mixed tree):
   "count": 3 }
 ```
 
-Installed-CLI (`@6560c662e3ad`) difference: `page ls` only lists pages that
+Installed-CLI (`@6560c662e3ad`) difference: `page list` only lists pages that
 CARRY a `status` (or are unreadable), has no `change` and no `behind` keys, only
 the `status` and `under` selectors, and `needs_verification` is computed
 without `change`. A client that needs `change`/`behind` must feature-detect:
@@ -733,9 +733,9 @@ The Search index modal lists `dirty_paths` under "Waiting to be indexed"; from
 a CLI without the key it falls back to `git changed --commit <source_commit>`,
 which a pass does not narrow (the marker moves only on a full rebuild).
 
-### 1.13 `skills ls`
+### 1.13 `skills list`
 
-- argv: `wiki --read-only <key> skills ls [<glob>] [--enabled|--disabled] [--diff] [filter=stage:<s>] --json`.
+- argv: `wiki --read-only <key> skills list [<glob>] [--enabled|--disabled] [--diff] [filter=stage:<s>] --json`.
   Answer `Listing`, `OPS/skills/ls.py:35`; rows `skills/inventory.py:379`.
 
 ```ts
@@ -800,9 +800,9 @@ interface SkillsSearch {
 Under `--read-only` nothing is fetched: a cold package cache gives
 `total:0` plus a warning (real). `filter=k:` must be >= 1 (rc 2 otherwise).
 
-### 1.15 `sandboxes ls --enabled`
+### 1.15 `sandboxes list --enabled`
 
-- argv: `wiki --read-only <key> sandboxes ls --enabled --json` (also
+- argv: `wiki --read-only <key> sandboxes list --enabled --json` (also
   `--disabled`, glob). Answer `Listing`, `OPS/sandboxes/ls.py:32`. Dashboard
   reads only `{name, enabled}`.
 
@@ -824,9 +824,9 @@ interface SandboxRow {
 `--enabled` keeps states enabled|drifted|linked. Example (real): five rows,
 all `{"state":"enabled","enabled":true,"drifted":false,"drift_level":"none","next":"","warnings":[]}`.
 
-### 1.16 `inboxes ls`
+### 1.16 `inboxes list`
 
-- argv: `wiki --read-only <key> inboxes ls --json` (give an inbox name, and
+- argv: `wiki --read-only <key> inboxes list --json` (give an inbox name, and
   optionally `--all`, to list ITS messages instead). Answer `Inboxes`,
   `OPS/inboxes/answers.py:19`.
 
@@ -836,7 +836,7 @@ interface InboxesLs { count: number; inboxes: { name: string; state: "declared" 
 
 Undeclared inboxes with no held messages are omitted. Named form returns
 `Inbox` `{inbox, state, count, messages: Row[]}`; without `--all`, only the
-messages this machine should handle. Real (ops 0.11.2, `inboxes ls user --all`):
+messages this machine should handle. Real (ops 0.11.2, `inboxes list user --all`):
 
 ```ts
 interface Row {
@@ -867,7 +867,7 @@ on an older CLI, and `ticket`, the landing ticket that filed it: with no
 
 ### 1.18 Machine verbs (no wiki; `llm-wiki-cli machine ...`; all read tier)
 
-`machine wikis ls --json` - `Listed`, `CLI/wiki/ls.py:14`:
+`machine wikis list --json` - `Listed`, `CLI/wiki/ls.py:14`:
 
 ```json
 { "config": "/home/u/.config/llm-wiki/config.toml", "count": 1,
@@ -878,7 +878,7 @@ Types: `{config:string; count:number; wikis:{key:string; name:string; path:strin
 Registry unreadable -> rc 2 with the reader's sentence. Real on this box: empty
 registry (`count:0`).
 
-`machine runner ls --json` - `Listed`, `CLI/runner/ls.py:32`:
+`machine runner list --json` - `Listed`, `CLI/runner/ls.py:32`:
 
 ```ts
 interface RunnerLs {
@@ -954,9 +954,9 @@ no host entry on this machine: scratch - nothing fires them", fix
   with every line added. A rename commit answers `identical: true` with the
   two paths.
 
-### 1.23 `page ls id=<document_id>`
+### 1.23 `page list id=<document_id>`
 
-- argv: `wiki --read-only <key> page ls id=<id> --json`. The `page ls` rows
+- argv: `wiki --read-only <key> page list id=<id> --json`. The `page list` rows
   of every page carrying the id. Rows gain `title`, `resource`,
   `resource_id`, `job`, `duplicate_of` (the other carriers) and `moved`.
 
@@ -974,19 +974,19 @@ groups `page curate --auto --dry-run sources` leaves to a person, and the open
 `conflicts` records; the text form prints `needs_you: N — /ingest` when N > 0.
 The parts the plugin can list read-only:
 
-- `page ls filter=under:sources filter=lever:ingest=hold`: every held source,
+- `page list filter=under:sources filter=lever:ingest=hold`: every held source,
   by its own key, its bundle root's or `intake.ingest` (#3908); more than the
   count holds, which takes only those with an open record.
-- `page ls filter=prop:root filter=lever:ingest=hold`: the bundle roots, to
+- `page list filter=prop:root filter=lever:ingest=hold`: the bundle roots, to
   group the held pages under (a page's root is the nearest above it).
-- `inboxes ls conflicts --all`: the open conflicts (1.16 rows).
+- `inboxes list conflicts --all`: the open conflicts (1.16 rows).
 
 Since #3940, `needs_you_parts` lists exactly what the count counts:
 `{held: [{path, id}], curate: [{reason, directory}], conflicts: [{id,
 subject}]}`; empty lists beside a zero count, null beside none. #3933 adds a
 top-level `blocked: [{job, reason, next}]`, folded into `needs_you` and not
 into the parts, so `needs_you = parts + blocked`. A held source with no open
-record is in the `page ls` list and not in the parts: the plugin shows it as
+record is in the `page list` list and not in the parts: the plugin shows it as
 held, not waiting. The roots read is `filter=under:sources` too.
 
 ### 1.25 `git status`
@@ -1036,11 +1036,11 @@ under one folder: `folders` is that one) | `scattered` (outside, in several:
 gate skips every stage of a `renamed` or `scattered` job. `--edits` answers
 `{held: {...}}` instead, the counts `status` carries (1.29).
 
-### 1.28 `page ls filter=prop:ops.updates_waiting`
+### 1.28 `page list filter=prop:ops.updates_waiting`
 
 A `prop:` group with no value matches a key that is set and not `false`
 (`OPS/lib/page/properties.py` `matches`), so this lists every page carrying
-`ops.updates_waiting` (`page ls` rows, 1.4). The landing sets it under the
+`ops.updates_waiting` (`page list` rows, 1.4). The landing sets it under the
 `hold` edits policy, or on a key clash (`OPS/lib/page/keymerge.py`), and
 always files the incoming copy at `<dir>/_versions/<stem>.incoming.md`;
 `page resolve <page> mine|theirs` clears it, with or without a page-conflicts
@@ -1112,7 +1112,7 @@ Exit codes (`request.py` + `Requested.exit_code`, `answers.py:267`):
 
 Refusal sentences (rc 2; discriminate by text/prefix):
 - jail: `jobs request is the host's - a jailed supervisor holds, retries, drops, or waits for the pass - it starts nothing and edits no job`
-- unknown job: `no job '<slug>' - `jobs ls` names every job this wiki declares`
+- unknown job: `no job '<slug>' - `jobs list` names every job this wiki declares`
 - bad wait: `wait='x' - a period is <count><s|m|h|d|w>, e.g. wait=6h`
 - paused: `<slug>: paused - `jobs resume <slug>` first`
 - gap: `<slug>: <stage> landed <N>s ago - a request waits <M>s more (jobs.request_gap_seconds <G>)` (default gap 60 s; machine config `[jobs] request_gap_seconds`, wiki `.llm-wiki.toml` lower wins)
@@ -1188,7 +1188,7 @@ sandbox runtime and harness this machine configured; failures show in
   - retry on a non-parked ticket: `<id>: routine/pending, not parked - retry puts a parked (failed) ticket back`
   - drop on a done ticket: `<id>: routine/done - drop takes a pending or parked (failed) ticket`
   - drop on an active ticket: `<id>: active - `tickets close <id>` ends an active ticket`
-  - unknown id: `no ticket 'x' in any queue - `tickets ls` names what each holds`
+  - unknown id: `no ticket 'x' in any queue - `tickets list` names what each holds`
   - already waiting: `<id> is already waiting in <queue>/pending`
   - missing arg: `<id> is required`; read-only.
 - Neither requires the job's checkout to be joined in the code path I ran, but
@@ -1273,7 +1273,7 @@ Refusals: read-only; a search config the reader refuses.
 
 - argv: `wiki <key> page adopt <path> [<path>...] --json`. Write tier.
 - Answer `Changed` (same shape as `page curate`), verb `OPS/page/adopt.py:39`:
-  rows are the page's `page ls` row plus `action: "adopted" | "observed"`
+  rows are the page's `page list` row plus `action: "adopted" | "observed"`
   (`observed` = a non-markdown file got a stub sibling page). Mints
   `document_id` into frontmatter and queues extraction for a source file.
 - Refusals (rc 2): `no such page: <p>`; a path outside the content trees.
@@ -1358,13 +1358,13 @@ detached | ...)`, plus push recovery notes. Refusals (rc 2): jailed
   keep=theirs`; `<p> carries no <keep> version in the index`; jailed; read-only.
 
 ---------------------------------------------------------------------------
-### 2.14 `inboxes read|rm|done <inbox> <id>`, `inboxes sweep [<inbox>]`
+### 2.14 `inboxes read|remove|done <inbox> <id>`, `inboxes sweep [<inbox>]`
 
 - `read` drops this machine's read marker (committed, so a write) and answers
   `{inbox, id, frontmatter, body}`; frontmatter values come back as strings,
   `"true"`/`"false"` included, `from` as an object (`actor`, `unit`…), plus
   `claimed_unit` and `evidence` when the writer gave them.
-- `rm` removes one message, or moves it under `_archive/` where
+- `remove` removes one message, or moves it under `_archive/` where
   `[inboxes] archive` is on.
 - `sweep` closes out every message ticked `done` (default inbox `user`):
   `{inbox, count, swept: [{id, action, to, reply_id, reason}]}`, `action`
@@ -1383,7 +1383,7 @@ detached | ...)`, plus push recovery notes. Refusals (rc 2): jailed
   keeps it too. A refused forward is an error; the answer and tick stay in
   the file, and a second `--stdin` answer to it is refused.
 - On a CLI without `done` the plugin ticks `done` itself (Obsidian's
-  frontmatter writer) and sweeps, or runs `rm` when there is no `reply_to`.
+  frontmatter writer) and sweeps, or runs `remove` when there is no `reply_to`.
   It tells the two apart by `whereami`'s `needs_you_parts`, which came in the
   same change.
 
@@ -1468,20 +1468,20 @@ did not). Exact refusal, rc 2: `this checkout has not joined the wiki at
 <path> - `llm-wiki-ops join key=<key>` mints the machine id a claim is filed
 under, and there is none here` (`OPS/jobs/claims.py:96 owner()`). Tested on
 an `init`-only wiki:
-- REFUSE: `jobs ls` (also `--verbose`), `jobs due`, `jobs show`, `jobs run`,
+- REFUSE: `jobs list` (also `--verbose`), `jobs due`, `jobs show`, `jobs run`,
   `jobs request` (on an active job; a paused one refuses "paused" first).
   By code, anything calling `claims.owner` [unverified individually].
 - WORK (rc 0): `doctor` (`ok:false, overall:"fail", failing:["machine",
   "agents-link","skills-link"], worst.fix:"llm-wiki-ops join key=<key>"`),
-  `status --peers` (`joined:false, machine:null, peers:[]`), `tickets ls|show`,
-  `page ls`, `git changed|conflicts|sync`, `op since|logs`, `search
-  status|index`, `skills ls`, `sandboxes ls`, `inboxes ls`, `jobs pause|resume`.
+  `status --peers` (`joined:false, machine:null, peers:[]`), `tickets list|show`,
+  `page list`, `git changed|conflicts|sync`, `op since|logs`, `search
+  status|index`, `skills list`, `sandboxes list`, `inboxes list`, `jobs pause|resume`.
   `tickets retry|drop` and `page curate|retire` showed no join refusal (they
   refused only on the missing ticket/page).
 
 (b) The WIKI is not in the machine registry: the forwarder refuses every
 `wiki <key> ...` with rc 2 `{"error":"no wiki 'nokey' - registered: scratch"}`
-(real). `machine wikis ls|runner ls|doctor` need no wiki.
+(real). `machine wikis list|runner list|doctor` need no wiki.
 
 ### (3) `jobs request` with no runner installed
 

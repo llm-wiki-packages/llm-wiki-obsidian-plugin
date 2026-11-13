@@ -1,7 +1,7 @@
 // The blocks other writers keep on a page, read the way the CLI reads them (`OPS/lib/page/blocks.py`): a marker is a
 // whole line, `<!-- ops <writer>:<id> [k=v ...] -->` opens and `<!-- /ops <writer>:<id> -->` closes, blocks nest but
 // never cross, a marker inside a code fence is an example. A malformed marker stays text: only well-formed blocks are
-// returned, as the CLI's `page block ls` would list them. Nothing here touches Obsidian; the editor extension does.
+// returned, as the CLI's `page block list` would list them. Nothing here touches Obsidian; the editor extension does.
 
 const WRITER = '[a-z0-9][a-z0-9._/:-]*'
 const ID = '[a-z0-9-]+'

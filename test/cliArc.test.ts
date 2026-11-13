@@ -1,5 +1,5 @@
 // The plugin side of llm-wiki-plugins #3675 and #3687: the CLI's layout,
-// `git status`, `page diff`, `page ls id=` and `page fix`, and the editor origin.
+// `git status`, `page diff`, `page list id=` and `page fix`, and the editor origin.
 // The answers below are real ones, captured from a scratch wiki on the CLI
 // branch (#3689 over main at bca44b6fe).
 import { afterEach, describe, expect, it } from 'vitest'

@@ -39,7 +39,7 @@ describe('the inbox verbs', () => {
 })
 
 describe('inbox answers into the model', () => {
-  it('reads seen, done, reply_to, the job and the CLI\'s path off an `inboxes ls` row', () => {
+  it('reads seen, done, reply_to, the job and the CLI\'s path off an `inboxes list` row', () => {
     const row = { id: 'a-1', subject: 'Hi', at: '2026-11-02T07:00:00Z', state: 'seen 2026-11-02T07:10:00Z', done: true, reply_to: 'improve', in_reply_to: null, readable: true, path: 'inboxes/user/20261102-hi-renamed.md' }
     const m = messageOf('user', row)
     expect(m).toEqual({ inbox: 'user', id: 'a-1', path: 'inboxes/user/20261102-hi-renamed.md', jobAsk: false, job: null, subject: 'Hi', at: '2026-11-02T07:00:00Z', seen: true, done: true, replyTo: 'improve', inReplyTo: null, readable: true })
@@ -257,7 +257,7 @@ describe('Done', () => {
     await closeMessage(unknown.app, unknown.actions, m, true)
     expect(unknown.did).toEqual(['save', `done user ${m.id} --answered`])
   })
-  it('an older CLI asks before `inboxes rm` deletes a typed answer, and keeps the message on no', async () => {
+  it('an older CLI asks before `inboxes remove` deletes a typed answer, and keeps the message on no', async () => {
     const m = msg({ replyTo: null })
     const asked: string[] = []
     const no = fakeApp(m.path, { body: 'Which one?\nMine.\n' })
@@ -281,7 +281,7 @@ describe('Done', () => {
     await closeMessage(app, actions, m, false)
     expect(did).toEqual(['save', 'sweep user'])
   })
-  it('an older CLI, with nowhere to send an answer and none typed: the note saved, then one `inboxes rm`, no tick, no question', async () => {
+  it('an older CLI, with nowhere to send an answer and none typed: the note saved, then one `inboxes remove`, no tick, no question', async () => {
     const m = msg({ replyTo: null })
     const { app, actions, did } = fakeApp(m.path)
     await closeMessage(app, actions, m, false, { baseline: 'Which one?\n', confirmDelete: () => Promise.reject(new Error('asked')) })

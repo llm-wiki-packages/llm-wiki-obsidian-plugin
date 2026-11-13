@@ -63,7 +63,7 @@ switches; a snapshot never redraws them. Text is selectable everywhere.
   wiki yet", what a job and a skill are, **Add a source…** and **Browse skills**.
 
 **Inbox** — what a skill or an agent asked you, and what waits on your
-judgment. Every row is the CLI's (`inboxes ls user --all`, `whereami`). The
+judgment. Every row is the CLI's (`inboxes list user --all`, `whereami`). The
 tab's count is the messages plus each listed item (held source, conflict,
 blocked job); curate's groups are not in it, they are judged on Changes. The
 health pill counts kinds of trouble instead, and its hover says so.
@@ -84,7 +84,7 @@ health pill counts kinds of trouble instead, and its hover says so.
   `reply_to` as `Re:` with the answer; with nowhere to go, an answer is
   archived and a message with none removed; a job ask (filed from a landing
   ticket, no `reply_to`) is ticked and stays for the job's next run. On a CLI without `inboxes done`,
-  Done ticks `done` and runs `inboxes sweep`, or runs `inboxes rm` when there
+  Done ticks `done` and runs `inboxes sweep`, or runs `inboxes remove` when there
   is no `reply_to`, asking first when an answer may be in the body. The chat icon hands the message to chat
   (`About the message … [[path]]: `). Under *Answered*: a job ask already
   answered ("job X picks it up next run"), and messages ticked done in the
@@ -142,7 +142,7 @@ the state, the reason and the last failure), Close.
   `/brain:enable <name>`.
 - *Available from the package*: rows with the unit's description (the
   package manifest's, else its SKILL.md's); **Add** → chat `/brain:enable <name>`.
-  A held unit's description is its `skills ls` row's; from an older CLI, its
+  A held unit's description is its `skills list` row's; from an older CLI, its
   SKILL.md's first sentence.
 **Credentials** — *Stored on this machine*: every credential by name, kind
 (secret / folder / login) and state pill (verified · failed · stale · empty ·
@@ -227,7 +227,7 @@ right. The ring and Send stay together when the row wraps.
 - Send: one button. While a turn runs it is red, spins, and says Stop.
 - `/` at the start of a line opens a list of skills above the box (name,
   arguments, description); arrows move, Enter or Tab takes, Escape shuts.
-  A setting turns it off. The list is the `skills ls` rows whose mode
+  A setting turns it off. The list is the `skills list` rows whose mode
   includes `session`: the plugin's typed `/brain:<name>`, an enabled unit's
   `/<name>`. A pipeline-only skill (`/brain:wiki-report`) is not offered and
   can still be typed. From an older CLI, the plugin's skills as installed.
@@ -262,7 +262,7 @@ behind, Allow for this turn leaves a small mark, Deny leaves "Denied" on the
 row, and a card the turn ended under reads "Not answered".
 
 Ask first asks about writes. The wiki's read verbs (`whereami`, `op since`,
-`page ls`, `--help`, …) run without a card, as a Read does: the plugin passes
+`page list`, `--help`, …) run without a card, as a Read does: the plugin passes
 them as allow rules until the wiki's seeded settings carry them
 (llm-wiki-plugins #3695). The context ring stays hidden until the first reply
 says how full the window is.
@@ -392,8 +392,8 @@ It renders the real views over fixture data with a stand-in for Obsidian's API.
 
 ## Review log
 
-- **Cycle 1 (2026-10-23)**: added the Skills tab (units from `skills ls`, the
-  package's catalog, credentials from `credentials ls` + `bindings`), the
+- **Cycle 1 (2026-10-23)**: added the Skills tab (units from `skills list`, the
+  package's catalog, credentials from `credentials list` + `bindings`), the
   credential dialog, the skill inspector, the unbound job state, the dynamic
   chat skill list. Fable design memo adopted: credentials live under Skills,
   one pill per row, silence means fine.
@@ -503,7 +503,7 @@ name with a "pages written" row that lands on them.
   what was denied or failed. The rows are muted and spaced off the reply, so
   the work and the words no longer blur.
 - **Cycle 12 (2026-10-27)**: skill modes (llm-wiki-plugins #3702). The `/`
-  list and Skills… read `skills ls` and offer the skills whose mode includes
+  list and Skills… read `skills list` and offer the skills whose mode includes
   `session`, so `wiki-report` leaves autocomplete; the Jobs tab lists what a
   job can run (mode `pipeline`, plugin routines included); a skill with both
   is in both. Descriptions come from the manifest, and Run on the Skills tab
@@ -525,7 +525,7 @@ name with a "pages written" row that lands on them.
 - **Cycle 14 (2026-10-27)**: More › Config, the wiki's own settings beside
   the plugin's, each linking to the other. Values come from `config get`, one
   key at a time, from a list kept in the plugin (`KNOBS` in
-  `src/wiki/config.ts`) that stands in for a `config ls` the CLI does not have
+  `src/wiki/config.ts`) that stands in for a `config list` the CLI does not have
   yet. A change keeps to the file the value is in, so a person never chooses
   between committed and local. A key a single `config set` changes (name,
   template rules, job defaults, settle window, inbox archive, run caps,

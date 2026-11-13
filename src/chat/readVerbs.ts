@@ -19,16 +19,18 @@ export const READ_VERBS = [
   'page backlinks', 'page block list', 'page block read', 'page diff', 'page explain', 'page graph', 'page health',
   'page history', 'page links', 'page lint', 'page list', 'page read', 'page template', 'page types', 'page written',
   'policy get', 'policy list', 'reference',
-  'sandboxes check', 'sandboxes list', 'sandboxes show', 'sandboxes why',
+  'sandboxes check', 'sandboxes login-check', 'sandboxes list', 'sandboxes show', 'sandboxes why',
   'search query', 'search status', 'skills diff', 'skills doctor', 'skills list', 'skills search',
   'status', 'tickets list', 'tickets open', 'tickets show', 'tickets wait', 'version', 'whereami',
 ] as const
 
-/** The list verbs were `ls` before ops 0.16 and still answer to it, so an older skill's lookup reads without asking too. */
-const ALIASES = READ_VERBS.filter((v) => v.endsWith(' list')).map((v) => `${v.slice(0, -' list'.length)} ls`)
-
 /** The groups, so `llm-wiki-ops <group> --help` reads too. */
 const GROUPS = [...new Set(READ_VERBS.map((v) => v.split(' ')[0]!))]
+
+/** Every read verb as typed: a `list` verb also answers to `ls`, its CLI alias. */
+function spellings(): string[] {
+  return READ_VERBS.flatMap((v) => (v.endsWith(' list') ? [v, v.replace(/ list$/, ' ls')] : [v]))
+}
 
 /**
  * Claude Code permission rules for the read verbs, with and without the
@@ -37,7 +39,7 @@ const GROUPS = [...new Set(READ_VERBS.map((v) => v.split(' ')[0]!))]
  */
 export function readRules(): string[] {
   const rules = ['Bash(llm-wiki-ops --help:*)', 'Bash(llm-wiki-ops --version:*)']
-  for (const v of [...READ_VERBS, ...ALIASES]) rules.push(`Bash(llm-wiki-ops ${v}:*)`, `Bash(llm-wiki-ops --json ${v}:*)`)
+  for (const v of spellings()) rules.push(`Bash(llm-wiki-ops ${v}:*)`, `Bash(llm-wiki-ops --json ${v}:*)`)
   for (const g of GROUPS) rules.push(`Bash(llm-wiki-ops ${g} --help:*)`)
   return rules
 }

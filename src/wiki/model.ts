@@ -84,7 +84,7 @@ export type SkillState = 'enabled' | 'installed' | 'available'
 export interface SkillView {
   name: string
   state: SkillState
-  /** The manifest's description from `skills ls`; from an older CLI, the first sentence of its SKILL.md's, when readable. */
+  /** The manifest's description from `skills list`; from an older CLI, the first sentence of its SKILL.md's, when readable. */
   description: string
   /** `pipeline` (a job can name it), `session` (a person runs it), or both; null on a copy the author has not filled; absent from an older CLI. */
   mode?: string[] | null
@@ -116,7 +116,7 @@ export interface SkillView {
 
 /** A skill a job can name: a unit with a stage, or one of the `brain` plugin's routines. */
 export interface PipelineView {
-  /** As `skills ls` names it: `channel-gmail`, or `PLUGIN:curate` for a plugin routine. */
+  /** As `skills list` names it: `channel-gmail`, or `PLUGIN:curate` for a plugin routine. */
   name: string
   plugin: boolean
   description: string
@@ -145,7 +145,7 @@ export interface CredentialView {
 /** Where a page stands in the wiki, in a person's words (#3669's three facts). */
 export type PageState = 'new' | 'draft' | 'accepted' | 'archived' | 'none'
 
-/** One lifecycle page as `page ls` reports it. Title, job and times are Obsidian's to read at render. */
+/** One lifecycle page as `page list` reports it. Title, job and times are Obsidian's to read at render. */
 export interface PageItem {
   path: string
   state: PageState
@@ -203,7 +203,7 @@ export interface Commit {
   revision?: number | null
 }
 
-/** One message in an inbox, as `inboxes ls <inbox> --all` lists it. */
+/** One message in an inbox, as `inboxes list <inbox> --all` lists it. */
 export interface InboxMessage {
   inbox: string
   id: string
@@ -292,7 +292,7 @@ export interface Snapshot {
   skills: SkillView[]
   /** What a job can run, from each row's mode; from an older CLI, the units with a stage and no plugin routines. */
   pipeline: PipelineView[]
-  /** The chat `/` list, from the same `skills ls` read; null from an older CLI, whose rows say no mode, or when the read failed. */
+  /** The chat `/` list, from the same `skills list` read; null from an older CLI, whose rows say no mode, or when the read failed. */
   palette: SkillEntry[] | null
   credentials: CredentialView[]
   /** Every lifecycle page; null when the page list could not be read. */

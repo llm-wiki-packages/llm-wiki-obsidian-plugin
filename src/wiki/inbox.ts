@@ -1,5 +1,5 @@
 // The inbox answers into the model, and the sentences its writes say. The one place that knows
-// `inboxes ls`, `inboxes read`, `inboxes done`, `inboxes sweep` and `whereami`'s needs-you field names
+// `inboxes list`, `inboxes read`, `inboxes done`, `inboxes sweep` and `whereami`'s needs-you field names
 // (docs/cli-shapes.md 1.16, 1.24, 2.14).
 import { slash } from '../chat/skills'
 import type { AttentionItem, BlockedJob, HeldGroup, InboxMessage, NeedsYouParts } from './model'
@@ -7,7 +7,7 @@ import type { AttentionItem, BlockedJob, HeldGroup, InboxMessage, NeedsYouParts 
 /** The inbox a person answers; `init` seeds it and `inboxes sweep` closes it out by default. */
 export const USER_INBOX = 'user'
 
-/** One row of `inboxes ls <inbox> --all`. */
+/** One row of `inboxes list <inbox> --all`. */
 export interface InboxRow {
   id: string
   subject?: string
@@ -161,7 +161,7 @@ export function sweptSentence(a: SweptAnswer, m: Pick<InboxMessage, 'id' | 'subj
 
 /**
  * What Done will do to this message, in the words a row and its button say. `typed`: an answer is in the body. An
- * older CLI has no `inboxes done` and so no archive for it: there `inboxes rm` deletes what was typed.
+ * older CLI has no `inboxes done` and so no archive for it: there `inboxes remove` deletes what was typed.
  */
 export function doneWords(m: Pick<InboxMessage, 'replyTo' | 'job' | 'jobAsk'>, typed = false, inboxDone = true): string {
   if (m.jobAsk) return `Done answers ${m.job ? `job ${m.job}` : 'the job'}: it picks the answer up next run`

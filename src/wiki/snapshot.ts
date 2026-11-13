@@ -125,7 +125,7 @@ export interface SkillRow {
   mode?: string[] | null
   description?: string | null
   argument_hint?: string | null
-  /** Only on an exact `skills ls <name>`. */
+  /** Only on an exact `skills list <name>`. */
   manifest?: {
     requires?: { credentials?: Record<string, string> }
     usage?: string
