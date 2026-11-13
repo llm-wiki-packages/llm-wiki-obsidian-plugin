@@ -41,3 +41,15 @@ describe('the wiki’s Obsidian settings on an older vault (#6)', () => {
     expect(vaultMissing({ vault: {} } as unknown as App)).toBeNull()
   })
 })
+
+describe('the box types on a newer Obsidian (getAssignedWidget, assignedWidgets)', () => {
+  const app = (m: Record<string, unknown>) => ({ vault: { getConfig: () => ['_raw/'], setConfig: () => undefined }, metadataTypeManager: { setType: () => undefined, ...m } }) as never
+  it('sees types Apply saved, so the offer does not come back', () => {
+    const typed: Record<string, string> = { draft: 'checkbox', archive: 'checkbox', done: 'checkbox' }
+    expect(vaultMissing(app({ getAssignedWidget: (k: string) => typed[k.toLowerCase()] ?? null }))).toEqual({ raw: false, boxes: [] })
+    expect(vaultMissing(app({ assignedWidgets: { draft: { name: 'Draft', widget: 'checkbox' }, archive: { widget: 'checkbox' }, done: { widget: 'checkbox' } } }))).toEqual({ raw: false, boxes: [] })
+  })
+  it('still offers the keys no type is assigned to', () => {
+    expect(vaultMissing(app({ getAssignedWidget: (k: string) => (k === 'done' ? 'checkbox' : null) }))?.boxes).toEqual(['Draft', 'Archive'])
+  })
+})

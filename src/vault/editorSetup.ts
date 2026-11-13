@@ -41,7 +41,11 @@ export const nothingMissing = (m: Missing): boolean => !m.raw && !m.boxes.length
 interface Internals {
   vault: { getConfig?: (key: string) => unknown; setConfig?: (key: string, value: unknown) => void }
   metadataTypeManager?: {
+    /** Obsidian 1.9 and later; `getAssignedType` before. */
+    getAssignedWidget?: (key: string) => string | null | undefined
     getAssignedType?: (key: string) => string | null | undefined
+    /** Obsidian 1.9 and later, keyed lower-case; `types` before. */
+    assignedWidgets?: Record<string, { widget?: string } | undefined>
     types?: Record<string, { type?: string } | undefined>
     setType?: (key: string, type: string) => void
   }
@@ -49,9 +53,19 @@ interface Internals {
 
 const internals = (app: App) => app as unknown as Internals
 
-function typeOf(app: App): (key: string) => string | null | undefined {
+/**
+ * The type a key is assigned. Obsidian renamed the call (`getAssignedType` to `getAssignedWidget`) and its table
+ * (`types` to `assignedWidgets`); reading only the old names found nothing on a newer Obsidian, so the offer came
+ * back on every launch though Apply had saved the types.
+ */
+export function typeOf(app: App): (key: string) => string | null | undefined {
   const m = internals(app).metadataTypeManager
-  return (key) => (m?.getAssignedType ? m.getAssignedType(key) : m?.types?.[key.toLowerCase()]?.type)
+  return (key) => {
+    if (m?.getAssignedWidget) return m.getAssignedWidget(key)
+    if (m?.getAssignedType) return m.getAssignedType(key)
+    const k = key.toLowerCase()
+    return m?.assignedWidgets?.[k]?.widget ?? m?.types?.[k]?.type
+  }
 }
 
 /** What this vault lacks and Obsidian lets this plugin add; null when it exposes neither part. */
